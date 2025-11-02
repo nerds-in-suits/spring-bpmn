@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ++++++++++++++++++++++++++++++++++++++ -->
+<!-- +++++ findbugs filter definition +++++ -->
+<!-- ++++++++++++++++++++++++++++++++++++++ -->
+<!-- see documentation at http://findbugs.sourceforge.net/manual/filter.html -->
+<FindBugsFilter>
+
+    <!-- do not report EI_EXPOSE_REP for java.util.Date -->
+    <Match>
+        <Bug code="EI,EI2" />
+        <Priority value="2" />
+    </Match>
+
+    <!-- Mockito mock method do not check for the return values... -->
+    <Match classregex=".*Test">
+        <Bug code="RV, CNT" /><!-- RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT and CNT_ROUGH_CONSTANT_VALUE -->
+    </Match>
+
+    <Match>
+        <Or>
+            <Bug pattern="CT_CONSTRUCTOR_THROW" />
+            
+<!--
+            <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE" />
+            <Bug pattern="MS_EXPOSE_REP" />
+            <Bug pattern="BC_UNCONFIRMED_CAST_OF_RETURN_VALUE" />
+            <Bug pattern="MC_OVERRIDABLE_METHOD_CALL_IN_CONSTRUCTOR" />
+            <Bug pattern="EI_EXPOSE_STATIC_REP2" />
+            <Bug pattern="DCN_NULLPOINTER_EXCEPTION" />
+            <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE" />
+            <Bug pattern="NP_LOAD_OF_KNOWN_NULL_VALUE" />
+            <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE" />
+            <Bug pattern="DMI_RANDOM_USED_ONLY_ONCE" />
+  -->
+        </Or>
+    </Match>
+</FindBugsFilter>
