@@ -1,4 +1,4 @@
-package de.nemeses.spring.tasks.jdbc;
+package de.nemeses.spring.tasks.jpa;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;

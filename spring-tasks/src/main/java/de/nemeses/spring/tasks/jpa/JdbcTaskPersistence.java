@@ -1,4 +1,4 @@
-package de.nemeses.spring.tasks.jdbc;
+package de.nemeses.spring.tasks.jpa;
 
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
