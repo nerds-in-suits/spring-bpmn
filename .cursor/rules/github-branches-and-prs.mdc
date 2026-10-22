@@ -1,0 +1,16 @@
+---
+description: Use GitHub feature/bugfix branches and one pull request per task
+alwaysApply: true
+---
+
+# GitHub branches and pull requests
+
+Do not commit or push to `main`. For every task:
+
+1. `git fetch origin` and branch from the latest `origin/main`.
+2. Name it `feature/<short-slug>` or `bugfix/<short-slug>`.
+3. Keep one task on one branch. Open one pull request for that task.
+4. Push with `-u` and create the PR with `gh pr create`.
+5. Do not merge to `main` unless the user explicitly asks.
+
+Examples: `bugfix/jpa-task-persistence`, `feature/agent-github-workflow`.
