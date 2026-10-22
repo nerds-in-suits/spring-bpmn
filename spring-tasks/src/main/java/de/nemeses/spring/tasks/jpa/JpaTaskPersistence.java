@@ -1,18 +1,18 @@
 package de.nemeses.spring.tasks.jpa;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import de.nemeses.spring.tasks.TaskPersistence;
 import jakarta.annotation.PostConstruct;
+import jakarta.persistence.EntityManager;
 
 /**
  *
  */
-public class JdbcTaskPersistence implements TaskPersistence {
-    private final JdbcTemplate template;
+public class JpaTaskPersistence implements TaskPersistence {
+    private final EntityManager template;
 
-    JdbcTaskPersistence(final JdbcTemplate template) {
+    JpaTaskPersistence(final EntityManager template) {
         this.template = template;
     }
 
