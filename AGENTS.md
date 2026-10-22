@@ -8,7 +8,7 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 
 | Module | Artifact | Role |
 |--------|----------|------|
-| `conventions` | `de.nemeses:conventions:1.1.0` | Checkstyle/PMD/SpotBugs rulesets + Eclipse prefs. No Java sources. Independent POM (not using the parent POM as parent). |
+| `conventions` | `de.nemeses:conventions:1.2.0` | Checkstyle/PMD/SpotBugs rulesets + Eclipse prefs. No Java sources. Independent POM (not using the parent POM as parent). |
 | `spring-tasks` | `de.nemeses.spring:spring-tasks` | Persistent task scheduler library. **All current Java lives here.** |
 | `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks`. **POM only — no `src/`.** |
 
@@ -41,7 +41,7 @@ mvn clean install
 
 Do **not** pass `-Dtest=...` on the full reactor (`-am` / root `test`): `conventions` has no tests and Maven will fail or skip oddly.
 
-Quality plugins (Checkstyle 10.18.1, PMD, SpotBugs) are bound to `verify`. Default profile is `nochecks` (empty). Explicit profiles: `checkstyle`, `pmd`, `findbugs`, `codechecks`, `owasp-dependencycheck`. Rulesets come from the `conventions` JAR (`rulesets/checkstyle.xml`, `pmd.xml`, `findbugs.xml`).
+Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are bound to `verify`. Default profile is `nochecks` (empty). Explicit profiles: `checkstyle`, `pmd`, `findbugs`, `codechecks`, `owasp-dependencycheck`. Rulesets come from the `conventions` JAR (`rulesets/checkstyle.xml`, `pmd.xml`, `findbugs.xml`).
 
 Checkstyle also runs on tests (`includeTestSourceDirectory=true`). Files must use **LF** (Windows `\r\n` is a Checkstyle error). No tabs, no trailing whitespace, no `@author` Javadoc, no `System.out`/`System.exit`. Each Java package needs `package-info.java`.
 

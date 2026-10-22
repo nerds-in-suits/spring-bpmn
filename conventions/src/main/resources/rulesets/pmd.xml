@@ -111,7 +111,7 @@
     <rule ref="category/java/codestyle.xml/AvoidDollarSigns" />
     <!-- <rule ref="category/java/codestyle.xml/AvoidFinalLocalVariable" /> -->
     <!-- <rule ref="category/java/codestyle.xml/AvoidProtectedFieldInFinalClass" /> -->
-    <rule ref="category/java/codestyle.xml/AvoidProtectedMethodInFinalClassNotExtending" />
+    <rule ref="category/java/design.xml/ProtectedMemberInFinalClass" />
     <rule ref="category/java/codestyle.xml/AvoidUsingNativeCode" />
     <rule ref="category/java/codestyle.xml/BooleanGetMethodName" />
     <!-- <rule ref="category/java/codestyle.xml/CallSuperInConstructor" /> -->
@@ -202,11 +202,7 @@ public class Something {
         </properties>
     </rule>
     <!-- <rule ref="category/java/codestyle.xml/UnnecessaryAnnotationValueElement" /> -->
-    <rule ref="category/java/codestyle.xml/VariableCanBeInlined" >
-        <properties>
-            <property name="statementOrderMatters" value="false"/>
-        </properties>
-    </rule>
+    <rule ref="category/java/codestyle.xml/VariableCanBeInlined" />
     <rule ref="category/java/codestyle.xml/UnnecessaryModifier" />
     <rule ref="category/java/codestyle.xml/UnnecessaryReturn" />
     <rule ref="category/java/codestyle.xml/UnnecessaryCast" />
@@ -333,8 +329,11 @@ public class Something {
     <rule ref="category/java/errorprone.xml/AvoidAssertAsIdentifier" />
     <rule ref="category/java/errorprone.xml/AvoidBranchingStatementAsLastInLoop" />
     <rule ref="category/java/errorprone.xml/AvoidCallingFinalize" />
-    <rule ref="category/java/errorprone.xml/AvoidCatchingNPE" />
-    <rule ref="category/java/errorprone.xml/AvoidCatchingThrowable" />
+    <rule ref="category/java/errorprone.xml/AvoidCatchingGenericException">
+        <properties>
+            <property name="typesThatShouldNotBeCaught" value="java.lang.NullPointerException,java.lang.Throwable"/>
+        </properties>
+    </rule>
     <rule ref="category/java/errorprone.xml/AvoidDecimalLiteralsInBigDecimalConstructor" />
     <!-- <rule ref="category/java/errorprone.xml/AvoidDuplicateLiterals" /> -->
     <rule ref="category/java/errorprone.xml/AvoidEnumAsIdentifier" />
@@ -342,7 +341,7 @@ public class Something {
     <rule ref="category/java/errorprone.xml/AvoidFieldNameMatchingTypeName" />
     <!-- <rule ref="category/java/errorprone.xml/AvoidInstanceofChecksInCatchClause" /> -->
     <!-- <rule ref="category/java/errorprone.xml/AvoidLiteralsInIfCondition" /> -->
-    <rule ref="category/java/errorprone.xml/UselessPureMethodCall" />
+    <rule ref="category/java/errorprone.xml/UnusedReturnValue" />
     <rule ref="category/java/errorprone.xml/AvoidMultipleUnaryOperators" />
     <rule ref="category/java/errorprone.xml/AvoidUsingOctalValues" >
         <properties>
@@ -353,7 +352,6 @@ public class Something {
     <rule ref="category/java/errorprone.xml/BrokenNullCheck" />
     <!-- <rule ref="category/java/errorprone.xml/CallSuperFirst" /> -->
     <!-- <rule ref="category/java/errorprone.xml/CallSuperLast" /> -->
-    <rule ref="category/java/errorprone.xml/CheckSkipResult" />
     <rule ref="category/java/errorprone.xml/ClassCastExceptionWithToArray" />
     <rule ref="category/java/errorprone.xml/CloneMethodMustBePublic" />
     <!-- <rule ref="category/java/errorprone.xml/CloneMethodMustImplementCloneable" /> -->
@@ -368,7 +366,7 @@ public class Something {
     <rule ref="category/java/errorprone.xml/DoNotExtendJavaLangThrowable" />
     <!-- <rule ref="category/java/errorprone.xml/DoNotHardCodeSDCard" /> -->
     <rule ref="category/java/errorprone.xml/DoNotThrowExceptionInFinally" />
-    <rule ref="category/java/errorprone.xml/DontImportSun" />
+    <rule ref="category/java/errorprone.xml/UnsupportedJdkApiUsage" />
     <rule ref="category/java/errorprone.xml/DontUseFloatTypeForLoopIndices" />
     <rule ref="category/java/errorprone.xml/EmptyCatchBlock" />
     <rule ref="category/java/codestyle.xml/EmptyControlStatement" />
