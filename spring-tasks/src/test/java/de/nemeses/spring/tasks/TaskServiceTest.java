@@ -1,10 +1,9 @@
 package de.nemeses.spring.tasks;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,8 +25,8 @@ public class TaskServiceTest {
     @Test
     public void testSchedule() {
         this.taskService.trigger("testTaskImplementation", TestPayload.generate());
-        assertEquals(1, this.persistence.persisted().size());
-        assertEquals("testTaskImplementation", this.persistence.persisted().get(0).beanName());
+        Assertions.assertEquals(1, this.persistence.persisted().size());
+        Assertions.assertEquals("testTaskImplementation", this.persistence.persisted().get(0).beanName());
     }
 
     /**
