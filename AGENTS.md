@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Cursor and other agents working in this repository.
+This file provides guidance to Claude Code, Cursor and other agents working in this repository.
 
 ## What this repo is
 
@@ -8,7 +8,7 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 
 | Module | Artifact | Role |
 |--------|----------|------|
-| `conventions` | `de.nemeses:conventions:1.2.0` | Checkstyle/PMD/SpotBugs rulesets + Eclipse prefs. No Java sources. Independent POM (not using the parent POM as parent). |
+| `conventions` | `de.nemeses:conventions:1.2.0` | Checkstyle/PMD/SpotBugs rulesets (`src/main/resources/rulesets/`) + Eclipse prefs (`configuration/eclipse/`). No Java sources. Independent POM (not using the parent POM as parent). |
 | `spring-tasks` | `de.nemeses.spring:spring-tasks` | Persistent task scheduler library. **All current Java lives here.** |
 | `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks`. **POM only — no `src/`.** |
 
@@ -28,20 +28,20 @@ Examples: `bugfix/jpa-task-persistence`, `feature/agent-github-workflow`.
 
 ## Commands
 
-From repo root (`C:\projects\spring-bpmn`). No `mvnw`.
+From repo root. No `mvnw`.
 
 ```text
 mvn clean compile
 mvn -pl spring-tasks test
 mvn -pl spring-tasks test -Dtest=JsonPayloadTaskImplementationTest
-mvn -pl spring-tasks test -Dtest=TaskServiceTest
+mvn -pl spring-tasks test -Dtest=TaskServiceTest#testSchedule
 mvn clean verify
 mvn clean install
 ```
 
 Do **not** pass `-Dtest=...` on the full reactor (`-am` / root `test`): `conventions` has no tests and Maven will fail or skip oddly.
 
-Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are bound to `verify`. Default profile is `nochecks` (empty). Explicit profiles: `checkstyle`, `pmd`, `findbugs`, `codechecks`, `owasp-dependencycheck`. Rulesets come from the `conventions` JAR (`rulesets/checkstyle.xml`, `pmd.xml`, `findbugs.xml`).
+Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are bound to `verify`. Default profile is `nochecks` (empty), so the checks only run with an explicit profile: `checkstyle`, `pmd`, `findbugs`, `codechecks` (all three), or `owasp-dependencycheck`. Rulesets come from the `conventions` JAR, so install `conventions` before running checks in other modules.
 
 Checkstyle also runs on tests (`includeTestSourceDirectory=true`). Files must use **LF** (Windows `\r\n` is a Checkstyle error). No tabs, no trailing whitespace, no `@author` Javadoc, no `System.out`/`System.exit`. Each Java package needs `package-info.java`.
 
@@ -63,25 +63,26 @@ Key types (`spring-tasks/src/main/java/de/nemeses/spring/tasks/`):
 - `TaskPersistence` + record `Data`.
 - `TaskException`, `PayloadException`.
 
-JPA (`...tasks.jpa`): `JpaTaskPersistenceAutoConfiguration` (`@ConditionalOnBean(EntityManager)`, `@ConditionalOnMissingBean(TaskPersistence)`), `JpaTaskPersistence`, incomplete `TaskEntity`. Table name in SQL: `spring_tasks` (`beanname`, `payload`, `execution`). JPA starter is **`provided`** — consumers must bring it.
+JPA (`...tasks.jpa`): `JpaTaskPersistenceAutoConfiguration` (`@ConditionalOnBean(EntityManager)`, `@ConditionalOnMissingBean(TaskPersistence)`) registers `JpaTaskPersistence`, which calls `EntityManager.persist` on a `TaskEntity` inside `@Transactional`. `TaskEntity` maps table `spring_tasks` (`beanname`, `payload`, `execution`). JPA starter is **`provided`** — consumers must bring it.
 
-JMS (`...tasks.jms`): `JmsTaskPersistenceAutoConfiguration` is an empty stub (`spring-jms` / `jakarta.jms-api` also `provided`).
+JMS (`...tasks.jms`): `JmsTaskPersistenceAutoConfiguration` is an empty stub, conditional on `jakarta.jms.Message`, `JmsTemplate` and a `ConnectionFactory` bean (`spring-jms` / `jakarta.jms-api` also `provided`).
 
-Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded). `JsonPayloadTaskImplementationTest` is a plain unit test. `TaskServiceTest` uses `@SpringBootTest(classes = TaskConfiguration.class)` and bean name `"testTaskImplementation"`. Test logging: `spring-tasks/src/test/resources/logback-spring.xml`.
+Both auto-configurations are registered in `spring-tasks/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`; the JPA one runs after `HibernateJpaAutoConfiguration` so its `EntityManager` condition can match. New auto-configurations must be added to that file.
+
+Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded). `JsonPayloadTaskImplementationTest` is a plain unit test. `TaskServiceTest` uses `@SpringBootTest` with `TaskConfiguration` plus a nested config providing a recording `TaskPersistence`, and bean name `"testTaskImplementation"`. Test logging: `spring-tasks/src/test/resources/logback-spring.xml`.
 
 No runnable `@SpringBootApplication` main class.
 
 ## Current gaps (do not paper over)
 
 - **`spring-bpmn` has no sources.** Do not invent Camunda-like APIs or BPMN XML until that module exists.
-- **Boot 3 auto-config is not registered.** There is no `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`. `@AutoConfiguration` classes will not load unless the app `@Import`s them.
-- **`JpaTaskPersistence.persist` calls `EntityManager.update(...)`**, which is not a JPA API (looks like leftover `JdbcTemplate`). `TaskEntity` has no `@Entity` and is unused.
-- **`JmsTaskPersistenceAutoConfiguration`** conditions on `org.apache.logging.log4j.message.Message` rather than a JMS type.
-- **`TaskServiceTest` has no `TaskPersistence` bean** and no test-scoped JPA; the Spring context will fail until a stub or auto-config is wired.
+- **No JMS persistence yet.** `JmsTaskPersistenceAutoConfiguration` is an empty stub; it does not register a `TaskPersistence`.
+- **JPA auto-config is untested.** `TaskServiceTest` uses a recording stub `TaskPersistence`; nothing exercises `JpaTaskPersistence` against a real `EntityManager`.
 
 ## Style and extension points
 
-- Match existing Java: constructor injection, package-private constructors for Spring beans, `final` locals, SLF4J via `LoggerFactory`.
+- Match existing Java: constructor injection, package-private constructors for Spring beans, `final` parameters and locals, `this.` for member access, SLF4J via `LoggerFactory`, and an empty `/** * */` Javadoc header on classes.
+- Code style is defined by the rulesets and Eclipse settings in `conventions/`.
 - New task types: Spring beans implementing `TaskImplementation`; callers pass the **bean name** string.
 - New persistence: implement `TaskPersistence`, expose a `@Bean` (or finish auto-config **and** register it in `AutoConfiguration.imports`). Prefer `@ConditionalOnMissingBean(TaskPersistence.class)` so one backend wins.
 - Engine work belongs in `spring-bpmn`, built on `TaskService` / named task beans, not a second scheduler.
