@@ -19,7 +19,8 @@
     
     <properties>
         <java.version>25</java.version>
-        <conventions.version>1.1.0</conventions.version>
+        <conventions.version>1.2.0</conventions.version>
+        <pmd.version>7.28.0</pmd.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -85,7 +86,7 @@
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>4.9.6.0</version>
+                <version>4.10.5.0</version>
                 <configuration>
                     <threshold>Low</threshold>
                     <excludeFilterFile>rulesets/findbugs.xml</excludeFilterFile>
@@ -135,6 +136,16 @@
                         <artifactId>conventions</artifactId>
                         <version>${conventions.version}</version>
                     </dependency>
+                    <dependency>
+                        <groupId>net.sourceforge.pmd</groupId>
+                        <artifactId>pmd-core</artifactId>
+                        <version>${pmd.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>net.sourceforge.pmd</groupId>
+                        <artifactId>pmd-java</artifactId>
+                        <version>${pmd.version}</version>
+                    </dependency>
                 </dependencies>
             </plugin>
             <plugin>
@@ -156,7 +167,7 @@
                     <dependency>
                         <groupId>com.puppycrawl.tools</groupId>
                         <artifactId>checkstyle</artifactId>
-                        <version>10.18.1</version>
+                        <version>14.3.0</version>
                     </dependency>
                 </dependencies>
                 <executions>

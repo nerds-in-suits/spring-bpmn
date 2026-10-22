@@ -8,7 +8,7 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 
 | Module | Artifact | Role |
 |--------|----------|------|
-| `conventions` | `de.nemeses:conventions:1.1.0` | Checkstyle/PMD/SpotBugs rulesets (`src/main/resources/rulesets/`) + Eclipse prefs (`configuration/eclipse/`). No Java sources. Independent POM (not using the parent POM as parent). |
+| `conventions` | `de.nemeses:conventions:1.2.0` | Checkstyle/PMD/SpotBugs rulesets (`src/main/resources/rulesets/`) + Eclipse prefs (`configuration/eclipse/`). No Java sources. Independent POM (not using the parent POM as parent). |
 | `spring-tasks` | `de.nemeses.spring:spring-tasks` | Persistent task scheduler library. **All current Java lives here.** |
 | `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks`. **POM only — no `src/`.** |
 
@@ -41,7 +41,7 @@ mvn clean install
 
 Do **not** pass `-Dtest=...` on the full reactor (`-am` / root `test`): `conventions` has no tests and Maven will fail or skip oddly.
 
-Quality plugins (Checkstyle 10.18.1, PMD, SpotBugs) are bound to `verify`. Default profile is `nochecks` (empty), so the checks only run with an explicit profile: `checkstyle`, `pmd`, `findbugs`, `codechecks` (all three), or `owasp-dependencycheck`. Rulesets come from the `conventions` JAR, so install `conventions` before running checks in other modules.
+Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are bound to `verify`. Default profile is `nochecks` (empty), so the checks only run with an explicit profile: `checkstyle`, `pmd`, `findbugs`, `codechecks` (all three), or `owasp-dependencycheck`. Rulesets come from the `conventions` JAR, so install `conventions` before running checks in other modules.
 
 Checkstyle also runs on tests (`includeTestSourceDirectory=true`). Files must use **LF** (Windows `\r\n` is a Checkstyle error). No tabs, no trailing whitespace, no `@author` Javadoc, no `System.out`/`System.exit`. Each Java package needs `package-info.java`.
 
