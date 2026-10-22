@@ -65,18 +65,19 @@ Key types (`spring-tasks/src/main/java/de/nemeses/spring/tasks/`):
 
 JPA (`...tasks.jpa`): `JpaTaskPersistenceAutoConfiguration` (`@ConditionalOnBean(EntityManager)`, `@ConditionalOnMissingBean(TaskPersistence)`) registers `JpaTaskPersistence`, which calls `EntityManager.persist` on a `TaskEntity` inside `@Transactional`. `TaskEntity` maps table `spring_tasks` (`beanname`, `payload`, `execution`). JPA starter is **`provided`** — consumers must bring it.
 
-JMS (`...tasks.jms`): `JmsTaskPersistenceAutoConfiguration` is an empty stub (`spring-jms` / `jakarta.jms-api` also `provided`).
+JMS (`...tasks.jms`): `JmsTaskPersistenceAutoConfiguration` is an empty stub, conditional on `jakarta.jms.Message`, `JmsTemplate` and a `ConnectionFactory` bean (`spring-jms` / `jakarta.jms-api` also `provided`).
 
-Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded). `JsonPayloadTaskImplementationTest` is a plain unit test. `TaskServiceTest` uses `@SpringBootTest(classes = TaskConfiguration.class)` and bean name `"testTaskImplementation"`. Test logging: `spring-tasks/src/test/resources/logback-spring.xml`.
+Both auto-configurations are registered in `spring-tasks/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`; the JPA one runs after `HibernateJpaAutoConfiguration` so its `EntityManager` condition can match. New auto-configurations must be added to that file.
+
+Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded). `JsonPayloadTaskImplementationTest` is a plain unit test. `TaskServiceTest` uses `@SpringBootTest` with `TaskConfiguration` plus a nested config providing a recording `TaskPersistence`, and bean name `"testTaskImplementation"`. Test logging: `spring-tasks/src/test/resources/logback-spring.xml`.
 
 No runnable `@SpringBootApplication` main class.
 
 ## Current gaps (do not paper over)
 
 - **`spring-bpmn` has no sources.** Do not invent Camunda-like APIs or BPMN XML until that module exists.
-- **Boot 3 auto-config is not registered.** There is no `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`. `@AutoConfiguration` classes will not load unless the app `@Import`s them.
-- **`JmsTaskPersistenceAutoConfiguration`** conditions on `org.apache.logging.log4j.message.Message` rather than a JMS type.
-- **`TaskServiceTest` has no `TaskPersistence` bean** and no test-scoped JPA; the Spring context will fail until a stub or auto-config is wired.
+- **No JMS persistence yet.** `JmsTaskPersistenceAutoConfiguration` is an empty stub; it does not register a `TaskPersistence`.
+- **JPA auto-config is untested.** `TaskServiceTest` uses a recording stub `TaskPersistence`; nothing exercises `JpaTaskPersistence` against a real `EntityManager`.
 
 ## Style and extension points
 

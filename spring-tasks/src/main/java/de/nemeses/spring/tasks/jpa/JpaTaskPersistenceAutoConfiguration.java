@@ -3,6 +3,7 @@ package de.nemeses.spring.tasks.jpa;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 
 import de.nemeses.spring.tasks.TaskPersistence;
@@ -11,7 +12,7 @@ import jakarta.persistence.EntityManager;
 /**
  *
  */
-@AutoConfiguration
+@AutoConfiguration(after = HibernateJpaAutoConfiguration.class)
 @ConditionalOnBean({ EntityManager.class })
 @ConditionalOnMissingBean(TaskPersistence.class)
 public class JpaTaskPersistenceAutoConfiguration {
