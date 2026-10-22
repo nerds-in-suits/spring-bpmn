@@ -440,6 +440,10 @@ public class Something {
     <!-- <rule ref="category/java/performance.xml/AvoidUsingShortType" /> -->
     <rule ref="category/java/performance.xml/BigIntegerInstantiation" />
     <rule ref="category/java/bestpractices.xml/PrimitiveWrapperInstantiation" />
+    <rule ref="category/java/codestyle.xml/UnnecessaryBoxing" />
+    <rule ref="category/java/bestpractices.xml/UnnecessaryVarargsArrayCreation" />
+    <rule ref="category/java/errorprone.xml/ConfusingArgumentToVarargsMethod" />
+    <rule ref="category/java/bestpractices.xml/UseEnumCollections" />
     <!-- <rule ref="category/java/performance.xml/ConsecutiveAppendsShouldReuse" /> -->
     <rule ref="category/java/performance.xml/ConsecutiveLiteralAppends" />
     <rule ref="category/java/performance.xml/InefficientEmptyStringCheck" />

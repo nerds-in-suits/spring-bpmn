@@ -297,6 +297,9 @@
         -->
 
 
+        <module name="PatternVariableAssignment"/>
+        <module name="UnnecessaryNullCheckWithInstanceOf"/>
+
         <!-- Checks for Javadoc comments.                     -->
         <!-- See http://checkstyle.sf.net/config_javadoc.html -->
         <module name="JavadocType">
@@ -317,6 +320,7 @@
             <!-- JavadocStyle was removed in Checkstyle 13; SummaryJavadoc replaces its first-sentence and empty-javadoc checks. -->
             <property name="severity" value="warning"/>
         </module>
+        <module name="JavadocLeadingAsteriskAlign"/>
 
         <!--
             nothing to check there yet
