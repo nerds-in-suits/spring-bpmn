@@ -23,7 +23,7 @@ public interface TaskPersistence {
      */
     TaskInfo next() throws InterruptedException;
 
-    interface TaskInfo{
+    interface TaskInfo {
         String beanName();
         String payload();
         Date earliestExecution();
