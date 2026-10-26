@@ -11,7 +11,7 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 | `conventions` | `de.nemeses:conventions:1.2.0` | Checkstyle/PMD/SpotBugs rulesets (`src/main/resources/rulesets/`) + Eclipse prefs (`configuration/eclipse/`). No Java sources. Independent POM (not using the parent POM as parent). |
 | `spring-tasks` | `de.nemeses.spring:spring-tasks` | Task scheduling API and core (`TaskService`, `TaskPersistence`). |
 | `spring-tasks-jpa` | `de.nemeses.spring:spring-tasks-jpa` | JPA `TaskPersistence` (moved out of `spring-tasks`, same package names). |
-| `spring-tasks-jms` | `de.nemeses.spring:spring-tasks-jms` | JMS persistence, auto-config stub only. |
+| `spring-tasks-jms` | `de.nemeses.spring:spring-tasks-jms` | JMS persistence, `JmsTaskPersistence` (queue-backed, embedded Artemis in tests). |
 | `spring-bpmn-repository` | `de.nemeses.spring:spring-bpmn-repository` | Repository API for BPMN models and process history. Interfaces only. |
 | `spring-bpmn-repository-jpa` | `de.nemeses.spring:spring-bpmn-repository-jpa` | JPA implementation of the repository, auto-config skeleton only. |
 | `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks` and `spring-bpmn-repository`. **POM only, no `src/`.** |
@@ -75,7 +75,7 @@ Key types (`spring-tasks/src/main/java/de/nemeses/spring/tasks/`):
 
 JPA (`...tasks.jpa`): `JpaTaskPersistenceAutoConfiguration` (`@ConditionalOnBean(EntityManager)`, `@ConditionalOnMissingBean(TaskPersistence)`) registers `JpaTaskPersistence`, which calls `EntityManager.persist` on a `TaskEntity` inside `@Transactional`. `TaskEntity` maps table `spring_tasks` (`beanname`, `payload`, `execution`). This lives in module `spring-tasks-jpa` (package unchanged).
 
-JMS (`...tasks.jms`): `JmsTaskPersistenceAutoConfiguration` is an empty stub, conditional on `jakarta.jms.Message`, `JmsTemplate` and a `ConnectionFactory` bean (module `spring-tasks-jms`).
+JMS (`...tasks.jms`): `JmsTaskPersistenceAutoConfiguration` (conditional on `jakarta.jms.Message`, `JmsTemplate` and a `ConnectionFactory` bean) registers `JmsTaskPersistence` (queue `spring.tasks.jms.queue`, default `spring.tasks`). `persist` sends a text message with a `beanName` property and uses the JMS 2.0 delivery delay for `earliestExecution`; `next()` blocks on a client-acknowledge session; `complete()` acknowledges, `fail()` recovers the session so the message is redelivered. Tested against embedded Artemis (module `spring-tasks-jms`).
 
 Each implementation module registers its auto-configuration in its own `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` (`spring-tasks` itself has none); the JPA one runs after `HibernateJpaAutoConfiguration` so its `EntityManager` condition can match. New auto-configurations must be added to the imports file of their module.
 
@@ -87,7 +87,6 @@ No runnable `@SpringBootApplication` main class.
 
 - **`spring-bpmn` has no sources.** Do not invent Camunda-like APIs or BPMN XML until that module exists.
 - **Repository modules are skeletons.** `spring-bpmn-repository` has two minimal interfaces (`ProcessModelRepository`, `ProcessHistoryRepository`); `spring-bpmn-repository-jpa` has an empty auto-configuration and no entities. Task polling/execution (JPA query for due tasks, JMS listener) is not implemented either.
-- **No JMS persistence yet.** `JmsTaskPersistenceAutoConfiguration` is an empty stub; it does not register a `TaskPersistence`.
 - **JPA auto-config is untested.** `TaskServiceTest` uses a recording stub `TaskPersistence`; nothing exercises `JpaTaskPersistence` against a real `EntityManager`.
 
 ## Style and extension points
