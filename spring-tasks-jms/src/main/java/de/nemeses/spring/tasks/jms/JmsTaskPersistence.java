@@ -2,7 +2,6 @@ package de.nemeses.spring.tasks.jms;
 
 import java.util.Date;
 
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.nemeses.spring.tasks.TaskPersistence;
@@ -29,7 +28,6 @@ public class JmsTaskPersistence implements TaskPersistence {
 
     private static final long POLL_TIMEOUT_MILLIS = 500;
 
-    private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ConnectionFactory connectionFactory;
     private final String queueName;
     private Connection sharedConnection;
@@ -71,7 +69,8 @@ public class JmsTaskPersistence implements TaskPersistence {
                     return new JmsTaskInfo(session, text);
                 }
                 if (message != null) {
-                    this.log.warn("Ignoring unsupported JMS message {}", message.getJMSMessageID());
+                    LoggerFactory.getLogger(JmsTaskPersistence.class)
+                        .warn("Ignoring unsupported JMS message {}", message.getJMSMessageID());
                     message.acknowledge();
                 }
             }
@@ -104,7 +103,7 @@ public class JmsTaskPersistence implements TaskPersistence {
             try {
                 session.close();
             } catch (final JMSException e) {
-                this.log.warn("Failed to close JMS session", e);
+                LoggerFactory.getLogger(JmsTaskPersistence.class).warn("Failed to close JMS session", e);
             }
         }
     }
@@ -128,7 +127,7 @@ public class JmsTaskPersistence implements TaskPersistence {
             try {
                 this.sharedConnection.close();
             } catch (final JMSException e) {
-                this.log.warn("Failed to close JMS connection", e);
+                LoggerFactory.getLogger(JmsTaskPersistence.class).warn("Failed to close JMS connection", e);
             }
             this.sharedConnection = null;
         }
@@ -139,7 +138,6 @@ public class JmsTaskPersistence implements TaskPersistence {
      */
     private final class JmsTaskInfo implements TaskInfo {
 
-        private final Logger taskLog = LoggerFactory.getLogger(this.getClass());
         private final Session session;
         private final TextMessage message;
         private final String name;
@@ -182,7 +180,7 @@ public class JmsTaskPersistence implements TaskPersistence {
 
         @Override
         public void fail(final Exception error) {
-            this.taskLog.warn("Task {} failed, it will be redelivered", this.name, error);
+            LoggerFactory.getLogger(JmsTaskPersistence.class).warn("Task {} failed, it will be redelivered", this.name, error);
             try {
                 this.session.recover();
                 this.session.close();

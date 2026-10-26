@@ -7,7 +7,7 @@ public class JmsTaskException extends RuntimeException {
 
     private static final long serialVersionUID = 4172950264183905637L;
 
-    public JmsTaskException(final String message, final Throwable cause) {
+    JmsTaskException(final String message, final Throwable cause) {
         super(message, cause);
     }
 }

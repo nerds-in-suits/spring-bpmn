@@ -14,7 +14,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import de.nemeses.spring.tasks.TaskPersistence.TaskInfo;
+import de.nemeses.spring.tasks.TaskPersistence;
 
 /**
  *
@@ -55,7 +55,7 @@ class JmsTaskPersistenceTest {
     @Test
     void testPersistAndNext() throws Exception {
         this.persistence.persist("bean", "{\"a\":1}", null);
-        final TaskInfo info = this.persistence.next();
+        final TaskPersistence.TaskInfo info = this.persistence.next();
         Assertions.assertEquals("bean", info.beanName());
         Assertions.assertEquals("{\"a\":1}", info.payload());
         Assertions.assertNull(info.earliestExecution());
@@ -66,7 +66,7 @@ class JmsTaskPersistenceTest {
     void testEarliestExecutionDelaysDelivery() throws Exception {
         final Date earliest = new Date(System.currentTimeMillis() + 1500);
         this.persistence.persist("bean", "p", earliest);
-        final TaskInfo info = this.persistence.next();
+        final TaskPersistence.TaskInfo info = this.persistence.next();
         Assertions.assertTrue(System.currentTimeMillis() >= earliest.getTime() - 50, "delivered too early");
         Assertions.assertEquals(earliest, info.earliestExecution());
         info.complete();
@@ -76,7 +76,7 @@ class JmsTaskPersistenceTest {
     void testFailRedelivers() throws Exception {
         this.persistence.persist("bean", "p", null);
         this.persistence.next().fail(new IllegalStateException("boom"));
-        final TaskInfo again = this.persistence.next();
+        final TaskPersistence.TaskInfo again = this.persistence.next();
         Assertions.assertEquals("p", again.payload());
         again.complete();
     }
@@ -86,7 +86,7 @@ class JmsTaskPersistenceTest {
         this.persistence.persist("first", "1", null);
         this.persistence.persist("second", "2", null);
         this.persistence.next().complete();
-        final TaskInfo second = this.persistence.next();
+        final TaskPersistence.TaskInfo second = this.persistence.next();
         Assertions.assertEquals("second", second.beanName());
         second.complete();
     }

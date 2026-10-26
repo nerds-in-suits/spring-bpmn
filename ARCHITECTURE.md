@@ -30,7 +30,7 @@ An arrow points from the dependent module to the module it depends on. Implement
 
 - `de.nemeses.spring.tasks`: `TaskService` (public entry: `trigger`, `schedule`), `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson), `TaskPersistence` + record `Data`, `TaskException`, `PayloadException`, `TaskConfiguration`.
 - `de.nemeses.spring.tasks.jpa` (module `spring-tasks-jpa`): `JpaTaskPersistenceAutoConfiguration`, `JpaTaskPersistence`, `TaskEntity`.
-- `de.nemeses.spring.tasks.jms` (module `spring-tasks-jms`): `JmsTaskPersistenceAutoConfiguration` (registers `JmsTaskPersistence`, queue `spring.tasks.jms.queue`, default `spring.tasks`), `JmsTaskPersistence`: `persist` sends a text message with `beanName` property and JMS 2.0 delivery delay for `earliestExecution`; `next()` receives with client acknowledge; `complete()` acknowledges, `fail()` recovers (redelivery).
+- `de.nemeses.spring.tasks.jms` (module `spring-tasks-jms`): `JmsTaskPersistenceAutoConfiguration` (registers `JmsTaskPersistence`), `JmsTaskProperties` (`spring.tasks.jms.queue`, default `spring.tasks`), `JmsTaskPersistence`: `persist` sends a text message with `beanName` property and JMS 2.0 delivery delay for `earliestExecution`; `next()` receives with client acknowledge; `complete()` acknowledges, `fail()` recovers (redelivery).
 - `de.nemeses.spring.bpmn.repository` (module `spring-bpmn-repository`): `ProcessModelRepository`, `ProcessHistoryRepository`.
 - `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`): `JpaBpmnRepositoryAutoConfiguration` (skeleton).
 
@@ -51,3 +51,11 @@ An arrow points from the dependent module to the module it depends on. Implement
 ## Packaging conventions
 
 Implementation modules keep the package names of their API (`...tasks.jpa`, `...tasks.jms`) so consumers are not affected by the module split. Every package needs `package-info.java`; auto-configurations are registered in the `AutoConfiguration.imports` file of the module that contains them.
+
+## Configuration properties
+
+Complete list of all configuration properties. Keep this table up to date when adding or changing properties.
+
+| Property | Module | Default | Description |
+|----------|--------|---------|-------------|
+| `spring.tasks.jms.queue` | `spring-tasks-jms` | `spring.tasks` | Name of the JMS queue tasks are sent to and received from (`JmsTaskProperties`). |
