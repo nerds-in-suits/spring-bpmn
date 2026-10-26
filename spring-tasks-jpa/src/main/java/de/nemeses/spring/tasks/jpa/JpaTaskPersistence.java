@@ -26,13 +26,14 @@ public class JpaTaskPersistence implements TaskPersistence {
     private final TransactionTemplate transactions;
     private final int maxResults;
     /** Already claimed (RUNNING) tasks that are served without querying the database. */
-    private final Deque<TaskInfo> buffer = new ArrayDeque<>();
+    private final Deque<TaskInfo> buffer;
 
     JpaTaskPersistence(final EntityManager entityManager, final TransactionTemplate transactions,
             final int maxResults) {
         this.entityManager = entityManager;
         this.transactions = transactions;
         this.maxResults = maxResults;
+        this.buffer = new ArrayDeque<>(maxResults);
     }
 
     @Override
