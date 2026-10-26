@@ -51,3 +51,11 @@ An arrow points from the dependent module to the module it depends on. Implement
 ## Packaging conventions
 
 Implementation modules keep the package names of their API (`...tasks.jpa`, `...tasks.jms`) so consumers are not affected by the module split. Every package needs `package-info.java`; auto-configurations are registered in the `AutoConfiguration.imports` file of the module that contains them.
+
+## Configuration properties
+
+Complete list of all configuration properties. Keep this table up to date when adding or changing properties.
+
+| Property | Module | Default | Description |
+|----------|--------|---------|-------------|
+| `spring.tasks.jpa.max-results` | `spring-tasks-jpa` | `20` | Maximum number of due tasks fetched per database query. Fetched tasks are claimed (`RUNNING`) and served from an in-memory list; the database is queried again only when that list is empty. |
