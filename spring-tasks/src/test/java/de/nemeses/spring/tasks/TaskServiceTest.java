@@ -43,9 +43,6 @@ public class TaskServiceTest {
         }
     }
 
-    record Persisted(String beanName, String payload, Date earliestExecution) {
-    }
-
     static class RecordingTaskPersistence implements TaskPersistence {
         private final List<TaskInfo> persisted = new ArrayList<>();
 

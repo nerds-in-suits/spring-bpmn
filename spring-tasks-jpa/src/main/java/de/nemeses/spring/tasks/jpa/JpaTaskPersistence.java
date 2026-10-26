@@ -35,18 +35,13 @@ public class JpaTaskPersistence implements TaskPersistence {
     }
 
     @Override
-    public TaskInfo next() {
+    public TaskInfo next() throws InterruptedException {
         while (true) {
             final TaskInfo claimed = this.transactions.execute(status -> this.claimNext());
             if (claimed != null) {
                 return claimed;
             }
-            try {
-                Thread.sleep(POLL_INTERVAL_MILLIS);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Interrupted while waiting for the next task.", e);
-            }
+            Thread.sleep(POLL_INTERVAL_MILLIS);
         }
     }
 
