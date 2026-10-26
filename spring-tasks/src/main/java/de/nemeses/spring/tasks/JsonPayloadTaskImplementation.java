@@ -1,7 +1,7 @@
 package de.nemeses.spring.tasks;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  *
@@ -22,7 +22,7 @@ public abstract class JsonPayloadTaskImplementation<T> implements TaskImplementa
     public String serializePayload(final T payload) {
         try {
             return this.mapper.writeValueAsString(payload);
-        } catch (final JsonProcessingException e) {
+        } catch (final JacksonException e) {
             throw new PayloadException("Failed to serialize payload.", e);
         }
     }
@@ -31,7 +31,7 @@ public abstract class JsonPayloadTaskImplementation<T> implements TaskImplementa
     public T deserializePayload(final String serializedPayload) {
         try {
             return this.mapper.readValue(serializedPayload, this.payloadType());
-        } catch (final JsonProcessingException e) {
+        } catch (final JacksonException e) {
             throw new PayloadException("Failed to deserialize payload.", e);
         }
     }
