@@ -22,7 +22,9 @@ Do **not** commit or push to `main`. Every task gets its own branch and pull req
 2. Name it `feature/<short-slug>` for features or `bugfix/<short-slug>` for fixes.
 3. Keep one task on one branch. Do not mix unrelated changes.
 4. Commit on that branch, `git push -u origin HEAD`, then open a PR with `gh pr create`.
-5. Do not merge to `main` unless the user explicitly asks.
+5. Do not merge to `main` unless the user explicitly asks. The user normally reviews and merges PRs in the GitHub web UI, so stop after opening the PR.
+
+Untracked local artifacts (`.claude/`, `spring-tasks/bin/` IDE build output) are not part of the project; do not stage or commit them.
 
 Examples: `bugfix/jpa-task-persistence`, `feature/agent-github-workflow`.
 
