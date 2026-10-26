@@ -14,7 +14,7 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 | `spring-tasks-jms` | `de.nemeses.spring:spring-tasks-jms` | JMS persistence, `JmsTaskPersistence` (queue-backed, embedded Artemis in tests). |
 | `spring-bpmn-repository` | `de.nemeses.spring:spring-bpmn-repository` | Repository API for BPMN models and process history. Interfaces only. |
 | `spring-bpmn-repository-jpa` | `de.nemeses.spring:spring-bpmn-repository-jpa` | JPA implementation of the repository, auto-config skeleton only. |
-| `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks` and `spring-bpmn-repository`. **POM only, no `src/`.** |
+| `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks` and `spring-bpmn-repository`. **No hand-written sources yet; BPMN 2.0 XSDs in `src/main/resources/xsd/bpmn` are compiled by XJC (jaxb2-maven-plugin) into `de.nemeses.spring.bpmn.model`.** |
 
 **Read `ARCHITECTURE.md` first** for module responsibilities, dependency directions and planned vs. implemented state. Keep it updated when modules or key types change.
 
@@ -85,7 +85,7 @@ No runnable `@SpringBootApplication` main class.
 
 ## Current gaps (do not paper over)
 
-- **`spring-bpmn` has no sources.** Do not invent Camunda-like APIs or BPMN XML until that module exists.
+- **`spring-bpmn` has only generated JAXB model classes.** No engine yet; do not invent Camunda-like APIs.
 - **Repository modules are skeletons.** `spring-bpmn-repository` has two minimal interfaces (`ProcessModelRepository`, `ProcessHistoryRepository`); `spring-bpmn-repository-jpa` has an empty auto-configuration and no entities. Task polling/execution (JPA query for due tasks, JMS listener) is not implemented either.
 - **JPA auto-config is untested.** `TaskServiceTest` uses a recording stub `TaskPersistence`; nothing exercises `JpaTaskPersistence` against a real `EntityManager`.
 
