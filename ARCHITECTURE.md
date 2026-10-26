@@ -24,7 +24,7 @@ An arrow points from the dependent module to the module it depends on. Implement
 | `spring-tasks-jms` | Sends scheduled tasks to a JMS queue and listens to it for execution. | empty auto-config stub |
 | `spring-bpmn-repository` | API of the persistence layer of the engine: BPMN models (`ProcessModelRepository`) and audit log of executed processes (`ProcessHistoryRepository`). | skeleton interfaces |
 | `spring-bpmn-repository-jpa` | Only repository implementation for now; stores everything in JPA. | empty auto-config skeleton |
-| `spring-bpmn` | Reads and interprets BPMN files; uses `spring-tasks` to run steps and `spring-bpmn-repository` for models/history. | POM only, no sources |
+| `spring-bpmn` | Reads and interprets BPMN files; uses `spring-tasks` to run steps and `spring-bpmn-repository` for models/history. | Generated JAXB model (BPMN 2.0 XSDs, package `de.nemeses.spring.bpmn.model`); no engine code yet |
 
 ## Key types
 
