@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.nemeses.spring.tasks.TaskPersistence;
+import jakarta.annotation.PreDestroy;
 import jakarta.jms.Connection;
 import jakarta.jms.ConnectionFactory;
 import jakarta.jms.JMSException;
@@ -21,15 +22,14 @@ import jakarta.jms.TextMessage;
  * (<code>JMSDeliveryTime</code>). Received tasks are acknowledged on {@link TaskInfo#complete()} and
  * redelivered after {@link TaskInfo#fail(Exception)}.
  */
-public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
+public class JmsTaskPersistence implements TaskPersistence {
 
     static final String PROPERTY_BEAN_NAME = "beanName";
     static final String PROPERTY_EARLIEST_EXECUTION = "earliestExecution";
 
     private static final long POLL_TIMEOUT_MILLIS = 500;
 
-    private static final Logger LOG = LoggerFactory.getLogger(JmsTaskPersistence.class);
-
+    private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ConnectionFactory connectionFactory;
     private final String queueName;
     private Connection sharedConnection;
@@ -54,7 +54,7 @@ public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
             }
             producer.send(message);
         } catch (final JMSException e) {
-            throw new IllegalStateException("Failed to send task " + beanName + " to JMS queue " + this.queueName, e);
+            throw new JmsTaskException("Failed to send task " + beanName + " to JMS queue " + this.queueName, e);
         }
     }
 
@@ -71,7 +71,7 @@ public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
                     return new JmsTaskInfo(session, text);
                 }
                 if (message != null) {
-                    LOG.warn("Ignoring unsupported JMS message {}", message.getJMSMessageID());
+                    this.log.warn("Ignoring unsupported JMS message {}", message.getJMSMessageID());
                     message.acknowledge();
                 }
             }
@@ -84,7 +84,7 @@ public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
                 interruption.initCause(e);
                 throw interruption;
             }
-            throw new IllegalStateException("Failed to receive task from JMS queue " + this.queueName, e);
+            throw new JmsTaskException("Failed to receive task from JMS queue " + this.queueName, e);
         }
         closeQuietly(session);
         throw new InterruptedException("Interrupted while waiting for the next task");
@@ -99,12 +99,12 @@ public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
         return false;
     }
 
-    private static void closeQuietly(final Session session) {
+    private void closeQuietly(final Session session) {
         if (session != null) {
             try {
                 session.close();
             } catch (final JMSException e) {
-                LOG.debug("Failed to close JMS session", e);
+                this.log.warn("Failed to close JMS session", e);
             }
         }
     }
@@ -119,10 +119,17 @@ public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
         return this.sharedConnection;
     }
 
-    @Override
-    public synchronized void close() throws JMSException {
+    /**
+     * Closes the shared JMS connection on bean destruction.
+     */
+    @PreDestroy
+    synchronized void shutdown() {
         if (this.sharedConnection != null) {
-            this.sharedConnection.close();
+            try {
+                this.sharedConnection.close();
+            } catch (final JMSException e) {
+                this.log.warn("Failed to close JMS connection", e);
+            }
             this.sharedConnection = null;
         }
     }
@@ -130,8 +137,9 @@ public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
     /**
      * {@link TaskInfo} of a received JMS message, owning the session the message was received with.
      */
-    private static final class JmsTaskInfo implements TaskInfo {
+    private final class JmsTaskInfo implements TaskInfo {
 
+        private final Logger taskLog = LoggerFactory.getLogger(this.getClass());
         private final Session session;
         private final TextMessage message;
         private final String name;
@@ -168,18 +176,18 @@ public class JmsTaskPersistence implements TaskPersistence, AutoCloseable {
                 this.message.acknowledge();
                 this.session.close();
             } catch (final JMSException e) {
-                throw new IllegalStateException("Failed to acknowledge task " + this.name, e);
+                throw new JmsTaskException("Failed to acknowledge task " + this.name, e);
             }
         }
 
         @Override
         public void fail(final Exception error) {
-            LOG.warn("Task {} failed, it will be redelivered", this.name, error);
+            this.taskLog.warn("Task {} failed, it will be redelivered", this.name, error);
             try {
                 this.session.recover();
                 this.session.close();
             } catch (final JMSException e) {
-                throw new IllegalStateException("Failed to roll back task " + this.name, e);
+                throw new JmsTaskException("Failed to roll back task " + this.name, e);
             }
         }
     }

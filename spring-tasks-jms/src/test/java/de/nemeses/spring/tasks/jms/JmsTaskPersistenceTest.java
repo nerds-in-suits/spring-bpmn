@@ -48,8 +48,8 @@ class JmsTaskPersistenceTest {
     }
 
     @AfterEach
-    void tearDown() throws Exception {
-        this.persistence.close();
+    void tearDown() {
+        this.persistence.shutdown();
     }
 
     @Test
