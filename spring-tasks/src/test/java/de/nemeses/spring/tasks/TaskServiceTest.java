@@ -1,6 +1,7 @@
 package de.nemeses.spring.tasks;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
@@ -41,15 +42,23 @@ public class TaskServiceTest {
         }
     }
 
+    record Persisted(String beanName, String payload, Date earliestExecution) {
+    }
+
     static class RecordingTaskPersistence implements TaskPersistence {
-        private final List<Data> persisted = new ArrayList<>();
+        private final List<Persisted> persisted = new ArrayList<>();
 
         @Override
-        public void persist(final Data data) {
-            this.persisted.add(data);
+        public void persist(final String beanName, final String payload, final Date earliestExecution) {
+            this.persisted.add(new Persisted(beanName, payload, earliestExecution));
         }
 
-        List<Data> persisted() {
+        @Override
+        public TaskInfo next() {
+            throw new UnsupportedOperationException("Not needed by this test.");
+        }
+
+        List<Persisted> persisted() {
             return this.persisted;
         }
     }

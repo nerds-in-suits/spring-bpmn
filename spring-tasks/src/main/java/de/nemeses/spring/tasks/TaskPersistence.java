@@ -22,7 +22,7 @@ public interface TaskPersistence {
      */
     TaskInfo next();
 
-    public interface TaskInfo{
+    interface TaskInfo {
         String beanName();
         String payload();
         Date earliestExecution();

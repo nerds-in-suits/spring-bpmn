@@ -6,6 +6,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
 import de.nemeses.spring.tasks.TaskPersistence;
 import jakarta.persistence.EntityManager;
 
@@ -18,7 +21,8 @@ import jakarta.persistence.EntityManager;
 public class JpaTaskPersistenceAutoConfiguration {
 
     @Bean
-    JpaTaskPersistence taskPersistence(final EntityManager entityManager) {
-        return new JpaTaskPersistence(entityManager);
+    JpaTaskPersistence taskPersistence(final EntityManager entityManager,
+            final PlatformTransactionManager transactionManager) {
+        return new JpaTaskPersistence(entityManager, new TransactionTemplate(transactionManager));
     }
 }

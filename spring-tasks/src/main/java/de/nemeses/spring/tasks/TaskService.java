@@ -28,7 +28,7 @@ public class TaskService {
 
     public void schedule(final String beanName, final Object payload, final Date earliestExecution) {
         final String serializedPayload = this.taskImplementation(beanName).serializePayloadObj(payload);
-        this.persistence.persist(new TaskPersistence.Data(beanName, serializedPayload, earliestExecution));
+        this.persistence.persist(beanName, serializedPayload, earliestExecution);
     }
 
     private TaskImplementation<?> taskImplementation(final String beanName) {
