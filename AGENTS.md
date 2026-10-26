@@ -4,7 +4,7 @@ This file provides guidance to Claude Code, Cursor and other agents working in t
 
 ## What this repo is
 
-Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a **Spring Boot 3.5.7 / Java 25** BPMN engine. The README title is the goal; **there is no BPMN parser, process definition, token, or worker yet**.
+Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a **Spring Boot 4.1.2 / Java 25** BPMN engine. The README title is the goal; **there is no BPMN parser, process definition, token, or worker yet**.
 
 | Module | Artifact | Role |
 |--------|----------|------|
@@ -63,7 +63,7 @@ There is **no** poller/executor that later deserializes and calls `TaskImplement
 Key types (`spring-tasks/src/main/java/de/nemeses/spring/tasks/`):
 
 - `TaskConfiguration` — `@SpringBootConfiguration` + `@ComponentScan` (used by tests).
-- `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson).
+- `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson 3, `tools.jackson`).
 - `TaskPersistence` + record `Data`.
 - `TaskException`, `PayloadException`.
 

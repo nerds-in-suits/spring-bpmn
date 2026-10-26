@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.7</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
@@ -36,7 +36,7 @@
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
-                <version>3.5.7</version>
+                <version>4.1.2</version>
                 <type>pom</type>
                 <scope>import</scope>
                 <exclusions>
@@ -217,7 +217,7 @@
                     <plugin>
                         <groupId>org.owasp</groupId>
                         <artifactId>dependency-check-maven</artifactId>
-                        <version>12.1.7</version>
+                        <version>13.0.0</version>
                         <configuration>
                             <format>xml</format>
                             <!-- Suppress false positives or dependencies that cannot be changed for specific reasons. 
