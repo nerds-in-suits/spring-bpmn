@@ -43,7 +43,7 @@ mvn clean install
 
 Do **not** pass `-Dtest=...` on the full reactor (`-am` / root `test`): `conventions` has no tests and Maven will fail or skip oddly.
 
-Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are declared in the root POM `<build>` with a `check` execution, so they run on **every** `mvn verify` / `install`, with or without a profile. The profiles `checkstyle`, `pmd`, `findbugs` and `codechecks` (all three) therefore change nothing in practice, and the default `nochecks` profile is empty and does not skip the checks. `owasp-dependencycheck` is the only opt-in check. Rulesets come from the `conventions` JAR, so a changed ruleset needs `conventions` installed before the other modules see it. `conventions/RULE-SUGGESTIONS.md` lists candidate rules that are not enabled.
+Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are declared in the root POM `<build>` with a `check` execution, so they run on **every** `mvn verify` / `install`, and there are no profiles to enable or skip them; `owasp-dependencycheck` is the only opt-in check. Rulesets come from the `conventions` JAR, so a changed ruleset needs `conventions` installed before the other modules see it. `conventions/RULE-SUGGESTIONS.md` lists candidate rules that are not enabled.
 
 CI (`.github/workflows/`): `build.yml` runs `mvn clean install` on Java 25 for every PR. `release.yml` is a manual `workflow_dispatch` with a `version` input (`x.y.z`); it sets the release version on all modules except `conventions`, builds, commits, tags, then bumps to the next `-SNAPSHOT` and pushes.
 
