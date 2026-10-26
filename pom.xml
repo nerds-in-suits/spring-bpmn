@@ -27,6 +27,10 @@
     <modules>
         <module>conventions</module>
         <module>spring-tasks</module>
+        <module>spring-tasks-jpa</module>
+        <module>spring-tasks-jms</module>
+        <module>spring-bpmn-repository</module>
+        <module>spring-bpmn-repository-jpa</module>
         <module>spring-bpmn</module>
     </modules>
 
@@ -56,6 +60,26 @@
             <dependency>
                 <groupId>de.nemeses.spring</groupId>
                 <artifactId>spring-bpmn</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.nemeses.spring</groupId>
+                <artifactId>spring-tasks-jpa</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.nemeses.spring</groupId>
+                <artifactId>spring-tasks-jms</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.nemeses.spring</groupId>
+                <artifactId>spring-bpmn-repository</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.nemeses.spring</groupId>
+                <artifactId>spring-bpmn-repository-jpa</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
