@@ -1,2 +1,1 @@
-de.nemeses.spring.tasks.jpa.JpaTaskPersistenceAutoConfiguration
 de.nemeses.spring.tasks.jms.JmsTaskPersistenceAutoConfiguration
