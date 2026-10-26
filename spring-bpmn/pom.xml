@@ -60,7 +60,9 @@
                             <sources>
                                 <source>src/main/resources/xsd/bpmn/BPMN20.xsd</source>
                             </sources>
-                            <packageName>de.nemeses.spring.bpmn.model</packageName>
+                            <xjbSources>
+                                <xjbSource>src/main/xjb/bpmn.xjb</xjbSource>
+                            </xjbSources>
                             <clearOutputDir>true</clearOutputDir>
                         </configuration>
                     </execution>

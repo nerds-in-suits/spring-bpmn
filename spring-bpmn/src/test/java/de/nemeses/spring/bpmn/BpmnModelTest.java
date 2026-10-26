@@ -7,7 +7,7 @@ import javax.xml.transform.stream.StreamSource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import de.nemeses.spring.bpmn.model.TDefinitions;
+import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBElement;
 
@@ -22,9 +22,9 @@ class BpmnModelTest {
 
     @Test
     void unmarshalsDefinitions() throws Exception {
-        final JAXBContext context = JAXBContext.newInstance(TDefinitions.class.getPackageName());
-        final JAXBElement<TDefinitions> element = context.createUnmarshaller()
-                .unmarshal(new StreamSource(new StringReader(XML)), TDefinitions.class);
+        final JAXBContext context = JAXBContext.newInstance(Definitions.class.getPackageName());
+        final JAXBElement<Definitions> element = context.createUnmarshaller()
+                .unmarshal(new StreamSource(new StringReader(XML)), Definitions.class);
         Assertions.assertEquals("d1", element.getValue().getId());
         Assertions.assertEquals(1, element.getValue().getRootElement().size());
     }
