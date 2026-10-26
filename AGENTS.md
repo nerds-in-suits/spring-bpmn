@@ -12,7 +12,7 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 | `spring-tasks` | `de.nemeses.spring:spring-tasks` | Persistent task scheduler library. **All current Java lives here.** |
 | `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks`. **POM only — no `src/`.** |
 
-Package root: `de.nemeses.spring.tasks`. License: Apache 2.0 (`LICENSE`). No CI, no Maven wrapper, no `.github/`.
+Package root: `de.nemeses.spring.tasks`. License: Apache 2.0 (`LICENSE`). No Maven wrapper. CI lives in `.github/workflows/` (see below).
 
 ## GitHub workflow
 
@@ -24,7 +24,7 @@ Do **not** commit or push to `main`. Every task gets its own branch and pull req
 4. Commit on that branch, `git push -u origin HEAD`, then open a PR with `gh pr create`.
 5. Do not merge to `main` unless the user explicitly asks. The user normally reviews and merges PRs in the GitHub web UI, so stop after opening the PR.
 
-Untracked local artifacts (`.claude/`, `spring-tasks/bin/` IDE build output) are not part of the project; do not stage or commit them.
+Untracked local artifacts (`.claude/worktrees/`) are not part of the project; do not stage or commit them. Eclipse `bin/` output is git-ignored.
 
 Examples: `bugfix/jpa-task-persistence`, `feature/agent-github-workflow`.
 
@@ -43,7 +43,9 @@ mvn clean install
 
 Do **not** pass `-Dtest=...` on the full reactor (`-am` / root `test`): `conventions` has no tests and Maven will fail or skip oddly.
 
-Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are bound to `verify`. Default profile is `nochecks` (empty), so the checks only run with an explicit profile: `checkstyle`, `pmd`, `findbugs`, `codechecks` (all three), or `owasp-dependencycheck`. Rulesets come from the `conventions` JAR, so install `conventions` before running checks in other modules.
+Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) are declared in the root POM `<build>` with a `check` execution, so they run on **every** `mvn verify` / `install`, with or without a profile. The profiles `checkstyle`, `pmd`, `findbugs` and `codechecks` (all three) therefore change nothing in practice, and the default `nochecks` profile is empty and does not skip the checks. `owasp-dependencycheck` is the only opt-in check. Rulesets come from the `conventions` JAR, so a changed ruleset needs `conventions` installed before the other modules see it. `conventions/RULE-SUGGESTIONS.md` lists candidate rules that are not enabled.
+
+CI (`.github/workflows/`): `build.yml` runs `mvn clean install` on Java 25 for every PR. `release.yml` is a manual `workflow_dispatch` with a `version` input (`x.y.z`); it sets the release version on all modules except `conventions`, builds, commits, tags, then bumps to the next `-SNAPSHOT` and pushes.
 
 Checkstyle also runs on tests (`includeTestSourceDirectory=true`). Files must use **LF** (Windows `\r\n` is a Checkstyle error). No tabs, no trailing whitespace, no `@author` Javadoc, no `System.out`/`System.exit`. Each Java package needs `package-info.java`.
 
