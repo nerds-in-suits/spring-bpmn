@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
@@ -46,20 +47,56 @@ public class TaskServiceTest {
     }
 
     static class RecordingTaskPersistence implements TaskPersistence {
-        private final List<Persisted> persisted = new ArrayList<>();
+        private final List<TaskInfo> persisted = new ArrayList<>();
 
         @Override
         public void persist(final String beanName, final String payload, final Date earliestExecution) {
-            this.persisted.add(new Persisted(beanName, payload, earliestExecution));
+            this.persisted.add(new TaskInfo() {
+
+                @Override
+                public String beanName() {
+                    return beanName;
+                }
+
+                @Override
+                public String payload() {
+                    return payload;
+                }
+
+                @Override
+                public Date earliestExecution() {
+                    return earliestExecution;
+                }
+
+                @Override
+                public void complete() {
+                    RecordingTaskPersistence.this.persisted.remove(this);
+                }
+
+                @Override
+                public void fail(final Exception error) {
+                    LoggerFactory.getLogger(this.getClass()).error("Failed to execute {} task.",
+                        this.beanName(), error);
+                }
+
+            });
+        }
+
+        List<TaskInfo> persisted() {
+            return this.persisted;
         }
 
         @Override
-        public TaskInfo next() {
-            throw new UnsupportedOperationException("Not needed by this test.");
-        }
-
-        List<Persisted> persisted() {
-            return this.persisted;
+        public TaskInfo next() throws InterruptedException {
+            // single threaded only
+            final Date now = new Date();
+            for(final TaskInfo info:this.persisted) {
+                if(info.earliestExecution() == null || info.earliestExecution().after(now)) {
+                    return info;
+                }
+            }
+            Thread.sleep(3000);
+            return this.next();
         }
     }
 }

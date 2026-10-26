@@ -19,8 +19,9 @@ public interface TaskPersistence {
      * Queries this {@link TaskPersistence} for the next Task due for execution.
      * This call blocks until a Task is due for execution.
      * @return the next task.
+     * @throws InterruptedException if the current {@link Thread} got interrupted while waiting for the next task.
      */
-    TaskInfo next();
+    TaskInfo next() throws InterruptedException;
 
     interface TaskInfo {
         String beanName();
