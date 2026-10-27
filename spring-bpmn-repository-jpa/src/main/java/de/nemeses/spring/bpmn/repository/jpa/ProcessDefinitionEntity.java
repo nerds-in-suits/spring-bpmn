@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Date;
+import java.util.UUID;
 
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import jakarta.persistence.Column;
@@ -22,8 +23,8 @@ import jakarta.persistence.Table;
 public class ProcessDefinitionEntity implements ProcessDefinition {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "process_definition_name", nullable = false)
     private String processDefinitionName;
@@ -52,7 +53,7 @@ public class ProcessDefinitionEntity implements ProcessDefinition {
         }
     }
 
-    Long getId() {
+    UUID getId() {
         return this.id;
     }
 

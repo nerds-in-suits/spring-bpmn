@@ -2,6 +2,8 @@ package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Collection;
 import java.util.Date;
+import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -9,11 +11,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
-import jakarta.persistence.PersistenceException;
+import jakarta.persistence.EntityManager;
 
 /**
  *
@@ -24,6 +27,9 @@ class JpaProcessDefinitionServiceTest {
 
     @Autowired
     private ProcessDefinitionService service;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     void testRegisterAndRetrieve() throws NoSuchProcessDefinitionException {
@@ -54,9 +60,23 @@ class JpaProcessDefinitionServiceTest {
     @Test
     void testDuplicateNameAndCreatedRejected() {
         this.service.register(new ProcessDefinitionEntity("duplicate", new Date(7000), "<a/>"));
-        Assertions.assertThrows(PersistenceException.class,
+        Assertions.assertThrows(DataIntegrityViolationException.class,
                 () -> this.service.register(new ProcessDefinitionEntity("duplicate", new Date(7000), "<b/>")));
         Assertions.assertEquals(1, this.service.retrieveAll("duplicate").size());
+    }
+
+    @Test
+    void testUuidGeneratedOnPersist() {
+        this.service.register(new ProcessDefinitionEntity("uuid", new Date(8000), "<u1/>"));
+        this.service.register(new ProcessDefinitionEntity("uuid", new Date(9000), "<u2/>"));
+        final List<UUID> ids = this.entityManager
+                .createQuery("select d.id from ProcessDefinitionEntity d where d.processDefinitionName = 'uuid'",
+                        UUID.class)
+                .getResultList();
+        Assertions.assertEquals(2, ids.size());
+        Assertions.assertNotNull(ids.get(0));
+        Assertions.assertNotNull(ids.get(1));
+        Assertions.assertNotEquals(ids.get(0), ids.get(1));
     }
 
     /**
