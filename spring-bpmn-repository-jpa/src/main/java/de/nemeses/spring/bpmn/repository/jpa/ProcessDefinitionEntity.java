@@ -30,7 +30,7 @@ public class ProcessDefinitionEntity implements ProcessDefinition {
     private Date created;
 
     @Lob
-    @Column(name = "bpmn_xml", nullable = false)
+    @Column(name = "bpmn_xml", nullable = false, updatable = false)
     private String xml;
 
     ProcessDefinitionEntity() {
