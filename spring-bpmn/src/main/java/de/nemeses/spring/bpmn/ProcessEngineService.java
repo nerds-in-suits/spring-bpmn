@@ -105,12 +105,36 @@ public class ProcessEngineService {
      * @throws ProcessEngineException if the document cannot be parsed or does not contain the process
      */
     static Process process(final BpmnParser parser, final ProcessDefinition definition) throws ProcessEngineException {
-        final Definitions document;
+        return ProcessEngineService.process(ProcessEngineService.parse(parser, definition), definition);
+    }
+
+    /**
+     * Parses the BPMN document of a definition.
+     *
+     * @param parser the parser
+     * @param definition the definition
+     * @return the {@code definitions} element of the document
+     * @throws ProcessEngineException if the document cannot be parsed
+     */
+    static Definitions parse(final BpmnParser parser, final ProcessDefinition definition)
+            throws ProcessEngineException {
         try {
-            document = parser.parse(new ByteArrayInputStream(definition.bpmnXml().getBytes(StandardCharsets.UTF_8)));
+            return parser.parse(new ByteArrayInputStream(definition.bpmnXml().getBytes(StandardCharsets.UTF_8)));
         } catch (final BpmnParseException e) {
             throw new ProcessEngineException("Cannot parse process definition '" + definition.name() + "'.", e);
         }
+    }
+
+    /**
+     * Selects the process whose name (or id, if it has no name) equals the definition name.
+     *
+     * @param document the parsed document of the definition
+     * @param definition the definition
+     * @return the process
+     * @throws ProcessEngineException if the document does not contain the process
+     */
+    static Process process(final Definitions document, final ProcessDefinition definition)
+            throws ProcessEngineException {
         for (final JAXBElement<? extends RootElement> element : document.getRootElement()) {
             if (element.getValue() instanceof final Process process
                     && definition.name().equals(ProcessDefinitionRegistrar.processName(process))) {
