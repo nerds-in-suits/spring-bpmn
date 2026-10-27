@@ -46,17 +46,17 @@ public class BpmnNodeExecutor {
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
-    private final BpmnParser parser;
+    private final ProcessDefinitionModelCache models;
     private final TaskService taskService;
     private final ServiceTaskInvoker serviceTasks;
     private final FlowSelector flows;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final BpmnParser parser, final TaskService taskService,
+            final ProcessDefinitionModelCache models, final TaskService taskService,
             final ServiceTaskInvoker serviceTasks, final FlowSelector flows) {
         this.instances = instances;
         this.steps = steps;
-        this.parser = parser;
+        this.models = models;
         this.taskService = taskService;
         this.serviceTasks = serviceTasks;
         this.flows = flows;
@@ -132,7 +132,7 @@ public class BpmnNodeExecutor {
                         stepId, step.nodeId(), instance.id());
                 return;
             }
-            final Definitions document = ProcessEngineService.parse(this.parser, instance.processDefinition());
+            final Definitions document = this.models.document(instance.processDefinition());
             final Process process = ProcessEngineService.process(document, instance.processDefinition());
             final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
             final List<SequenceFlow> incoming = ProcessNavigator.incoming(process, node);
