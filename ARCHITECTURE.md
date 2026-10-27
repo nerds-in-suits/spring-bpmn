@@ -19,15 +19,15 @@ An arrow points from the dependent module to the module it depends on. Implement
 | Module | Responsibility | State |
 |--------|----------------|-------|
 | `conventions` | Checkstyle/PMD/SpotBugs rulesets and Eclipse prefs. Independent POM. | done |
-| `spring-tasks` | Interface to schedule and execute tasks: `TaskService`, `TaskImplementation`, `TaskPersistence`, `Data`. | enqueue only; no poller/executor |
-| `spring-tasks-jpa` | Stores tasks in JPA (`JpaTaskPersistence`, `TaskEntity`, table `spring_tasks`). Planned: query JPA store for due tasks and execute them. | persist and next (polling) implemented, untested |
+| `spring-tasks` | Interface to schedule and execute tasks: `TaskService`, `TaskImplementation`, `TaskPersistence` (`TaskInfo`). | schedule and execute (worker pool in `TaskService`) |
+| `spring-tasks-jpa` | Stores tasks in JPA (`JpaTaskPersistence`, `TaskEntity`, table `spring_tasks`) and hands due tasks to the `TaskService` workers via `next()`. | persist and next (polling) implemented, untested |
 | `spring-tasks-jms` | Sends scheduled tasks to a JMS queue and listens to it for execution. | `JmsTaskPersistence` (send, blocking `next()`, ack/recover); tests use embedded Artemis |
 | `spring-bpmn-repository-jpa` | Only repository implementation for now (implements the API in `spring-bpmn`); stores everything in JPA. | `ProcessDefinitionService` and `ProcessInstanceRepository` implemented and tested (H2) |
 | `spring-bpmn` | Reads and interprets BPMN files; uses `spring-tasks` to run steps; contains the repository API (`ProcessDefinitionService`) for models/history. | Generated JAXB model (BPMN 2.0 XSDs, one package per namespace: `de.nemeses.spring.bpmn.model.bpmn20` (BPMN20 + Semantic), `.bpmndi`, `.dc`, `.di`; classes without the `t` prefix, see `src/main/xjb/bpmn.xjb`); `BpmnParser` (JAXB unmarshalling of BPMN documents into the model, `BpmnParseException`); `ProcessEngineService` starts process instances and schedules their start events as `bpmnNodeTask` tasks; node execution not implemented yet |
 
 ## Key types
 
-- `de.nemeses.spring.tasks`: `TaskService` (public entry: `trigger`, `schedule`), `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson), `TaskPersistence` + record `Data`, `TaskException`, `PayloadException`, `TaskConfiguration`.
+- `de.nemeses.spring.tasks`: `TaskService` (public entry: `trigger`, `schedule`; a `SmartLifecycle` that starts `spring.tasks.pool-size` worker threads on context start and interrupts/awaits them on stop), `TaskProperties` (`@ConfigurationProperties` record for all `spring.tasks.*` settings of `TaskService`, enabled by `TaskConfiguration`), `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson), `TaskPersistence` + `TaskInfo` (`next()`, `complete()`, `fail(Exception)`), `TaskException`, `PayloadException`, `TaskConfiguration`.
 - `de.nemeses.spring.tasks.jpa` (module `spring-tasks-jpa`): `JpaTaskPersistenceAutoConfiguration`, `JpaTaskPersistence`, `TaskEntity`.
 - `de.nemeses.spring.tasks.jms` (module `spring-tasks-jms`): `JmsTaskPersistenceAutoConfiguration` (registers `JmsTaskPersistence`), `JmsTaskProperties` (`spring.tasks.jms.queue`, default `spring.tasks`), `JmsTaskPersistence`: `persist` sends a text message with `beanName` property and JMS 2.0 delivery delay for `earliestExecution`; `next()` receives with client acknowledge; `complete()` acknowledges, `fail()` recovers (redelivery).
 - `de.nemeses.spring.bpmn` (module `spring-bpmn`): `BpmnParser` (`parse(InputStream)` returns `Definitions`), `BpmnParseException`, `ProcessDefinitionSource` (`Collection<Resource> resources() throws IOException`; beans of this type contribute BPMN documents), `ConfiguredLocationsProcessDefinitionSource` (the default source; resolves, de-duplicated, the location patterns from `spring.bpmn.process-definition-locations`, injected with `@Value`), `ProcessDefinitionRegistrar` (an `ApplicationRunner`), `ProcessDefinitionAutoConfiguration` (component-scans the package, all classes are `@Component`s wired by constructor; requires a `ProcessDefinitionService` bean, e.g. from `spring-bpmn-repository-jpa`). The registrar iterates all `ProcessDefinitionSource` beans, parses each document and registers every `process` separately (name = `name` attribute, else `id`; the whole document is stored as XML). A process is skipped if the latest registered version has the same MD5 hash (`ProcessDefinition.md5Hash()`, default method over `bpmnXml()`). Parse/read errors abort startup.
@@ -40,7 +40,7 @@ An arrow points from the dependent module to the module it depends on. Implement
 1. Caller invokes `TaskService.trigger(beanName, payload)` or `schedule(beanName, payload, earliestExecution)`.
 2. `TaskService` looks up the `TaskImplementation` by Spring bean name and serializes the payload.
 3. The active `TaskPersistence` (JPA or JMS) stores or sends it.
-4. Planned: the backend hands due tasks back for execution (JPA: poll for due rows; JMS: queue listener) and calls `TaskImplementation.execute`.
+4. Each `TaskService` worker thread loops: `TaskPersistence.next()` (blocks until a task is due), looks up the `TaskImplementation` by bean name, deserializes the payload and calls `execute` (`TaskImplementation.executeSerialized`), then reports `TaskInfo.complete()` on success or `TaskInfo.fail(e)` on any exception (including an unknown bean name or a payload error). If `next()` itself throws a runtime exception the worker logs it and retries after 1 s. On context stop the workers are interrupted and awaited (up to 30 s).
 
 ## Extension points
 
@@ -59,6 +59,9 @@ Complete list of all configuration properties. Keep this table up to date when a
 
 | Property | Module | Default | Description |
 |----------|--------|---------|-------------|
+| `spring.tasks.pool-size` | `spring-tasks` | `10` | Number of worker threads `TaskService` starts to execute tasks. `0` starts no worker (tasks are only scheduled, not executed); negative values are rejected (`TaskProperties`). |
+| `spring.tasks.error-backoff` | `spring-tasks` | `1s` | `Duration` a worker pauses after `TaskPersistence.next()` failed, to avoid a busy loop (`TaskProperties`). |
+| `spring.tasks.shutdown-timeout` | `spring-tasks` | `30s` | Maximum `Duration` `TaskService` waits for the interrupted workers to terminate when the context stops (`TaskProperties`). |
 | `spring.tasks.jms.queue` | `spring-tasks-jms` | `spring.tasks` | Name of the JMS queue tasks are sent to and received from (`JmsTaskProperties`). |
 | `spring.tasks.jpa.max-results` | `spring-tasks-jpa` | `20` | Maximum number of due tasks fetched per database query. Fetched tasks are claimed (`RUNNING`) and served from an in-memory list; the database is queried again only when that list is empty. |
 | `spring.bpmn.process-definition-locations` | `spring-bpmn` | `classpath*:/process-definitions/*.bpmn` | Resource patterns scanned on startup for BPMN documents to register as process definitions (`ConfiguredLocationsProcessDefinitionSource`). |

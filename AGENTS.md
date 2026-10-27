@@ -9,7 +9,7 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 | Module | Artifact | Role |
 |--------|----------|------|
 | `conventions` | `de.nemeses:conventions:1.2.0` | Checkstyle/PMD/SpotBugs rulesets (`src/main/resources/rulesets/`) + Eclipse prefs (`configuration/eclipse/`). No Java sources. Independent POM (not using the parent POM as parent). |
-| `spring-tasks` | `de.nemeses.spring:spring-tasks` | Task scheduling API and core (`TaskService`, `TaskPersistence`). |
+| `spring-tasks` | `de.nemeses.spring:spring-tasks` | Task scheduling/execution API and core (`TaskService` with worker pool, `TaskPersistence`). |
 | `spring-tasks-jpa` | `de.nemeses.spring:spring-tasks-jpa` | JPA `TaskPersistence` (moved out of `spring-tasks`, same package names). |
 | `spring-tasks-jms` | `de.nemeses.spring:spring-tasks-jms` | JMS persistence, `JmsTaskPersistence` (queue-backed, embedded Artemis in tests). |
 | `spring-bpmn-repository-jpa` | `de.nemeses.spring:spring-bpmn-repository-jpa` | JPA implementation of the `spring-bpmn` repository API (`JpaProcessDefinitionService`, `JpaProcessInstanceRepository`). Depends on `spring-bpmn`. |
@@ -61,15 +61,16 @@ Checkstyle also runs on tests (`includeTestSourceDirectory=true`). Files must us
 1. Caller `trigger(beanName, payload)` or `schedule(beanName, payload, earliestExecution)`.
 2. Lookup `TaskImplementation` by **Spring bean name** from `Map<String, TaskImplementation<?>>`.
 3. Serialize payload via that implementation.
-4. `TaskPersistence.persist(Data(beanName, payload, earliestExecution))`.
+4. `TaskPersistence.persist(beanName, payload, earliestExecution)`.
 
-There is **no** poller/executor that later deserializes and calls `TaskImplementation.execute`. Persistence is fire-and-forget enqueue.
+Execution: `TaskService` is a `SmartLifecycle`; on context start it starts `spring.tasks.pool-size` (default 10, `0` = no worker) worker threads; settings are bound from the `@ConfigurationProperties` record `TaskProperties` (see the property table in `ARCHITECTURE.md`). Each loops on `TaskPersistence.next()`, looks up the `TaskImplementation` by bean name, calls `executeSerialized(payload)` (deserialize + `execute`) and reports `TaskInfo.complete()` or `TaskInfo.fail(e)` for any exception. On stop the workers are interrupted and awaited.
 
 Key types (`spring-tasks/src/main/java/de/nemeses/spring/tasks/`):
 
-- `TaskConfiguration` — `@SpringBootConfiguration` + `@ComponentScan` (used by tests).
+- `TaskConfiguration` — `@SpringBootConfiguration` + `@ComponentScan` + `@EnableConfigurationProperties(TaskProperties)`.
+- `TaskProperties` — `spring.tasks.pool-size`, `spring.tasks.error-backoff`, `spring.tasks.shutdown-timeout`.
 - `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson 3, `tools.jackson`).
-- `TaskPersistence` + record `Data`.
+- `TaskPersistence` + `TaskInfo` (`next()`, `complete()`, `fail()`).
 - `TaskException`, `PayloadException`.
 
 JPA (`...tasks.jpa`): `JpaTaskPersistenceAutoConfiguration` (`@ConditionalOnBean(EntityManager)`, `@ConditionalOnMissingBean(TaskPersistence)`) registers `JpaTaskPersistence`, which calls `EntityManager.persist` on a `TaskEntity` inside `@Transactional`. `TaskEntity` maps table `spring_tasks` (`beanname`, `payload`, `execution`). This lives in module `spring-tasks-jpa` (package unchanged).
@@ -78,19 +79,20 @@ JMS (`...tasks.jms`): `JmsTaskPersistenceAutoConfiguration` (conditional on `jak
 
 Each implementation module registers its auto-configuration in its own `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` (`spring-tasks` itself has none); the JPA one runs after `HibernateJpaAutoConfiguration` so its `EntityManager` condition can match. New auto-configurations must be added to the imports file of their module.
 
-Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded). `JsonPayloadTaskImplementationTest` is a plain unit test. `TaskServiceTest` uses `@SpringBootTest` with `TaskConfiguration` plus a nested config providing a recording `TaskPersistence`, and bean name `"testTaskImplementation"`. Test logging: `spring-tasks/src/test/resources/logback-spring.xml`.
+Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded). `JsonPayloadTaskImplementationTest` is a plain unit test. `TaskServiceTest` uses `@SpringBootTest` with `TaskConfiguration` plus a nested config providing a queue-backed `RecordingTaskPersistence` (records `complete()`/`fail()`) and a failing task; bean names `"testTaskImplementation"` / `"failingTaskImplementation"`. Test logging: `spring-tasks/src/test/resources/logback-spring.xml`.
 
 No runnable `@SpringBootApplication` main class.
 
 ## Current gaps (do not paper over)
 
-- **`spring-bpmn` can only start processes.** `ProcessEngineService.startProcess` creates a `ProcessInstance` and schedules its start events as `bpmnNodeTask` tasks, but `BpmnNodeTask.execute` only logs; no node is executed yet. Do not invent Camunda-like APIs.
-- **Repository modules are minimal.** The repository API (in `spring-bpmn`) only has `ProcessDefinitionService` and `ProcessInstanceRepository.create`. Task polling/execution (JPA query for due tasks, JMS listener) is not implemented either.
+- **`spring-bpmn` can only start processes.** `ProcessEngineService.startProcess` creates a `ProcessInstance` and schedules its start events as `bpmnNodeTask` tasks; the `TaskService` workers pick them up, but `BpmnNodeTask.execute` only logs; no node is executed yet. Do not invent Camunda-like APIs.
+- **Repository modules are minimal.** The repository API (in `spring-bpmn`) only has `ProcessDefinitionService` and `ProcessInstanceRepository.create`. Task execution runs in `TaskService` workers via `TaskPersistence.next()`; only the JMS backend is tested against a real broker.
 - **JPA auto-config is untested.** `TaskServiceTest` uses a recording stub `TaskPersistence`; nothing exercises `JpaTaskPersistence` against a real `EntityManager`.
 
 ## Style and extension points
 
-- Match existing Java: constructor injection, package-private constructors for Spring beans, `final` parameters and locals, `this.` for member access, SLF4J via `LoggerFactory` (never hold a `Logger` as a member or field; retrieve it where needed via `LoggerFactory.getLogger(this.getClass())`), and an empty `/** * */` Javadoc header on classes.
+- Match existing Java: constructor injection, package-private constructors for Spring beans, `final` parameters and locals, `this.` for member access, SLF4J via `LoggerFactory`: **no `Logger` fields or constants** (not even `private static final Logger LOG`); always call `LoggerFactory.getLogger(this.getClass())` at the call site, and an empty `/** * */` Javadoc header on classes.
+- Configuration: bind properties with a `@ConfigurationProperties` record per module (`TaskProperties`, `JmsTaskProperties`, `JpaTaskProperties`) and `@DefaultValue` defaults, no hard-coded tuning constants. Every new or changed property must be added to the property table in `ARCHITECTURE.md` (name, module, default, meaning).
 - Code style is defined by the rulesets and Eclipse settings in `conventions/`.
 - New task types: Spring beans implementing `TaskImplementation`; callers pass the **bean name** string.
 - New persistence: implement `TaskPersistence`, expose a `@Bean` (or finish auto-config **and** register it in `AutoConfiguration.imports`). Prefer `@ConditionalOnMissingBean(TaskPersistence.class)` so one backend wins.
