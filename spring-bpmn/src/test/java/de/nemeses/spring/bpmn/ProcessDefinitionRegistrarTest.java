@@ -19,6 +19,9 @@ import org.springframework.core.io.Resource;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.tasks.TaskConfiguration;
+import de.nemeses.spring.tasks.TaskPersistence;
 
 class ProcessDefinitionRegistrarTest {
 
@@ -97,7 +100,10 @@ class ProcessDefinitionRegistrarTest {
     void autoConfigurationRegistersLocationsAndSources() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(ProcessDefinitionAutoConfiguration.class))
+                .withUserConfiguration(TaskConfiguration.class)
                 .withBean(ProcessDefinitionService.class, () -> this.service)
+                .withBean(ProcessInstanceRepository.class, InMemoryProcessInstanceRepository::new)
+                .withBean(TaskPersistence.class, RecordingTaskPersistence::new)
                 .withBean(ProcessDefinitionSource.class,
                         () -> () -> List.of(ProcessDefinitionRegistrarTest.bpmn("<process id=\"fromSource\"/>")).stream())
                 .run(context -> {
@@ -111,7 +117,10 @@ class ProcessDefinitionRegistrarTest {
     void locationsAreConfigurable() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(ProcessDefinitionAutoConfiguration.class))
+                .withUserConfiguration(TaskConfiguration.class)
                 .withBean(ProcessDefinitionService.class, () -> this.service)
+                .withBean(ProcessInstanceRepository.class, InMemoryProcessInstanceRepository::new)
+                .withBean(TaskPersistence.class, RecordingTaskPersistence::new)
                 .withPropertyValues("spring.bpmn.process-definition-locations=classpath:/bpmn/simple.bpmn")
                 .run(context -> {
                     context.getBean(ApplicationRunner.class).run(null);
