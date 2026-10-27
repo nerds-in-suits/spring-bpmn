@@ -70,6 +70,16 @@ class BpmnNodeTaskTest {
                 .withBean("failing", BpmnNodeImplementation.class, () -> context -> {
                     throw new ProcessEngineException("failed");
                 })
+                .withBean("writing", BpmnNodeImplementation.class, () -> context -> {
+                    context.setVariable("result", "ok");
+                    context.removeVariable("amount");
+                    context.removeVariable("missing");
+                    this.calls.add(context);
+                })
+                .withBean("writingThenFailing", BpmnNodeImplementation.class, () -> context -> {
+                    context.setVariable("result", "ok");
+                    throw new ProcessEngineException("failed");
+                })
                 .run(test);
     }
 
@@ -156,6 +166,56 @@ class BpmnNodeTaskTest {
             Assertions.assertEquals(Map.of("amount", 3), call.variables());
             Assertions.assertThrows(UnsupportedOperationException.class, () -> call.variables().put("x", 1));
             Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void serviceTaskStoresChangedVariables() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"writing\"/>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            BpmnNodeTaskTest.execute(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("result", "ok"), this.calls.get(0).variables());
+            Assertions.assertEquals(Map.of("result", "ok"), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void conditionsOutOfServiceTaskSeeChangedVariables() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"writing\" default=\"f3\"/>"
+                + "<task id=\"a\"/><task id=\"b\"/><task id=\"c\"/>"
+                + BpmnNodeTaskTest.flow("f1", "st", "a", "result == 'ok'")
+                + BpmnNodeTaskTest.flow("f2", "st", "b", "#amount == null")
+                + "<sequenceFlow id=\"f3\" sourceRef=\"st\" targetRef=\"c\"/>");
+        this.withEngine(context -> {
+            BpmnNodeTaskTest.execute(context, instance, "st");
+            Assertions.assertEquals(List.of("a", "b"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void serviceTaskRejectsNullVariable() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"recording\"/>");
+        this.withEngine(context -> {
+            BpmnNodeTaskTest.execute(context, instance, "st");
+
+            final BpmnNodeContext call = this.calls.get(0);
+            Assertions.assertThrows(NullPointerException.class, () -> call.setVariable("x", null));
+            Assertions.assertThrows(NullPointerException.class, () -> call.setVariable(null, 1));
+        });
+    }
+
+    @Test
+    void failingServiceTaskDiscardsChangedVariables() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"writingThenFailing\"/>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            BpmnNodeTaskTest.assertFails(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
         });
     }
 

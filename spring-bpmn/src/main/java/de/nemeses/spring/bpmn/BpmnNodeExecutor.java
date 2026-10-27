@@ -1,9 +1,7 @@
 package de.nemeses.spring.bpmn;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -66,7 +64,9 @@ public class BpmnNodeExecutor {
      * <li>{@code startEvent}: nothing to do, all outgoing flows are taken.</li>
      * <li>{@code task}: nothing to do, the outgoing flows are taken like for every activity (see below).</li>
      * <li>{@code serviceTask}: calls the {@link BpmnNodeImplementation} bean named by the extension attribute
-     * {@link #BEAN_ATTRIBUTE}, then takes the outgoing flows like for every activity.</li>
+     * {@link #BEAN_ATTRIBUTE}, stores the variables it changed through its {@link BpmnNodeContext}
+     * ({@link ProcessInstanceRepository#updateVariables}), then takes the outgoing flows like for every activity,
+     * evaluating their conditions against the changed variables.</li>
      * <li>{@code exclusiveGateway}: takes the first non-default outgoing flow (in document order) without condition or
      * whose condition is true, else the {@code default} flow; fails if there is none.</li>
      * <li>{@code parallelGateway}: takes all outgoing flows (forks; joining is not synchronized yet).</li>
@@ -128,10 +128,13 @@ public class BpmnNodeExecutor {
             yield List.of();
         }
         case final ServiceTask task -> {
-            this.implementation(task).execute(new NodeContext(instance.id(), task.getId(), instance.variables()));
-            yield this.activityFlows(task, outgoing, language, instance.variables());
+            final NodeContext context = new NodeContext(instance.id(), task.getId(), instance.variables());
+            this.implementation(task).execute(context);
+            this.storeVariables(context);
+            yield this.activityFlows(task, outgoing, language, context.changedVariables());
         }
-        case final ExclusiveGateway gateway -> List.of(this.exclusive(gateway, outgoing, language, instance.variables()));
+        case final ExclusiveGateway gateway ->
+            List.of(this.exclusive(gateway.getId(), gateway.getDefault(), outgoing, language, instance.variables()));
         case final Task task when task.getClass() == Task.class ->
             this.activityFlows(task, outgoing, language, instance.variables());
         default -> throw new ProcessEngineException("Node '" + node.getId() + "' is a "
@@ -152,6 +155,18 @@ public class BpmnNodeExecutor {
         LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
     }
 
+    private void storeVariables(final NodeContext context) throws ProcessEngineException {
+        if (!context.isChanged()) {
+            return;
+        }
+        try {
+            this.instances.updateVariables(context.processInstanceId(), context.changedVariables());
+        } catch (final NoSuchProcessInstanceException e) {
+            throw new ProcessEngineException("Cannot store the variables of process instance "
+                    + context.processInstanceId() + ".", e);
+        }
+    }
+
     private BpmnNodeImplementation implementation(final ServiceTask task) throws ProcessEngineException {
         final String beanName = task.getOtherAttributes().get(BpmnNodeExecutor.BEAN_ATTRIBUTE);
         if (beanName == null) {
@@ -166,17 +181,22 @@ public class BpmnNodeExecutor {
         return implementation;
     }
 
-    private SequenceFlow exclusive(final ExclusiveGateway gateway, final List<SequenceFlow> outgoing,
+    /**
+     * @param gatewayId the id of the exclusive gateway
+     * @param defaultFlow its {@code default} flow ({@link ExclusiveGateway#getDefault()}), may be {@code null}
+     * @return the flow out of an exclusive gateway to take
+     */
+    private SequenceFlow exclusive(final String gatewayId, final Object defaultFlow, final List<SequenceFlow> outgoing,
             final String language, final Map<String, Object> variables) throws ProcessEngineException {
         for (final SequenceFlow flow : outgoing) {
-            if (!flow.equals(gateway.getDefault()) && this.isTrue(flow, language, variables)) {
+            if (!flow.equals(defaultFlow) && this.isTrue(flow, language, variables)) {
                 return flow;
             }
         }
-        if (gateway.getDefault() instanceof final SequenceFlow defaultFlow && outgoing.contains(defaultFlow)) {
-            return defaultFlow;
+        if (defaultFlow instanceof final SequenceFlow flow && outgoing.contains(flow)) {
+            return flow;
         }
-        throw new ProcessEngineException("Exclusive gateway '" + gateway.getId()
+        throw new ProcessEngineException("Exclusive gateway '" + gatewayId
                 + "' has no outgoing flow whose condition is true and no default flow.");
     }
 
@@ -239,20 +259,5 @@ public class BpmnNodeExecutor {
         }
         throw new ProcessEngineException("Process '" + ProcessDefinitionRegistrar.processName(process)
                 + "' has no flow node '" + nodeId + "'.");
-    }
-
-    /**
-     * The {@link BpmnNodeContext} passed to a {@link BpmnNodeImplementation}.
-     *
-     * @param processInstanceId the process instance id
-     * @param nodeId the node id
-     * @param variables the process variables
-     */
-    private record NodeContext(UUID processInstanceId, String nodeId, Map<String, Object> variables)
-            implements BpmnNodeContext {
-
-        NodeContext {
-            variables = Collections.unmodifiableMap(new LinkedHashMap<>(variables));
-        }
     }
 }
