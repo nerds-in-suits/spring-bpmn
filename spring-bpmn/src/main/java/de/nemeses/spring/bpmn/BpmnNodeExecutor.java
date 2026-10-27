@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
+import de.nemeses.spring.bpmn.model.bpmn20.CallActivity;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.EndEvent;
 import de.nemeses.spring.bpmn.model.bpmn20.ExclusiveGateway;
@@ -50,16 +51,20 @@ public class BpmnNodeExecutor {
     private final TaskService taskService;
     private final ServiceTaskInvoker serviceTasks;
     private final FlowSelector flows;
+    private final CallActivityInvoker callActivities;
 
+    @SuppressWarnings("PMD.ExcessiveParameterList") // constructor injection of the collaborators
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final BpmnParser parser, final TaskService taskService,
-            final ServiceTaskInvoker serviceTasks, final FlowSelector flows) {
+            final ServiceTaskInvoker serviceTasks, final FlowSelector flows,
+            final CallActivityInvoker callActivities) {
         this.instances = instances;
         this.steps = steps;
         this.parser = parser;
         this.taskService = taskService;
         this.serviceTasks = serviceTasks;
         this.flows = flows;
+        this.callActivities = callActivities;
     }
 
     /**
@@ -99,8 +104,12 @@ public class BpmnNodeExecutor {
      * <li>{@code parallelGateway} with more incoming flows (join): continues only if a step is pending at the gateway
      * for every incoming flow. Then the oldest pending step of each incoming flow is completed and all outgoing flows
      * are taken once. Otherwise the step stays pending (parked at the join) and no flow is taken.</li>
+     * <li>{@code callActivity}: a wait state (through the {@link CallActivityInvoker}). The first execution starts an
+     * instance of the called process and leaves the step pending; when that child instance ends, the step is executed
+     * again, passes the variables back, completes and takes the outgoing flows like for every activity.</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date) if no other step of the
-     * instance is pending.</li>
+     * instance is pending; if the instance was started by a call activity, triggers a {@link BpmnNodeTask} for the
+     * waiting call activity step of the parent instance.</li>
      * </ul>
      * An activity takes every outgoing flow without condition and every flow whose condition is true; its
      * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}
@@ -139,6 +148,9 @@ public class BpmnNodeExecutor {
             final List<SequenceFlow> taken;
             if (node instanceof ParallelGateway && incoming.size() > 1) {
                 taken = this.join(instance, process, node, incoming, pendingAtNode);
+            } else if (node instanceof final CallActivity call) {
+                taken = this.callActivities.execute(instance, step, call,
+                        ProcessNavigator.outgoing(process, node), document.getExpressionLanguage());
             } else {
                 taken = this.run(instance, document.getExpressionLanguage(), process, node);
                 this.steps.complete(List.of(stepId), new Date());
@@ -240,5 +252,10 @@ public class BpmnNodeExecutor {
         }
         this.instances.updateEndDate(instance.id(), new Date());
         LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
+        final ProcessStep parentStep = instance.parentStep();
+        if (parentStep != null) {
+            // resume the waiting call activity in its own task, which locks the parent instance
+            this.taskService.trigger(BpmnNodeTask.BEAN_NAME, parentStep.id());
+        }
     }
 }
