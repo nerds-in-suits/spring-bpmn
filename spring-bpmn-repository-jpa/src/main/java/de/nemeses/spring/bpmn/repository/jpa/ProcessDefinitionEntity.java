@@ -9,6 +9,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
@@ -17,7 +18,8 @@ import jakarta.persistence.Table;
  *
  */
 @Entity
-@Table(name = "spring_bpmn_process_definition")
+@Table(name = "spring_bpmn_process_definition", indexes = @Index(name = "ux_spring_bpmn_process_definition_name_created",
+        columnList = "process_definition_name, created_date", unique = true))
 public class ProcessDefinitionEntity implements ProcessDefinition {
 
     @Id

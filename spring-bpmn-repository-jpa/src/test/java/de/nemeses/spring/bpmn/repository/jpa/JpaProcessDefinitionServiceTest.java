@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
@@ -57,9 +58,17 @@ class JpaProcessDefinitionServiceTest {
     }
 
     @Test
+    void testDuplicateNameAndCreatedRejected() {
+        this.service.register(new ProcessDefinitionEntity("duplicate", new Date(7000), "<a/>"));
+        Assertions.assertThrows(DataIntegrityViolationException.class,
+                () -> this.service.register(new ProcessDefinitionEntity("duplicate", new Date(7000), "<b/>")));
+        Assertions.assertEquals(1, this.service.retrieveAll("duplicate").size());
+    }
+
+    @Test
     void testUuidGeneratedOnPersist() {
-        this.service.register(new ProcessDefinitionEntity("uuid", null, "<u1/>"));
-        this.service.register(new ProcessDefinitionEntity("uuid", null, "<u2/>"));
+        this.service.register(new ProcessDefinitionEntity("uuid", new Date(8000), "<u1/>"));
+        this.service.register(new ProcessDefinitionEntity("uuid", new Date(9000), "<u2/>"));
         final List<UUID> ids = this.entityManager
                 .createQuery("select d.id from ProcessDefinitionEntity d where d.processDefinitionName = 'uuid'",
                         UUID.class)
