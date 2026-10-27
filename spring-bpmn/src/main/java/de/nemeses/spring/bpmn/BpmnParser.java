@@ -20,8 +20,10 @@ public class BpmnParser {
 
     /**
      * Creates a parser.
+     *
+     * @throws BpmnParseException if the JAXB context cannot be created
      */
-    public BpmnParser() {
+    public BpmnParser() throws BpmnParseException {
         try {
             this.context = JAXBContext.newInstance(CONTEXT_PATH, BpmnParser.class.getClassLoader());
         } catch (final JAXBException e) {
@@ -34,7 +36,7 @@ public class BpmnParser {
      * @return the root {@code definitions} element
      * @throws BpmnParseException if the document is not valid BPMN XML
      */
-    public Definitions parse(final InputStream xml) {
+    public Definitions parse(final InputStream xml) throws BpmnParseException {
         try {
             final Object result = this.context.createUnmarshaller().unmarshal(xml);
             if (result instanceof JAXBElement<?> element && element.getValue() instanceof Definitions definitions) {

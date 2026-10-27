@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -17,7 +18,12 @@ import de.nemeses.spring.bpmn.model.bpmn20.Process;
  */
 class BpmnParserTest {
 
-    private final BpmnParser parser = new BpmnParser();
+    private BpmnParser parser;
+
+    @BeforeEach
+    void setUp() throws BpmnParseException {
+        this.parser = new BpmnParser();
+    }
 
     private Definitions parse(final String resource) throws Exception {
         try (InputStream in = BpmnParserTest.class.getResourceAsStream("/bpmn/" + resource)) {
