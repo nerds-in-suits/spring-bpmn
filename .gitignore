@@ -19,3 +19,6 @@ buildNumber.properties
 
 # Eclipse build output (all modules)
 bin/
+
+# Worktrees for claude
+.claude/worktrees/*
