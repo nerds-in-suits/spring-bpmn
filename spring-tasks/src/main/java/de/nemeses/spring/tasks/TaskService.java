@@ -6,45 +6,36 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 /**
  * Schedules tasks and executes them.
- * On application start a pool of {@code spring.tasks.pool-size} worker threads (default 10) is started.
+ * On application start a pool of {@code spring.tasks.pool-size} worker threads (default 10) is started;
+ * with a pool size of <code>0</code> no worker is started and tasks are only scheduled.
  * Each worker repeatedly takes the next due task from the {@link TaskPersistence}, executes it with the
  * {@link TaskImplementation} bean of the task's bean name and reports the outcome via
  * {@link TaskPersistence.TaskInfo#complete()} or {@link TaskPersistence.TaskInfo#fail(Exception)}.
  * The workers are interrupted and awaited when the application context stops.
+ * All settings are bound from {@link TaskProperties}.
  */
 @Component
 public class TaskService implements SmartLifecycle {
 
-    /** Pause after the persistence failed to deliver the next task, to avoid a busy loop. */
-    private static final long ERROR_BACKOFF_MILLIS = 1000L;
-    /** Maximum time to wait for the workers to finish on shutdown. */
-    private static final long SHUTDOWN_TIMEOUT_SECONDS = 30L;
-
-    private static final Logger LOG = LoggerFactory.getLogger(TaskService.class);
-
     private final TaskPersistence persistence;
     private final Map<String, TaskImplementation<?>> tasks;
-    private final int poolSize;
+    private final TaskProperties properties;
+    private boolean running;
     private ExecutorService workers;
 
     TaskService(final TaskPersistence persistence, final Map<String, TaskImplementation<?>> tasks,
-            @Value("${spring.tasks.pool-size:10}") final int poolSize) {
-        if (poolSize < 0) {
-            throw new IllegalArgumentException("spring.tasks.pool-size must not be negative: " + poolSize);
-        }
+            final TaskProperties properties) {
         this.persistence = persistence;
-        LOG.info("Using task persistence {}.", persistence);
+        LoggerFactory.getLogger(this.getClass()).info("Using task persistence {}.", persistence);
         this.tasks = tasks;
-        LOG.debug("Registered tasks: {}", this.tasks);
-        this.poolSize = poolSize;
+        LoggerFactory.getLogger(this.getClass()).debug("Registered tasks: {}", this.tasks);
+        this.properties = properties;
     }
 
     public void trigger(final String beanName, final Object payload) {
@@ -57,17 +48,22 @@ public class TaskService implements SmartLifecycle {
     }
 
     /**
-     * Starts the worker threads.
+     * Starts the worker threads, none if the pool size is <code>0</code>.
      */
     @Override
     public synchronized void start() {
-        if (this.workers != null) {
+        if (this.running) {
             return;
         }
-        LOG.info("Starting {} task worker threads.", this.poolSize);
-        this.workers = Executors.newFixedThreadPool(Math.max(1, this.poolSize),
+        this.running = true;
+        final int poolSize = this.properties.poolSize();
+        LoggerFactory.getLogger(this.getClass()).info("Starting {} task worker threads.", poolSize);
+        if (poolSize == 0) {
+            return;
+        }
+        this.workers = Executors.newFixedThreadPool(poolSize,
             Thread.ofPlatform().name("spring-tasks-worker-", 1).factory());
-        for (int i = 0; i < this.poolSize; i++) {
+        for (int i = 0; i < poolSize; i++) {
             this.workers.execute(this::work);
         }
     }
@@ -77,14 +73,19 @@ public class TaskService implements SmartLifecycle {
      */
     @Override
     public synchronized void stop() {
+        if (!this.running) {
+            return;
+        }
+        this.running = false;
         if (this.workers == null) {
             return;
         }
-        LOG.info("Stopping task worker threads.");
+        LoggerFactory.getLogger(this.getClass()).info("Stopping task worker threads.");
         this.workers.shutdownNow();
         try {
-            if (!this.workers.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                LOG.warn("Task worker threads did not terminate within {} seconds.", SHUTDOWN_TIMEOUT_SECONDS);
+            if (!this.workers.awaitTermination(this.properties.shutdownTimeout().toMillis(), TimeUnit.MILLISECONDS)) {
+                LoggerFactory.getLogger(this.getClass()).warn("Task worker threads did not terminate within {}.",
+                    this.properties.shutdownTimeout());
             }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -94,46 +95,49 @@ public class TaskService implements SmartLifecycle {
 
     @Override
     public synchronized boolean isRunning() {
-        return this.workers != null;
+        return this.running;
     }
 
     /**
      * Worker loop: executes tasks until the thread is interrupted.
+     * {@link #execute(TaskPersistence.TaskInfo)} handles and reports every failure of the task itself, so a
+     * {@link RuntimeException} caught here always comes from {@link TaskPersistence#next()}.
      */
     @SuppressWarnings({"checkstyle:IllegalCatch", "PMD.AvoidCatchingGenericException"})
     private void work() {
         while (!Thread.currentThread().isInterrupted()) {
-            final TaskPersistence.TaskInfo info;
             try {
-                info = this.persistence.next();
+                final TaskPersistence.TaskInfo info = this.persistence.next();
+                this.execute(info);
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                break;
             } catch (final RuntimeException e) {
-                LOG.error("Failed to retrieve the next task.", e);
-                if (!this.pause()) {
-                    break;
-                }
-                continue;
+                LoggerFactory.getLogger(this.getClass()).error("Failed to retrieve the next task.", e);
+                this.pause();
             }
-            this.execute(info);
         }
-        LOG.debug("Task worker stopped.");
+        LoggerFactory.getLogger(this.getClass()).info("Task worker stopped.");
     }
 
+    /**
+     * Executes the task and reports its outcome. Never throws: every exception of the task is reported via
+     * {@link TaskPersistence.TaskInfo#fail(Exception)}, failures to report are logged.
+     */
     @SuppressWarnings({"checkstyle:IllegalCatch", "PMD.AvoidCatchingGenericException"})
     private void execute(final TaskPersistence.TaskInfo info) {
         try {
-            LOG.debug("Executing task {}.", info.beanName());
+            LoggerFactory.getLogger(this.getClass()).debug("Executing task {}.", info.beanName());
             this.taskImplementation(info.beanName()).executeSerialized(info.payload());
+            this.report(info, null);
         } catch (final Exception e) {
-            LOG.debug("Task {} failed.", info.beanName(), e);
+            LoggerFactory.getLogger(this.getClass()).debug("Task {} failed.", info.beanName(), e);
             this.report(info, e);
-            return;
         }
-        this.report(info, null);
     }
 
+    /**
+     * Reports the outcome of a task. Never throws, failures are logged.
+     */
     @SuppressWarnings({"checkstyle:IllegalCatch", "PMD.AvoidCatchingGenericException"})
     private void report(final TaskPersistence.TaskInfo info, final Exception error) {
         try {
@@ -143,17 +147,20 @@ public class TaskService implements SmartLifecycle {
                 info.fail(error);
             }
         } catch (final RuntimeException e) {
-            LOG.error("Failed to report the outcome of task {}.", info.beanName(), e);
+            LoggerFactory.getLogger(this.getClass()).error("Failed to report the outcome of task {}.",
+                info.beanName(), e);
         }
     }
 
-    private boolean pause() {
+    /**
+     * Pauses for {@code spring.tasks.error-backoff}; an interrupt ends the pause and is kept as interrupt flag,
+     * which ends the worker loop.
+     */
+    private void pause() {
         try {
-            Thread.sleep(ERROR_BACKOFF_MILLIS);
-            return true;
+            Thread.sleep(this.properties.errorBackoff());
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-            return false;
         }
     }
 

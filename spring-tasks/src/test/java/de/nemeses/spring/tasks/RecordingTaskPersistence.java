@@ -61,6 +61,11 @@ class RecordingTaskPersistence implements TaskPersistence {
         return this.finished.poll(10, TimeUnit.SECONDS);
     }
 
+    /** Number of tasks reported as completed or failed and not yet taken by {@link #awaitFinished()}. */
+    int finishedCount() {
+        return this.finished.size();
+    }
+
     /** Number of threads currently blocked in {@link #next()}. */
     int waiting() {
         return this.waiting.get();

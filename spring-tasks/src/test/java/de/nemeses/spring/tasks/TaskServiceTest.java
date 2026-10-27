@@ -1,5 +1,6 @@
 package de.nemeses.spring.tasks;
 
+import java.time.Duration;
 import java.util.Map;
 
 import org.junit.jupiter.api.Assertions;
@@ -22,6 +23,9 @@ public class TaskServiceTest {
 
     @Autowired
     private RecordingTaskPersistence persistence;
+
+    @Autowired
+    private TaskProperties properties;
 
     @BeforeEach
     public void resetPersistence() {
@@ -74,7 +78,7 @@ public class TaskServiceTest {
     public void testStopInterruptsWorkers() throws InterruptedException {
         final RecordingTaskPersistence standalone = new RecordingTaskPersistence();
         final TaskService service = new TaskService(standalone,
-            Map.of("testTaskImplementation", new TestTaskImplementation()), 2);
+            Map.of("testTaskImplementation", new TestTaskImplementation()), TaskServiceTest.properties(2));
         service.start();
         service.trigger("testTaskImplementation", TestPayload.generate());
         Assertions.assertTrue(standalone.awaitFinished().completed(), "task completed");
@@ -83,6 +87,39 @@ public class TaskServiceTest {
         Assertions.assertFalse(service.isRunning(), "service stopped");
         Assertions.assertEquals(2, standalone.interrupted(), "every waiting worker interrupted");
         Assertions.assertEquals(0, standalone.waiting(), "no worker left waiting");
+    }
+
+    @Test
+    public void testPropertiesBound() {
+        Assertions.assertEquals(3, this.properties.poolSize(), "configured pool size");
+        Assertions.assertEquals(Duration.ofSeconds(1), this.properties.errorBackoff(), "default error backoff");
+        Assertions.assertEquals(Duration.ofSeconds(30), this.properties.shutdownTimeout(), "default shutdown timeout");
+    }
+
+    @Test
+    public void testPoolSizeZeroStartsNoWorker() throws InterruptedException {
+        final RecordingTaskPersistence standalone = new RecordingTaskPersistence();
+        final TaskService service = new TaskService(standalone,
+            Map.of("testTaskImplementation", new TestTaskImplementation()), TaskServiceTest.properties(0));
+        service.start();
+        Assertions.assertTrue(service.isRunning(), "service running without workers");
+        service.trigger("testTaskImplementation", TestPayload.generate());
+        Thread.sleep(200);
+        Assertions.assertEquals(1, standalone.persisted().size(), "task scheduled");
+        Assertions.assertEquals(0, standalone.waiting(), "no worker waiting for tasks");
+        Assertions.assertEquals(0, standalone.finishedCount(), "no task executed");
+        service.stop();
+        Assertions.assertFalse(service.isRunning(), "service stopped");
+    }
+
+    @Test
+    public void testNegativePoolSizeRejected() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> TaskServiceTest.properties(-1),
+            "negative pool size rejected");
+    }
+
+    private static TaskProperties properties(final int poolSize) {
+        return new TaskProperties(poolSize, Duration.ofMillis(100), Duration.ofSeconds(5));
     }
 
     /**

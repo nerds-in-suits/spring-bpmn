@@ -63,11 +63,12 @@ Checkstyle also runs on tests (`includeTestSourceDirectory=true`). Files must us
 3. Serialize payload via that implementation.
 4. `TaskPersistence.persist(beanName, payload, earliestExecution)`.
 
-Execution: `TaskService` is a `SmartLifecycle`; on context start it starts `spring.tasks.pool-size` (default 10) worker threads. Each loops on `TaskPersistence.next()`, looks up the `TaskImplementation` by bean name, calls `executeSerialized(payload)` (deserialize + `execute`) and reports `TaskInfo.complete()` or `TaskInfo.fail(e)` for any exception. On stop the workers are interrupted and awaited.
+Execution: `TaskService` is a `SmartLifecycle`; on context start it starts `spring.tasks.pool-size` (default 10, `0` = no worker) worker threads; settings are bound from the `@ConfigurationProperties` record `TaskProperties` (see the property table in `ARCHITECTURE.md`). Each loops on `TaskPersistence.next()`, looks up the `TaskImplementation` by bean name, calls `executeSerialized(payload)` (deserialize + `execute`) and reports `TaskInfo.complete()` or `TaskInfo.fail(e)` for any exception. On stop the workers are interrupted and awaited.
 
 Key types (`spring-tasks/src/main/java/de/nemeses/spring/tasks/`):
 
-- `TaskConfiguration` — `@SpringBootConfiguration` + `@ComponentScan` (used by tests).
+- `TaskConfiguration` — `@SpringBootConfiguration` + `@ComponentScan` + `@EnableConfigurationProperties(TaskProperties)`.
+- `TaskProperties` — `spring.tasks.pool-size`, `spring.tasks.error-backoff`, `spring.tasks.shutdown-timeout`.
 - `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson 3, `tools.jackson`).
 - `TaskPersistence` + `TaskInfo` (`next()`, `complete()`, `fail()`).
 - `TaskException`, `PayloadException`.
@@ -90,7 +91,8 @@ No runnable `@SpringBootApplication` main class.
 
 ## Style and extension points
 
-- Match existing Java: constructor injection, package-private constructors for Spring beans, `final` parameters and locals, `this.` for member access, SLF4J via `LoggerFactory` (never hold a `Logger` as a member or field; retrieve it where needed via `LoggerFactory.getLogger(this.getClass())`), and an empty `/** * */` Javadoc header on classes.
+- Match existing Java: constructor injection, package-private constructors for Spring beans, `final` parameters and locals, `this.` for member access, SLF4J via `LoggerFactory`: **no `Logger` fields or constants** (not even `private static final Logger LOG`); always call `LoggerFactory.getLogger(this.getClass())` at the call site, and an empty `/** * */` Javadoc header on classes.
+- Configuration: bind properties with a `@ConfigurationProperties` record per module (`TaskProperties`, `JmsTaskProperties`, `JpaTaskProperties`) and `@DefaultValue` defaults, no hard-coded tuning constants. Every new or changed property must be added to the property table in `ARCHITECTURE.md` (name, module, default, meaning).
 - Code style is defined by the rulesets and Eclipse settings in `conventions/`.
 - New task types: Spring beans implementing `TaskImplementation`; callers pass the **bean name** string.
 - New persistence: implement `TaskPersistence`, expose a `@Bean` (or finish auto-config **and** register it in `AutoConfiguration.imports`). Prefer `@ConditionalOnMissingBean(TaskPersistence.class)` so one backend wins.
