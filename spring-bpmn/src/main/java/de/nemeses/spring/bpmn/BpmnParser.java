@@ -18,11 +18,6 @@ public class BpmnParser {
 
     private final JAXBContext context;
 
-    /**
-     * Creates a parser.
-     *
-     * @throws BpmnParseException if the JAXB context cannot be created
-     */
     public BpmnParser() throws BpmnParseException {
         try {
             this.context = JAXBContext.newInstance(CONTEXT_PATH, BpmnParser.class.getClassLoader());

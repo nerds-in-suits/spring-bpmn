@@ -9,7 +9,12 @@ public interface ProcessDefinitionService {
 
     void register(ProcessDefinition definition);
 
-    ProcessDefinition retrieveLatest(String name);
+    /**
+     * @param name the process definition name
+     * @return the newest version of the definition
+     * @throws NoSuchProcessDefinitionException if no definition with that name exists
+     */
+    ProcessDefinition retrieveLatest(String name) throws NoSuchProcessDefinitionException;
 
     Collection<ProcessDefinition> retrieveAll(String name);
 }

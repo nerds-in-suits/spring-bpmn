@@ -13,9 +13,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
 
-/**
- *
- */
 class BpmnParserTest {
 
     private BpmnParser parser;
