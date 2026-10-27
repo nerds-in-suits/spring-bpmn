@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
+import jakarta.persistence.PersistenceException;
 
 /**
  *
@@ -48,6 +49,14 @@ class JpaProcessDefinitionServiceTest {
     void testCreatedDateInitialized() throws NoSuchProcessDefinitionException {
         this.service.register(new ProcessDefinitionEntity("dated", null, "<d/>"));
         Assertions.assertNotNull(this.service.retrieveLatest("dated").createdDate());
+    }
+
+    @Test
+    void testDuplicateNameAndCreatedRejected() {
+        this.service.register(new ProcessDefinitionEntity("duplicate", new Date(7000), "<a/>"));
+        Assertions.assertThrows(PersistenceException.class,
+                () -> this.service.register(new ProcessDefinitionEntity("duplicate", new Date(7000), "<b/>")));
+        Assertions.assertEquals(1, this.service.retrieveAll("duplicate").size());
     }
 
     /**
