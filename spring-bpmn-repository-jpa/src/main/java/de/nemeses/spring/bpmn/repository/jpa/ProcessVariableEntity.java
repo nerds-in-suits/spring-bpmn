@@ -1,6 +1,9 @@
 package de.nemeses.spring.bpmn.repository.jpa;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Objects;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,10 +19,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * One variable of a {@link ProcessInstanceEntity}; the value is stored as JSON. The primary key is the owning instance
- * plus the variable name ({@link ProcessVariableId}).
+ * plus the variable name ({@link ProcessVariableEntity.ProcessVariableId}).
  */
 @Entity
-@IdClass(ProcessVariableId.class)
+@IdClass(ProcessVariableEntity.ProcessVariableId.class)
 @Table(name = "spring_bpmn_process_variable")
 public class ProcessVariableEntity {
 
@@ -76,6 +79,43 @@ public class ProcessVariableEntity {
             return ProcessVariableEntity.MAPPER.writeValueAsString(value);
         } catch (final JacksonException e) {
             throw new IllegalArgumentException("Cannot serialize process variable.", e);
+        }
+    }
+
+    /**
+     * Composite primary key of a {@link ProcessVariableEntity}: the id of the owning process instance and the variable
+     * name.
+     */
+    public static class ProcessVariableId implements Serializable {
+
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private UUID instance;
+
+        private String name;
+
+        /**
+         * For JPA.
+         */
+        public ProcessVariableId() {
+            // JPA
+        }
+
+        ProcessVariableId(final UUID instance, final String name) {
+            this.instance = instance;
+            this.name = name;
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            return obj instanceof final ProcessVariableId other && Objects.equals(this.instance, other.instance)
+                    && Objects.equals(this.name, other.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.instance, this.name);
         }
     }
 }
