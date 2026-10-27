@@ -31,6 +31,7 @@ import de.nemeses.spring.tasks.TaskPersistence;
 class BpmnNodeTaskTest {
 
     private static final String SPRING_NS = "xmlns:spring=\"" + BpmnNodeExecutor.NAMESPACE + "\" ";
+    private static final String XSI_NS = "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" ";
 
     private final InMemoryProcessInstanceRepository instances = new InMemoryProcessInstanceRepository();
     private final InMemoryProcessStepRepository steps = new InMemoryProcessStepRepository(this.instances);
@@ -38,8 +39,13 @@ class BpmnNodeTaskTest {
     private final List<BpmnNodeContext> calls = new ArrayList<>();
 
     private ProcessInstance instance(final String processContent) {
+        return this.instance("", processContent);
+    }
+
+    private ProcessInstance instance(final String definitionsAttributes, final String processContent) {
         final String bpmnXml = "<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" " + SPRING_NS
-                + "id=\"d\" targetNamespace=\"urn:t\"><process id=\"p\">" + processContent + "</process></definitions>";
+                + XSI_NS + definitionsAttributes + " id=\"d\" targetNamespace=\"urn:t\"><process id=\"p\">"
+                + processContent + "</process></definitions>";
         return this.instances.create(new ProcessDefinition() {
             @Override
             public String name() {
@@ -154,10 +160,10 @@ class BpmnNodeTaskTest {
             Assertions.assertNotNull(this.stored(start).endDate());
             Assertions.assertNull(this.endDate(instance));
 
-            BpmnNodeTaskTest.execute(context, task);
+            this.execute(context, task);
             Assertions.assertEquals(List.of("t", "e"), this.triggeredNodes(context));
 
-            BpmnNodeTaskTest.execute(context, this.triggered(context, "e"));
+            this.execute(context, this.triggered(context, "e"));
             Assertions.assertEquals(List.of("t", "e"), this.triggeredNodes(context));
             Assertions.assertNotNull(this.endDate(instance));
 
@@ -190,13 +196,13 @@ class BpmnNodeTaskTest {
         this.withEngine(context -> {
             final ProcessStep start1 = this.steps.create(instance.id(), "s1", null);
             final ProcessStep start2 = this.steps.create(instance.id(), "s2", null);
-            BpmnNodeTaskTest.execute(context, start1);
-            BpmnNodeTaskTest.execute(context, this.triggered(context, "e1"));
+            this.execute(context, start1);
+            this.execute(context, this.triggered(context, "e1"));
             Assertions.assertNull(this.endDate(instance));
 
-            BpmnNodeTaskTest.execute(context, start2);
+            this.execute(context, start2);
             Assertions.assertNull(this.endDate(instance));
-            BpmnNodeTaskTest.execute(context, this.triggered(context, "e2"));
+            this.execute(context, this.triggered(context, "e2"));
             Assertions.assertNotNull(this.endDate(instance));
         });
     }
@@ -214,23 +220,23 @@ class BpmnNodeTaskTest {
             this.execute(context, instance, "fork");
             Assertions.assertEquals(List.of("a", "b"), this.triggeredNodes(context));
 
-            BpmnNodeTaskTest.execute(context, this.triggered(context, "a"));
+            this.execute(context, this.triggered(context, "a"));
             final ProcessStep joinA = this.triggered(context).get(2);
             Assertions.assertEquals("ja", joinA.incomingFlowId());
-            BpmnNodeTaskTest.execute(context, joinA);
+            this.execute(context, joinA);
             // parked at the join: still pending, nothing taken
             Assertions.assertNull(this.stored(joinA).endDate());
             Assertions.assertEquals(List.of("a", "b", "join"), this.triggeredNodes(context));
 
-            BpmnNodeTaskTest.execute(context, this.triggered(context, "b"));
+            this.execute(context, this.triggered(context, "b"));
             final ProcessStep joinB = this.triggered(context).get(3);
             Assertions.assertEquals("jb", joinB.incomingFlowId());
-            BpmnNodeTaskTest.execute(context, joinB);
+            this.execute(context, joinB);
             Assertions.assertNotNull(this.stored(joinA).endDate());
             Assertions.assertNotNull(this.stored(joinB).endDate());
             Assertions.assertEquals(List.of("a", "b", "join", "join", "e"), this.triggeredNodes(context));
 
-            BpmnNodeTaskTest.execute(context, this.triggered(context, "e"));
+            this.execute(context, this.triggered(context, "e"));
             Assertions.assertNotNull(this.endDate(instance));
         });
     }
@@ -248,16 +254,16 @@ class BpmnNodeTaskTest {
             final ProcessStep b1 = this.steps.create(instance.id(), "join", "jb");
 
             // the newer step on flow ja completes the join with the oldest one of each flow
-            BpmnNodeTaskTest.execute(context, a2);
+            this.execute(context, a2);
             Assertions.assertEquals(List.of("t"), this.triggeredNodes(context));
             Assertions.assertNotNull(this.stored(a1).endDate());
             Assertions.assertNotNull(this.stored(b1).endDate());
             Assertions.assertNull(this.stored(a2).endDate());
 
             // the steps completed by the join are skipped, a2 waits for the next step on jb
-            BpmnNodeTaskTest.execute(context, a1);
-            BpmnNodeTaskTest.execute(context, b1);
-            BpmnNodeTaskTest.execute(context, a2);
+            this.execute(context, a1);
+            this.execute(context, b1);
+            this.execute(context, a2);
             Assertions.assertEquals(List.of("t"), this.triggeredNodes(context));
             Assertions.assertNull(this.stored(a2).endDate());
         });
@@ -319,6 +325,19 @@ class BpmnNodeTaskTest {
     }
 
     @Test
+    void conditionsOutOfServiceTaskSeeChangedVariables() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"writing\" default=\"f3\"/>"
+                + "<task id=\"a\"/><task id=\"b\"/><task id=\"c\"/>"
+                + BpmnNodeTaskTest.flow("f1", "st", "a", "result == 'ok'")
+                + BpmnNodeTaskTest.flow("f2", "st", "b", "#amount == null")
+                + "<sequenceFlow id=\"f3\" sourceRef=\"st\" targetRef=\"c\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertEquals(List.of("a", "b"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
     void serviceTaskRejectsNullVariable() {
         final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"recording\"/>");
         this.withEngine(context -> {
@@ -371,12 +390,26 @@ class BpmnNodeTaskTest {
     void exclusiveGatewayTakesDefaultFlow() {
         final ProcessInstance instance = this.instance("<exclusiveGateway id=\"g\" default=\"f2\"/>"
                 + "<task id=\"a\"/><task id=\"b\"/>"
-                + "<sequenceFlow id=\"f1\" sourceRef=\"g\" targetRef=\"a\"><conditionExpression>${ok}</conditionExpression>"
-                + "</sequenceFlow><sequenceFlow id=\"f2\" sourceRef=\"g\" targetRef=\"b\"/>");
+                + BpmnNodeTaskTest.flow("f1", "g", "a", "${amount > 5}")
+                + "<sequenceFlow id=\"f2\" sourceRef=\"g\" targetRef=\"b\"/>");
         this.withEngine(context -> {
             this.execute(context, instance, "g");
             Assertions.assertEquals(List.of("b"), this.triggeredNodes(context));
             Assertions.assertEquals("f2", this.triggered(context, "b").incomingFlowId());
+        });
+    }
+
+    @Test
+    void exclusiveGatewayTakesFirstTrueFlowInDocumentOrder() {
+        final ProcessInstance instance = this.instance("<exclusiveGateway id=\"g\" default=\"f1\"/>"
+                + "<task id=\"a\"/><task id=\"b\"/><task id=\"c\"/><task id=\"d\"/>"
+                + "<sequenceFlow id=\"f1\" sourceRef=\"g\" targetRef=\"a\"/>"
+                + BpmnNodeTaskTest.flow("f2", "g", "b", "amount > 5")
+                + BpmnNodeTaskTest.flow("f3", "g", "c", "${amount &gt;= 3}")
+                + BpmnNodeTaskTest.flow("f4", "g", "d", "#amount == 3"));
+        this.withEngine(context -> {
+            this.execute(context, instance, "g");
+            Assertions.assertEquals(List.of("c"), this.triggeredNodes(context));
         });
     }
 
@@ -391,10 +424,10 @@ class BpmnNodeTaskTest {
     }
 
     @Test
-    void ambiguousExclusiveGatewayFails() {
+    void exclusiveGatewayWithoutTrueConditionOrDefaultFails() {
         final ProcessInstance instance = this.instance("<exclusiveGateway id=\"g\"/><task id=\"a\"/><task id=\"b\"/>"
-                + "<sequenceFlow id=\"f1\" sourceRef=\"g\" targetRef=\"a\"/>"
-                + "<sequenceFlow id=\"f2\" sourceRef=\"g\" targetRef=\"b\"/>");
+                + BpmnNodeTaskTest.flow("f1", "g", "a", "amount > 5")
+                + BpmnNodeTaskTest.flow("f2", "g", "b", "amount &lt; 0"));
         this.withEngine(context -> {
             this.assertFails(context, instance, "g");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
@@ -413,14 +446,103 @@ class BpmnNodeTaskTest {
     }
 
     @Test
-    void conditionalFlowFails() {
-        final ProcessInstance instance = this.instance("<task id=\"t\"/><task id=\"a\"/>"
-                + "<sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"a\"><conditionExpression>${ok}</conditionExpression>"
-                + "</sequenceFlow>");
+    void activityTakesTrueAndUnconditionalFlows() {
+        final ProcessInstance instance = this.instance("<task id=\"t\" default=\"f4\"/>"
+                + "<task id=\"a\"/><task id=\"b\"/><task id=\"c\"/><task id=\"d\"/><task id=\"e\"/>"
+                + BpmnNodeTaskTest.flow("f1", "t", "a", "amount == 3")
+                + BpmnNodeTaskTest.flow("f2", "t", "b", "amount != 3")
+                + "<sequenceFlow id=\"f3\" sourceRef=\"t\" targetRef=\"c\"/>"
+                + "<sequenceFlow id=\"f4\" sourceRef=\"t\" targetRef=\"d\"/>"
+                + BpmnNodeTaskTest.flow("f5", "t", "e", "true"));
         this.withEngine(context -> {
-            this.assertFails(context, instance, "t");
+            this.execute(context, instance, "t");
+            Assertions.assertEquals(List.of("a", "c", "e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void activityTakesDefaultFlowIfNoConditionIsTrue() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"recording\" default=\"f3\"/>"
+                + "<task id=\"a\"/><task id=\"b\"/><task id=\"c\"/>"
+                + BpmnNodeTaskTest.flow("f1", "st", "a", "amount > 5")
+                + "<sequenceFlow id=\"f2\" sourceRef=\"st\" targetRef=\"b\"/>"
+                + "<sequenceFlow id=\"f3\" sourceRef=\"st\" targetRef=\"c\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertEquals(List.of("b", "c"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void formalExpressionWithSpelLanguageIsEvaluated() {
+        final ProcessInstance instance = this.instance("expressionLanguage=\"urn:other\"",
+                "<task id=\"t\"/><task id=\"a\"/><sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"a\">"
+                        + "<conditionExpression xsi:type=\"tFormalExpression\" language=\""
+                        + ConditionEvaluator.SPEL_LANGUAGE + "\">${amount == 3}</conditionExpression></sequenceFlow>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "t");
+            Assertions.assertEquals(List.of("a"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void definitionsWithSpelLanguageAreEvaluated() {
+        final ProcessInstance instance = this.instance("expressionLanguage=\"" + ConditionEvaluator.SPEL_LANGUAGE + "\"",
+                "<task id=\"t\"/><task id=\"a\"/>" + BpmnNodeTaskTest.flow("f", "t", "a", "amount == 3"));
+        this.withEngine(context -> {
+            this.execute(context, instance, "t");
+            Assertions.assertEquals(List.of("a"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void unsupportedExpressionLanguageFails() {
+        final String process = "<task id=\"t\"/><task id=\"a\"/>"
+                + "<sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"a\">"
+                + "<conditionExpression xsi:type=\"tFormalExpression\" language=\"urn:other\">true</conditionExpression>"
+                + "</sequenceFlow>";
+        final ProcessInstance formal = this.instance(process);
+        final ProcessInstance definitions = this.instance("expressionLanguage=\"urn:other\"",
+                "<task id=\"t\"/><task id=\"a\"/>" + BpmnNodeTaskTest.flow("f", "t", "a", "true"));
+        this.withEngine(context -> {
+            this.assertFails(context, formal, "t");
+            this.assertFails(context, definitions, "t");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
         });
+    }
+
+    @Test
+    void invalidConditionFails() {
+        final ProcessInstance instance = this.instance("<task id=\"unknownVariable\"/><task id=\"notBoolean\"/>"
+                + "<task id=\"syntax\"/><task id=\"empty\"/><task id=\"typeReference\"/><task id=\"a\"/>"
+                + BpmnNodeTaskTest.flow("f1", "unknownVariable", "a", "ok")
+                + BpmnNodeTaskTest.flow("f2", "notBoolean", "a", "amount")
+                + BpmnNodeTaskTest.flow("f3", "syntax", "a", "amount &gt;")
+                + BpmnNodeTaskTest.flow("f4", "empty", "a", " ")
+                + BpmnNodeTaskTest.flow("f5", "typeReference", "a", "T(java.lang.Boolean).TRUE"));
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "unknownVariable");
+            this.assertFails(context, instance, "notBoolean");
+            this.assertFails(context, instance, "syntax");
+            this.assertFails(context, instance, "empty");
+            this.assertFails(context, instance, "typeReference");
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+        });
+    }
+
+    @Test
+    void conditionalFlowOutOfStartEventFails() {
+        final ProcessInstance instance = this.instance("<startEvent id=\"s\"/><task id=\"a\"/>"
+                + BpmnNodeTaskTest.flow("f", "s", "a", "true"));
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "s");
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+        });
+    }
+
+    private static String flow(final String id, final String source, final String target, final String condition) {
+        return "<sequenceFlow id=\"" + id + "\" sourceRef=\"" + source + "\" targetRef=\"" + target + "\">"
+                + "<conditionExpression>" + condition + "</conditionExpression></sequenceFlow>";
     }
 
     @Test

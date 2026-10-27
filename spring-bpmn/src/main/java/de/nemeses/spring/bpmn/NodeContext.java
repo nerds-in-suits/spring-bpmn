@@ -7,8 +7,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * The {@link BpmnNodeContext} passed to a {@link BpmnNodeImplementation} by the {@link BpmnNodeExecutor}; collects the
- * variable changes.
+ * The {@link BpmnNodeContext} passed by the {@link BpmnNodeExecutor} to a {@link BpmnNodeImplementation}; collects
+ * the variable changes.
  */
 final class NodeContext implements BpmnNodeContext {
 
@@ -54,9 +54,16 @@ final class NodeContext implements BpmnNodeContext {
     }
 
     /**
-     * @return whether a variable was set or removed
+     * @return whether {@link #setVariable} or {@link #removeVariable} changed a variable
      */
     boolean isChanged() {
         return this.changed;
+    }
+
+    /**
+     * @return a copy of the variables including the changes
+     */
+    Map<String, Object> changedVariables() {
+        return new LinkedHashMap<>(this.vars);
     }
 }
