@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 /**
@@ -22,8 +23,8 @@ public class ProcessDefinitionEntity implements ProcessDefinition {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false)
-    private String processName;
+    @Column(name = "process_definition_name", nullable = false)
+    private String processDefinitionName;
 
     @Column(name = "created_date", nullable = false)
     private Date created;
@@ -37,14 +38,21 @@ public class ProcessDefinitionEntity implements ProcessDefinition {
     }
 
     ProcessDefinitionEntity(final String name, final Date createdDate, final String bpmnXml) {
-        this.processName = name;
+        this.processDefinitionName = name;
         this.created = createdDate;
         this.xml = bpmnXml;
     }
 
+    @PrePersist
+    void initCreated() {
+        if (this.created == null) {
+            this.created = new Date();
+        }
+    }
+
     @Override
     public String name() {
-        return this.processName;
+        return this.processDefinitionName;
     }
 
     @Override

@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
 
+import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 
@@ -24,7 +25,7 @@ class JpaProcessDefinitionServiceTest {
     private ProcessDefinitionService service;
 
     @Test
-    void testRegisterAndRetrieve() {
+    void testRegisterAndRetrieve() throws NoSuchProcessDefinitionException {
         this.service.register(new ProcessDefinitionEntity("order", new Date(1000), "<v1/>"));
         this.service.register(new ProcessDefinitionEntity("order", new Date(3000), "<v3/>"));
         this.service.register(new ProcessDefinitionEntity("order", new Date(2000), "<v2/>"));
@@ -38,8 +39,15 @@ class JpaProcessDefinitionServiceTest {
 
     @Test
     void testUnknown() {
-        Assertions.assertNull(this.service.retrieveLatest("missing"));
+        Assertions.assertThrows(NoSuchProcessDefinitionException.class,
+                () -> this.service.retrieveLatest("missing"));
         Assertions.assertTrue(this.service.retrieveAll("missing").isEmpty());
+    }
+
+    @Test
+    void testCreatedDateInitialized() throws NoSuchProcessDefinitionException {
+        this.service.register(new ProcessDefinitionEntity("dated", null, "<d/>"));
+        Assertions.assertNotNull(this.service.retrieveLatest("dated").createdDate());
     }
 
     /**
