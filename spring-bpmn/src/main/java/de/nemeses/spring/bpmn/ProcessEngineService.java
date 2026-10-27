@@ -51,13 +51,12 @@ public class ProcessEngineService {
      */
     @Transactional(rollbackFor = ProcessEngineException.class)
     public ProcessInstance startProcess(final String name, final Map<String, Object> variables) throws ProcessEngineException {
-        final ProcessDefinition definition;
         try {
-            definition = this.definitions.retrieveLatest(name);
+            final ProcessDefinition definition = this.definitions.retrieveLatest(name);
+            return this.startProcess(definition, variables);
         } catch (final NoSuchProcessDefinitionException e) {
             throw new ProcessEngineException("Cannot start process '" + name + "'.", e);
         }
-        return this.startProcess(definition, variables);
     }
 
     /**

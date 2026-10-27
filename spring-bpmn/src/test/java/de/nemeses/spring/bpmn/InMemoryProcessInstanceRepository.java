@@ -19,7 +19,7 @@ class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
 
     @Override
     public ProcessInstance create(final ProcessDefinition definition, final Map<String, Object> variables) {
-        final ProcessInstance instance = new Instance(UUID.randomUUID().toString(), definition, Map.copyOf(variables),
+        final ProcessInstance instance = new Instance(UUID.randomUUID(), definition, Map.copyOf(variables),
                 new Date(), null);
         this.created.add(instance);
         return instance;
@@ -38,7 +38,7 @@ class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
      * @param startDate the start date
      * @param endDate the end date
      */
-    record Instance(String id, ProcessDefinition processDefinition, Map<String, Object> variables, Date startDate,
+    record Instance(UUID id, ProcessDefinition processDefinition, Map<String, Object> variables, Date startDate,
             Date endDate) implements ProcessInstance {
     }
 }

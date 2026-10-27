@@ -45,7 +45,7 @@ class JpaProcessInstanceRepositoryTest {
 
         final ProcessInstance created = this.repository.create(definition, variables);
 
-        Assertions.assertEquals(36, created.id().length());
+        Assertions.assertNotNull(created.id());
         Assertions.assertNotNull(created.startDate());
         Assertions.assertNull(created.endDate());
 

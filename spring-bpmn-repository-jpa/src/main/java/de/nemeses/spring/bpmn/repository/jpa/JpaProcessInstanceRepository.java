@@ -4,6 +4,8 @@ import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
@@ -12,8 +14,11 @@ import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import jakarta.persistence.EntityManager;
 
 /**
- * JPA backed {@link ProcessInstanceRepository}. Variables are stored as JSON.
+ * JPA backed {@link ProcessInstanceRepository}. Variables are stored as JSON. Imported by
+ * {@link JpaBpmnRepositoryAutoConfiguration}.
  */
+@Component
+@ConditionalOnMissingBean(ProcessInstanceRepository.class)
 public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
 
     private final EntityManager entityManager;
@@ -29,7 +34,7 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     @Override
     @Transactional
     public ProcessInstance create(final ProcessDefinition definition, final Map<String, Object> variables) {
-        final ProcessInstanceEntity entity = new ProcessInstanceEntity(UUID.randomUUID().toString(),
+        final ProcessInstanceEntity entity = new ProcessInstanceEntity(UUID.randomUUID(),
                 this.definitionEntity(definition), variables == null ? Map.of() : variables, new Date());
         this.entityManager.persist(entity);
         return entity;

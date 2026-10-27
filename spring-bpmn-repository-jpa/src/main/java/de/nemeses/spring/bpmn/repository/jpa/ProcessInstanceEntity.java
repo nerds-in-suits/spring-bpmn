@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
@@ -24,8 +25,8 @@ import jakarta.persistence.Table;
 public class ProcessInstanceEntity implements ProcessInstance {
 
     @Id
-    @Column(name = "id", length = 36, nullable = false, updatable = false)
-    private String uuid;
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID uuid;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "process_definition_id", nullable = false, updatable = false)
@@ -46,7 +47,7 @@ public class ProcessInstanceEntity implements ProcessInstance {
         // JPA
     }
 
-    ProcessInstanceEntity(final String id, final ProcessDefinitionEntity definition, final Map<String, Object> variables,
+    ProcessInstanceEntity(final UUID id, final ProcessDefinitionEntity definition, final Map<String, Object> variables,
             final Date startDate) {
         this.uuid = id;
         this.definition = definition;
@@ -56,7 +57,7 @@ public class ProcessInstanceEntity implements ProcessInstance {
 
     @Override
     @SuppressWarnings("PMD.ShortMethodName")
-    public String id() {
+    public UUID id() {
         return this.uuid;
     }
 
