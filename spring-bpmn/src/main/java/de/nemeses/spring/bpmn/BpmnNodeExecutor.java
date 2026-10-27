@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
+import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.EndEvent;
 import de.nemeses.spring.bpmn.model.bpmn20.ExclusiveGateway;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
@@ -46,28 +48,34 @@ public class BpmnNodeExecutor {
     private final BpmnParser parser;
     private final TaskService taskService;
     private final Map<String, BpmnNodeImplementation> implementations;
+    private final ConditionEvaluator conditions;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final BpmnParser parser, final TaskService taskService,
-            final Map<String, BpmnNodeImplementation> implementations) {
+            final Map<String, BpmnNodeImplementation> implementations, final ConditionEvaluator conditions) {
         this.instances = instances;
         this.parser = parser;
         this.taskService = taskService;
         this.implementations = implementations;
+        this.conditions = conditions;
     }
 
     /**
      * Executes one node of a process instance and schedules a {@link BpmnNodeTask} for the target of each sequence
      * flow taken, all in one transaction. Supported node types:
      * <ul>
-     * <li>{@code startEvent}, {@code task}: nothing to do, all outgoing flows are taken.</li>
+     * <li>{@code startEvent}: nothing to do, all outgoing flows are taken.</li>
+     * <li>{@code task}: nothing to do, the outgoing flows are taken like for every activity (see below).</li>
      * <li>{@code serviceTask}: calls the {@link BpmnNodeImplementation} bean named by the extension attribute
-     * {@link #BEAN_ATTRIBUTE}, then takes all outgoing flows.</li>
-     * <li>{@code exclusiveGateway}: takes the {@code default} flow if set, else the only outgoing flow.</li>
+     * {@link #BEAN_ATTRIBUTE}, then takes the outgoing flows like for every activity.</li>
+     * <li>{@code exclusiveGateway}: takes the first non-default outgoing flow (in document order) without condition or
+     * whose condition is true, else the {@code default} flow; fails if there is none.</li>
      * <li>{@code parallelGateway}: takes all outgoing flows (forks; joining is not synchronized yet).</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date).</li>
      * </ul>
-     * Except for the default flow of an exclusive gateway, a sequence flow to take must not have a condition; activities
-     * must not have loop characteristics.
+     * An activity takes every outgoing flow without condition and every flow whose condition is true; its
+     * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}.
+     * Flows out of start events and parallel gateways must not have a condition; activities must not have loop
+     * characteristics.
      * Nodes of an instance that has already ended are skipped.
      *
      * @param processId the id of the process instance
@@ -85,8 +93,10 @@ public class BpmnNodeExecutor {
                         nodeId, processId);
                 return;
             }
-            final Process process = ProcessEngineService.process(this.parser, instance.processDefinition());
-            final List<SequenceFlow> taken = this.run(instance, process, BpmnNodeExecutor.flowNode(process, nodeId));
+            final Definitions document = ProcessEngineService.parse(this.parser, instance.processDefinition());
+            final Process process = ProcessEngineService.process(document, instance.processDefinition());
+            final List<SequenceFlow> taken = this.run(instance, document.getExpressionLanguage(), process,
+                    BpmnNodeExecutor.flowNode(process, nodeId));
             for (final SequenceFlow flow : taken) {
                 final String target = ((FlowElement) flow.getTargetRef()).getId();
                 this.taskService.trigger(BpmnNodeTask.BEAN_NAME, new NodeTaskPayload(processId, target));
@@ -101,10 +111,11 @@ public class BpmnNodeExecutor {
     /**
      * Runs the node according to its type.
      *
+     * @param language the default expression language of the document
      * @return the sequence flows to take
      */
-    private List<SequenceFlow> run(final ProcessInstance instance, final Process process, final FlowNode node)
-            throws ProcessEngineException {
+    private List<SequenceFlow> run(final ProcessInstance instance, final String language, final Process process,
+            final FlowNode node) throws ProcessEngineException {
         if (node instanceof final Activity activity && activity.getLoopCharacteristics() != null) {
             throw new ProcessEngineException("Activity '" + node.getId()
                     + "' has loop characteristics, which are not supported yet.");
@@ -118,10 +129,11 @@ public class BpmnNodeExecutor {
         }
         case final ServiceTask task -> {
             this.implementation(task).execute(new NodeContext(instance.id(), task.getId(), instance.variables()));
-            yield BpmnNodeExecutor.unconditional(outgoing);
+            yield this.activityFlows(task, outgoing, language, instance.variables());
         }
-        case final ExclusiveGateway gateway -> List.of(BpmnNodeExecutor.exclusive(gateway, outgoing));
-        case final Task task when task.getClass() == Task.class -> BpmnNodeExecutor.unconditional(outgoing);
+        case final ExclusiveGateway gateway -> List.of(this.exclusive(gateway, outgoing, language, instance.variables()));
+        case final Task task when task.getClass() == Task.class ->
+            this.activityFlows(task, outgoing, language, instance.variables());
         default -> throw new ProcessEngineException("Node '" + node.getId() + "' is a "
                 + node.getClass().getSimpleName() + ", which is not supported yet.");
         };
@@ -154,16 +166,49 @@ public class BpmnNodeExecutor {
         return implementation;
     }
 
-    private static SequenceFlow exclusive(final ExclusiveGateway gateway, final List<SequenceFlow> outgoing)
-            throws ProcessEngineException {
-        if (gateway.getDefault() instanceof final SequenceFlow defaultFlow) {
+    private SequenceFlow exclusive(final ExclusiveGateway gateway, final List<SequenceFlow> outgoing,
+            final String language, final Map<String, Object> variables) throws ProcessEngineException {
+        for (final SequenceFlow flow : outgoing) {
+            if (!flow.equals(gateway.getDefault()) && this.isTrue(flow, language, variables)) {
+                return flow;
+            }
+        }
+        if (gateway.getDefault() instanceof final SequenceFlow defaultFlow && outgoing.contains(defaultFlow)) {
             return defaultFlow;
         }
-        if (outgoing.size() == 1) {
-            return BpmnNodeExecutor.unconditional(outgoing).get(0);
+        throw new ProcessEngineException("Exclusive gateway '" + gateway.getId()
+                + "' has no outgoing flow whose condition is true and no default flow.");
+    }
+
+    /**
+     * @return the flows out of an activity to take: the unconditional ones and those whose condition is true, or the
+     *         default flow instead of the latter if no condition is true
+     */
+    private List<SequenceFlow> activityFlows(final Activity activity, final List<SequenceFlow> outgoing,
+            final String language, final Map<String, Object> variables) throws ProcessEngineException {
+        final List<SequenceFlow> taken = new ArrayList<>();
+        boolean conditionTrue = false;
+        for (final SequenceFlow flow : outgoing) {
+            if (flow.equals(activity.getDefault())) {
+                continue;
+            }
+            if (flow.getConditionExpression() == null) {
+                taken.add(flow);
+            } else if (this.conditions.evaluate(flow, language, variables)) {
+                taken.add(flow);
+                conditionTrue = true;
+            }
         }
-        throw new ProcessEngineException("Exclusive gateway '" + gateway.getId() + "' has " + outgoing.size()
-                + " outgoing flows and no default flow; conditions are not supported yet.");
+        if (!conditionTrue && activity.getDefault() instanceof final SequenceFlow defaultFlow
+                && outgoing.contains(defaultFlow)) {
+            taken.add(defaultFlow);
+        }
+        return taken;
+    }
+
+    private boolean isTrue(final SequenceFlow flow, final String language, final Map<String, Object> variables)
+            throws ProcessEngineException {
+        return flow.getConditionExpression() == null || this.conditions.evaluate(flow, language, variables);
     }
 
     private static List<SequenceFlow> unconditional(final List<SequenceFlow> flows) throws ProcessEngineException {
