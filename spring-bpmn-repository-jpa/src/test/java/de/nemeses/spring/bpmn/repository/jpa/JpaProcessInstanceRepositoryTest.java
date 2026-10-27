@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -131,6 +132,65 @@ class JpaProcessInstanceRepositoryTest {
             entityManager.close();
         }
         Assertions.assertEquals(variables, this.repository.retrieve(created.id()).variables());
+    }
+
+    @Test
+    void testVariablesAreStoredAsOneRowEach() throws NoSuchProcessDefinitionException {
+        this.definitions.register(new ProcessDefinitionEntity("rows", null, "<r/>"));
+        final ProcessInstance created = this.repository.create(this.definitions.retrieveLatest("rows"),
+                Map.of("amount", 3, "address", Map.of("city", "Munich")));
+
+        Assertions.assertEquals(Map.of("amount", "3", "address", "{\"city\":\"Munich\"}"), this.rows(created.id()));
+    }
+
+    @Test
+    void testUpdateVariablesChangesRowsPerVariable()
+            throws NoSuchProcessDefinitionException, NoSuchProcessInstanceException {
+        this.definitions.register(new ProcessDefinitionEntity("rowupdate", null, "<u/>"));
+        final ProcessInstance created = this.repository.create(this.definitions.retrieveLatest("rowupdate"),
+                Map.of("kept", "k", "changed", 1, "removed", true));
+
+        this.repository.updateVariables(created.id(), Map.of("kept", "k", "changed", 2, "added", List.of(1)));
+
+        Assertions.assertEquals(Map.of("kept", "\"k\"", "changed", "2", "added", "[1]"), this.rows(created.id()));
+
+        this.repository.updateVariables(created.id(), Map.of());
+
+        Assertions.assertEquals(Map.of(), this.rows(created.id()));
+        Assertions.assertEquals(Map.of(), this.repository.retrieve(created.id()).variables());
+    }
+
+    private Map<String, String> rows(final UUID instanceId) {
+        final EntityManager entityManager = this.entityManagerFactory.createEntityManager();
+        try {
+            final Map<String, String> rows = new HashMap<>();
+            for (final Object row : entityManager.createNativeQuery(
+                    "select variable_name, cast(variable_value as varchar(1000)) from spring_bpmn_process_variable"
+                            + " where process_instance_id = ?1")
+                    .setParameter(1, instanceId).getResultList()) {
+                final Object[] columns = (Object[]) row;
+                rows.put((String) columns[0], String.valueOf(columns[1]));
+            }
+            return rows;
+        } finally {
+            entityManager.close();
+        }
+    }
+
+    @Test
+    void testVariablePrimaryKeyIsInstanceAndName() {
+        final EntityManager entityManager = this.entityManagerFactory.createEntityManager();
+        try {
+            final List<?> columns = entityManager.createNativeQuery("select lower(k.column_name)"
+                    + " from information_schema.table_constraints c join information_schema.key_column_usage k"
+                    + " on k.constraint_name = c.constraint_name and k.table_name = c.table_name"
+                    + " where c.constraint_type = 'PRIMARY KEY'"
+                    + " and lower(c.table_name) = 'spring_bpmn_process_variable' order by k.column_name")
+                    .getResultList();
+            Assertions.assertEquals(List.of("process_instance_id", "variable_name"), columns);
+        } finally {
+            entityManager.close();
+        }
     }
 
     @Test
