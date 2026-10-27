@@ -42,7 +42,7 @@ public class ProcessDefinitionRegistrar implements ApplicationRunner {
 
     @Override
     public void run(final ApplicationArguments args) throws IOException, BpmnParseException {
-        registerAll();
+        this.registerAll();
     }
 
     /**
@@ -52,40 +52,43 @@ public class ProcessDefinitionRegistrar implements ApplicationRunner {
      * @throws BpmnParseException if a resource is not a valid BPMN document
      */
     public void registerAll() throws IOException, BpmnParseException {
-        for (final ProcessDefinitionSource source : this.sources) {
-            for (final Resource resource : source.resources()) {
-                register(resource);
-            }
-        }
+        this.sources.stream()
+            .flatMap(ProcessDefinitionSource::resources)
+            .distinct()
+            .forEach(this::register);
     }
 
-    private void register(final Resource resource) throws IOException, BpmnParseException {
-        final byte[] content;
-        try (InputStream in = resource.getInputStream()) {
-            content = in.readAllBytes();
-        }
-        final String xml = new String(content, StandardCharsets.UTF_8);
-        final Definitions definitions = this.parser.parse(new ByteArrayInputStream(content));
-        for (final JAXBElement<? extends RootElement> element : definitions.getRootElement()) {
-            if (element.getValue() instanceof Process process) {
-                final String name = processName(process);
-                register(new ProcessDefinition() {
-                    @Override
-                    public String name() {
-                        return name;
-                    }
-
-                    @Override
-                    public Date createdDate() {
-                        return null;
-                    }
-
-                    @Override
-                    public String bpmnXml() {
-                        return xml;
-                    }
-                }, resource);
+    private void register(final Resource resource) {
+        try {
+            final byte[] content;
+            try (InputStream in = resource.getInputStream()) {
+                content = in.readAllBytes();
             }
+            final String xml = new String(content, StandardCharsets.UTF_8);
+            final Definitions definitions = this.parser.parse(new ByteArrayInputStream(content));
+            for (final JAXBElement<? extends RootElement> element : definitions.getRootElement()) {
+                if (element.getValue() instanceof final Process process) {
+                    final String name = ProcessDefinitionRegistrar.processName(process);
+                    this.register(new ProcessDefinition() {
+                        @Override
+                        public String name() {
+                            return name;
+                        }
+
+                        @Override
+                        public Date createdDate() {
+                            return null;
+                        }
+
+                        @Override
+                        public String bpmnXml() {
+                            return xml;
+                        }
+                    }, resource);
+                }
+            }
+        } catch (IOException | BpmnParseException e) {
+            throw new IllegalStateException("Failed to register process definition resource '"+resource+"'.", e);
         }
     }
 

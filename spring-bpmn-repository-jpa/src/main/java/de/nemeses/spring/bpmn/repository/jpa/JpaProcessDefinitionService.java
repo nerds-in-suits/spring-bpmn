@@ -33,7 +33,7 @@ public class JpaProcessDefinitionService implements ProcessDefinitionService {
     public void register(final ProcessDefinition definition) {
         final ProcessDefinitionEntity entity = new ProcessDefinitionEntity(definition.name(),
                 definition.createdDate(), definition.bpmnXml());
-        this.transactionTemplate.executeWithoutResult(status -> this.entityManager.persist(entity));
+        this.transactionTemplate.executeWithoutResult(_ -> this.entityManager.persist(entity));
     }
 
     /**
@@ -42,8 +42,8 @@ public class JpaProcessDefinitionService implements ProcessDefinitionService {
      */
     @Override
     public ProcessDefinition retrieveLatest(final String name) throws NoSuchProcessDefinitionException {
-        final List<ProcessDefinitionEntity> result = this.transactionTemplate.execute(status -> this.entityManager
-                .createQuery(QUERY, ProcessDefinitionEntity.class).setParameter("name", name).setMaxResults(1)
+        final List<ProcessDefinitionEntity> result = this.transactionTemplate.execute(_ -> this.entityManager
+                .createQuery(JpaProcessDefinitionService.QUERY, ProcessDefinitionEntity.class).setParameter("name", name).setMaxResults(1)
                 .getResultList());
         if (result == null || result.isEmpty()) {
             throw new NoSuchProcessDefinitionException(name);
@@ -56,8 +56,8 @@ public class JpaProcessDefinitionService implements ProcessDefinitionService {
      */
     @Override
     public Collection<ProcessDefinition> retrieveAll(final String name) {
-        final List<ProcessDefinitionEntity> result = this.transactionTemplate.execute(status -> this.entityManager
-                .createQuery(QUERY, ProcessDefinitionEntity.class).setParameter("name", name).getResultList());
+        final List<ProcessDefinitionEntity> result = this.transactionTemplate.execute(_ -> this.entityManager
+                .createQuery(JpaProcessDefinitionService.QUERY, ProcessDefinitionEntity.class).setParameter("name", name).getResultList());
         return result == null ? List.of() : List.copyOf(result);
     }
 }

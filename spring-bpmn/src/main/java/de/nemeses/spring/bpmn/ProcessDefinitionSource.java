@@ -1,7 +1,6 @@
 package de.nemeses.spring.bpmn;
 
-import java.io.IOException;
-import java.util.Collection;
+import java.util.stream.Stream;
 
 import org.springframework.core.io.Resource;
 
@@ -12,7 +11,6 @@ public interface ProcessDefinitionSource {
 
     /**
      * @return the BPMN documents to register
-     * @throws IOException if the resources cannot be resolved
      */
-    Collection<Resource> resources() throws IOException;
+    Stream<Resource> resources();
 }

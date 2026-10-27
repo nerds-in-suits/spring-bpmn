@@ -1,10 +1,9 @@
 package de.nemeses.spring.bpmn;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.List;
-import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -17,9 +16,6 @@ import org.springframework.stereotype.Component;
 @Component
 class ConfiguredLocationsProcessDefinitionSource implements ProcessDefinitionSource {
 
-    private static final Comparator<Resource> BY_IDENTITY = Comparator.comparing(
-            ConfiguredLocationsProcessDefinitionSource::identity);
-
     private final ResourcePatternResolver resolver;
     private final List<String> locations;
 
@@ -31,19 +27,16 @@ class ConfiguredLocationsProcessDefinitionSource implements ProcessDefinitionSou
     }
 
     @Override
-    public Collection<Resource> resources() throws IOException {
-        final Collection<Resource> resources = new TreeSet<>(BY_IDENTITY);
-        for (final String location : this.locations) {
-            resources.addAll(List.of(this.resolver.getResources(location)));
-        }
-        return resources;
+    public Stream<Resource> resources() {
+        return this.locations.stream()
+            .flatMap(this::retrieveResourcesOf);
     }
 
-    private static String identity(final Resource resource) {
+    private Stream<Resource> retrieveResourcesOf(final String location) {
         try {
-            return resource.getURI().toString();
+            return Arrays.stream(this.resolver.getResources(location));
         } catch (final IOException e) {
-            return resource.getDescription();
+            throw new IllegalStateException("Failed to retrieve Resources from '"+location+"'.", e);
         }
     }
 }

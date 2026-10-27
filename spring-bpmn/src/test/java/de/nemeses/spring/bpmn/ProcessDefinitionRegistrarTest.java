@@ -2,6 +2,7 @@ package de.nemeses.spring.bpmn;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -40,41 +41,41 @@ class ProcessDefinitionRegistrarTest {
     }
 
     private ProcessDefinitionRegistrar registrar(final Resource... resources) {
-        return new ProcessDefinitionRegistrar(this.parser, this.service, List.of(() -> List.of(resources)));
+        return new ProcessDefinitionRegistrar(this.parser, this.service, List.of(() -> Arrays.stream(resources)));
     }
 
     @Test
     void registersNewResource() throws Exception {
-        registrar(bpmn("<process id=\"a\"><startEvent id=\"s\"/></process>")).registerAll();
+        this.registrar(ProcessDefinitionRegistrarTest.bpmn("<process id=\"a\"><startEvent id=\"s\"/></process>")).registerAll();
         Assertions.assertEquals(1, this.service.all.size());
         Assertions.assertEquals("a", this.service.retrieveLatest("a").name());
     }
 
     @Test
     void usesNameAttributeBeforeId() throws Exception {
-        registrar(bpmn("<process id=\"a\" name=\"Order\"/>")).registerAll();
+        this.registrar(ProcessDefinitionRegistrarTest.bpmn("<process id=\"a\" name=\"Order\"/>")).registerAll();
         Assertions.assertEquals("Order", this.service.retrieveLatest("Order").name());
     }
 
     @Test
     void skipsUnchangedHash() throws Exception {
-        final Resource resource = bpmn("<process id=\"a\"/>");
-        registrar(resource).registerAll();
-        registrar(resource).registerAll();
+        final Resource resource = ProcessDefinitionRegistrarTest.bpmn("<process id=\"a\"/>");
+        this.registrar(resource).registerAll();
+        this.registrar(resource).registerAll();
         Assertions.assertEquals(1, this.service.all.size());
     }
 
     @Test
     void registersChangedHashAgain() throws Exception {
-        registrar(bpmn("<process id=\"a\"/>")).registerAll();
-        registrar(bpmn("<process id=\"a\"><startEvent id=\"s\"/></process>")).registerAll();
+        this.registrar(ProcessDefinitionRegistrarTest.bpmn("<process id=\"a\"/>")).registerAll();
+        this.registrar(ProcessDefinitionRegistrarTest.bpmn("<process id=\"a\"><startEvent id=\"s\"/></process>")).registerAll();
         Assertions.assertEquals(2, this.service.all.size());
         Assertions.assertTrue(this.service.retrieveLatest("a").bpmnXml().contains("startEvent"));
     }
 
     @Test
     void registersEachProcessOfDocumentSeparately() throws Exception {
-        registrar(bpmn("<process id=\"a\"/>", "<process id=\"b\"/>")).registerAll();
+        this.registrar(ProcessDefinitionRegistrarTest.bpmn("<process id=\"a\"/>", "<process id=\"b\"/>")).registerAll();
         Assertions.assertEquals(2, this.service.all.size());
         Assertions.assertEquals(this.service.retrieveLatest("a").md5Hash(), this.service.retrieveLatest("b").md5Hash());
     }
@@ -82,13 +83,13 @@ class ProcessDefinitionRegistrarTest {
     @Test
     void rejectsInvalidDocument() {
         Assertions.assertThrows(BpmnParseException.class,
-                () -> registrar(new ByteArrayResource("<nope/>".getBytes(StandardCharsets.UTF_8))).registerAll());
+                () -> this.registrar(new ByteArrayResource("<nope/>".getBytes(StandardCharsets.UTF_8))).registerAll());
     }
 
     @Test
     void md5HashIsHexOfContent() {
         Assertions.assertEquals("d41d8cd98f00b204e9800998ecf8427e",
-                definition("x", null, "").md5Hash());
+                ProcessDefinitionRegistrarTest.definition("x", null, "").md5Hash());
     }
 
     @Test
@@ -97,7 +98,7 @@ class ProcessDefinitionRegistrarTest {
                 .withConfiguration(AutoConfigurations.of(ProcessDefinitionAutoConfiguration.class))
                 .withBean(ProcessDefinitionService.class, () -> this.service)
                 .withBean(ProcessDefinitionSource.class,
-                        () -> () -> List.of(bpmn("<process id=\"fromSource\"/>")))
+                        () -> () -> List.of(ProcessDefinitionRegistrarTest.bpmn("<process id=\"fromSource\"/>")).stream())
                 .run(context -> {
                     context.getBean(ApplicationRunner.class).run(null);
                     Assertions.assertNotNull(this.service.retrieveLatest("defaultProcess"));
@@ -142,7 +143,7 @@ class ProcessDefinitionRegistrarTest {
 
         @Override
         public void register(final ProcessDefinition definition) {
-            this.all.add(0, definition(definition.name(), new Date(), definition.bpmnXml()));
+            this.all.add(0, ProcessDefinitionRegistrarTest.definition(definition.name(), new Date(), definition.bpmnXml()));
         }
 
         @Override
