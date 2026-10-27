@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import javax.xml.namespace.QName;
@@ -61,7 +62,8 @@ public class BpmnNodeExecutor {
      * <ul>
      * <li>{@code startEvent}, {@code task}: nothing to do, all outgoing flows are taken.</li>
      * <li>{@code serviceTask}: calls the {@link BpmnNodeImplementation} bean named by the extension attribute
-     * {@link #BEAN_ATTRIBUTE}, then takes all outgoing flows.</li>
+     * {@link #BEAN_ATTRIBUTE}, stores the variables it changed through its {@link BpmnNodeContext}
+     * ({@link ProcessInstanceRepository#updateVariables}), then takes all outgoing flows.</li>
      * <li>{@code exclusiveGateway}: takes the {@code default} flow if set, else the only outgoing flow.</li>
      * <li>{@code parallelGateway}: takes all outgoing flows (forks; joining is not synchronized yet).</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date).</li>
@@ -117,7 +119,9 @@ public class BpmnNodeExecutor {
             yield List.of();
         }
         case final ServiceTask task -> {
-            this.implementation(task).execute(new NodeContext(instance.id(), task.getId(), instance.variables()));
+            final NodeContext context = new NodeContext(instance.id(), task.getId(), instance.variables());
+            this.implementation(task).execute(context);
+            this.storeVariables(context);
             yield BpmnNodeExecutor.unconditional(outgoing);
         }
         case final ExclusiveGateway gateway -> List.of(BpmnNodeExecutor.exclusive(gateway, outgoing));
@@ -138,6 +142,18 @@ public class BpmnNodeExecutor {
             throw new ProcessEngineException("Cannot end process instance " + instance.id() + ".", e);
         }
         LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
+    }
+
+    private void storeVariables(final NodeContext context) throws ProcessEngineException {
+        if (!context.changed) {
+            return;
+        }
+        try {
+            this.instances.updateVariables(context.processInstanceId(), context.vars);
+        } catch (final NoSuchProcessInstanceException e) {
+            throw new ProcessEngineException("Cannot store the variables of process instance "
+                    + context.processInstanceId() + ".", e);
+        }
     }
 
     private BpmnNodeImplementation implementation(final ServiceTask task) throws ProcessEngineException {
@@ -197,17 +213,49 @@ public class BpmnNodeExecutor {
     }
 
     /**
-     * The {@link BpmnNodeContext} passed to a {@link BpmnNodeImplementation}.
-     *
-     * @param processInstanceId the process instance id
-     * @param nodeId the node id
-     * @param variables the process variables
+     * The {@link BpmnNodeContext} passed to a {@link BpmnNodeImplementation}; collects the variable changes.
      */
-    private record NodeContext(UUID processInstanceId, String nodeId, Map<String, Object> variables)
-            implements BpmnNodeContext {
+    private static final class NodeContext implements BpmnNodeContext {
 
-        NodeContext {
-            variables = Collections.unmodifiableMap(new LinkedHashMap<>(variables));
+        private final UUID instanceId;
+        private final String node;
+        private final Map<String, Object> vars;
+        private boolean changed;
+
+        NodeContext(final UUID instanceId, final String node, final Map<String, Object> variables) {
+            this.instanceId = instanceId;
+            this.node = node;
+            this.vars = new LinkedHashMap<>(variables);
+        }
+
+        @Override
+        public UUID processInstanceId() {
+            return this.instanceId;
+        }
+
+        @Override
+        public String nodeId() {
+            return this.node;
+        }
+
+        @Override
+        public Map<String, Object> variables() {
+            return Collections.unmodifiableMap(this.vars);
+        }
+
+        @Override
+        public void setVariable(final String name, final Object value) {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(value, "value");
+            this.vars.put(name, value);
+            this.changed = true;
+        }
+
+        @Override
+        public void removeVariable(final String name) {
+            if (this.vars.remove(name) != null) {
+                this.changed = true;
+            }
         }
     }
 }

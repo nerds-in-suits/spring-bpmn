@@ -34,4 +34,14 @@ public interface ProcessInstanceRepository {
      * @throws NoSuchProcessInstanceException if no instance with that id exists
      */
     ProcessInstance updateEndDate(UUID id, Date endDate) throws NoSuchProcessInstanceException;
+
+    /**
+     * Replaces the process variables of an instance.
+     *
+     * @param id the id of the instance
+     * @param variables the new process variables, which replace all existing ones
+     * @return the updated instance
+     * @throws NoSuchProcessInstanceException if no instance with that id exists
+     */
+    ProcessInstance updateVariables(UUID id, Map<String, Object> variables) throws NoSuchProcessInstanceException;
 }

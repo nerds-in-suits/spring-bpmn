@@ -41,6 +41,17 @@ class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
         return updated;
     }
 
+    @Override
+    public ProcessInstance updateVariables(final UUID id, final Map<String, Object> variables)
+            throws NoSuchProcessInstanceException {
+        final int index = this.index(id);
+        final ProcessInstance old = this.created.get(index);
+        final ProcessInstance updated = new Instance(id, old.processDefinition(), Map.copyOf(variables),
+                old.startDate(), old.endDate());
+        this.created.set(index, updated);
+        return updated;
+    }
+
     private int index(final UUID id) throws NoSuchProcessInstanceException {
         for (int i = 0; i < this.created.size(); i++) {
             if (this.created.get(i).id().equals(id)) {

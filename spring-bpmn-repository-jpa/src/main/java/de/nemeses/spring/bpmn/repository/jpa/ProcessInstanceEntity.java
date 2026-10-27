@@ -84,4 +84,13 @@ public class ProcessInstanceEntity implements ProcessInstance {
     void endDate(final Date endDate) {
         this.end = endDate;
     }
+
+    /**
+     * Replaces the variables with a copy, so that the converted attribute is detected as dirty.
+     *
+     * @param variables the new variables
+     */
+    void variables(final Map<String, Object> variables) {
+        this.vars = new LinkedHashMap<>(variables);
+    }
 }
