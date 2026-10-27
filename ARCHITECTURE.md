@@ -23,7 +23,7 @@ An arrow points from the dependent module to the module it depends on. Implement
 | `spring-tasks-jpa` | Stores tasks in JPA (`JpaTaskPersistence`, `TaskEntity`, table `spring_tasks`). Planned: query JPA store for due tasks and execute them. | persist and next (polling) implemented, untested |
 | `spring-tasks-jms` | Sends scheduled tasks to a JMS queue and listens to it for execution. | `JmsTaskPersistence` (send, blocking `next()`, ack/recover); tests use embedded Artemis |
 | `spring-bpmn-repository` | API of the persistence layer of the engine: BPMN models (`ProcessModelRepository`) and audit log of executed processes (`ProcessHistoryRepository`). | skeleton interfaces |
-| `spring-bpmn-repository-jpa` | Only repository implementation for now; stores everything in JPA. | empty auto-config skeleton |
+| `spring-bpmn-repository-jpa` | Only repository implementation for now; stores everything in JPA. | `ProcessDefinitionService` implemented and tested (H2); model/history repositories not yet |
 | `spring-bpmn` | Reads and interprets BPMN files; uses `spring-tasks` to run steps and `spring-bpmn-repository` for models/history. | Generated JAXB model (BPMN 2.0 XSDs, one package per namespace: `de.nemeses.spring.bpmn.model.bpmn20` (BPMN20 + Semantic), `.bpmndi`, `.dc`, `.di`; classes without the `t` prefix, see `src/main/xjb/bpmn.xjb`); no engine code yet |
 
 ## Key types
@@ -31,8 +31,8 @@ An arrow points from the dependent module to the module it depends on. Implement
 - `de.nemeses.spring.tasks`: `TaskService` (public entry: `trigger`, `schedule`), `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson), `TaskPersistence` + record `Data`, `TaskException`, `PayloadException`, `TaskConfiguration`.
 - `de.nemeses.spring.tasks.jpa` (module `spring-tasks-jpa`): `JpaTaskPersistenceAutoConfiguration`, `JpaTaskPersistence`, `TaskEntity`.
 - `de.nemeses.spring.tasks.jms` (module `spring-tasks-jms`): `JmsTaskPersistenceAutoConfiguration` (registers `JmsTaskPersistence`), `JmsTaskProperties` (`spring.tasks.jms.queue`, default `spring.tasks`), `JmsTaskPersistence`: `persist` sends a text message with `beanName` property and JMS 2.0 delivery delay for `earliestExecution`; `next()` receives with client acknowledge; `complete()` acknowledges, `fail()` recovers (redelivery).
-- `de.nemeses.spring.bpmn.repository` (module `spring-bpmn-repository`): `ProcessModelRepository`, `ProcessHistoryRepository`.
-- `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`): `JpaBpmnRepositoryAutoConfiguration` (skeleton).
+- `de.nemeses.spring.bpmn.repository` (module `spring-bpmn-repository`): `ProcessDefinition`, `NoSuchProcessDefinitionException`, `ProcessDefinitionService` (`register`, `retrieveLatest`, `retrieveAll`), `ProcessModelRepository`, `ProcessHistoryRepository`.
+- `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`): `JpaBpmnRepositoryAutoConfiguration` (registers `JpaProcessDefinitionService`, conditional on `EntityManagerFactory`, adds the package to the entity scan), `JpaProcessDefinitionService` (every `register` adds a version; latest = newest `createdDate`; `retrieveLatest` throws the checked `NoSuchProcessDefinitionException` if unknown; `createdDate` defaults to the first-persist time via `@PrePersist`), `ProcessDefinitionEntity` (table `spring_bpmn_process_definition`).
 
 ## Flow of a task
 
