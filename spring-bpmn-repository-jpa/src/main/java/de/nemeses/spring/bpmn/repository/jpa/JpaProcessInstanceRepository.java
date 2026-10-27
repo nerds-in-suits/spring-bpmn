@@ -17,8 +17,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 
 /**
- * JPA backed {@link ProcessInstanceRepository}. Variables are stored as JSON. Imported by
- * {@link JpaBpmnRepositoryAutoConfiguration}.
+ * JPA backed {@link ProcessInstanceRepository}. Each variable is stored as one row with a JSON value
+ * ({@link ProcessVariableEntity}). Imported by {@link JpaBpmnRepositoryAutoConfiguration}.
  */
 @Component
 @ConditionalOnMissingBean(ProcessInstanceRepository.class)
@@ -50,14 +50,20 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     }
 
     /**
-     * Loads the instance with {@code SELECT ... FOR UPDATE} ({@link LockModeType#PESSIMISTIC_WRITE}); the state is
-     * refreshed from the database even if the instance was already loaded in this transaction.
+     * Locks the instance with {@code SELECT ... FOR UPDATE} ({@link LockModeType#PESSIMISTIC_WRITE}), then refreshes
+     * it and its variable rows from the database, so the state is current even if the instance was already loaded in
+     * this transaction. The refresh is a separate call without lock mode, because Hibernate fails to refresh with a
+     * lock mode when the eagerly loaded variables use the instance as part of their primary key.
      */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public ProcessInstance lock(final UUID id) throws NoSuchProcessInstanceException {
-        final ProcessInstanceEntity entity = this.entity(id);
-        this.entityManager.refresh(entity, LockModeType.PESSIMISTIC_WRITE);
+        final ProcessInstanceEntity entity = this.entityManager.find(ProcessInstanceEntity.class, id,
+                LockModeType.PESSIMISTIC_WRITE);
+        if (entity == null) {
+            throw new NoSuchProcessInstanceException(id);
+        }
+        this.entityManager.refresh(entity);
         return entity;
     }
 
