@@ -50,7 +50,7 @@ public class JpaTaskPersistence implements TaskPersistence {
             if (task != null) {
                 return task;
             }
-            Thread.sleep(POLL_INTERVAL_MILLIS);
+            Thread.sleep(JpaTaskPersistence.POLL_INTERVAL_MILLIS);
         }
     }
 
@@ -60,7 +60,7 @@ public class JpaTaskPersistence implements TaskPersistence {
      */
     private synchronized TaskInfo pollBuffered() {
         if (this.buffer.isEmpty()) {
-            final List<TaskInfo> claimed = this.transactions.execute(status -> this.claimNext());
+            final List<TaskInfo> claimed = this.transactions.execute(_ -> this.claimNext());
             if (claimed != null) {
                 this.buffer.addAll(claimed);
             }
@@ -92,7 +92,7 @@ public class JpaTaskPersistence implements TaskPersistence {
     }
 
     private void finish(final Long id, final TaskEntity.Status status, final String error) {
-        this.transactions.executeWithoutResult(tx -> {
+        this.transactions.executeWithoutResult(_ -> {
             final TaskEntity entity = this.entityManager.find(TaskEntity.class, id);
             entity.setStatus(status);
             entity.setError(error);
