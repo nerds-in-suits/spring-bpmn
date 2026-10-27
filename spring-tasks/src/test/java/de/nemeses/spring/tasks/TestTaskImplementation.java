@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 public class TestTaskImplementation extends JsonPayloadTaskImplementation<TestPayload> {
 
     @Override
-    Class<TestPayload> payloadType() {
+    protected Class<TestPayload> payloadType() {
         return TestPayload.class;
     }
 

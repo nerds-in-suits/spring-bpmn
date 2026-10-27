@@ -1,0 +1,48 @@
+package de.nemeses.spring.bpmn.repository.jpa;
+
+import java.util.Date;
+import java.util.Map;
+import java.util.UUID;
+
+import org.springframework.transaction.annotation.Transactional;
+
+import de.nemeses.spring.bpmn.repository.ProcessDefinition;
+import de.nemeses.spring.bpmn.repository.ProcessInstance;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import jakarta.persistence.EntityManager;
+
+/**
+ * JPA backed {@link ProcessInstanceRepository}. Variables are stored as JSON.
+ */
+public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
+
+    private final EntityManager entityManager;
+
+    JpaProcessInstanceRepository(final EntityManager entityManager) {
+        this.entityManager = entityManager;
+    }
+
+    /**
+     * @param definition a definition retrieved from the {@link JpaProcessDefinitionService}
+     * @throws IllegalArgumentException if the definition is not stored by the {@link JpaProcessDefinitionService}
+     */
+    @Override
+    @Transactional
+    public ProcessInstance create(final ProcessDefinition definition, final Map<String, Object> variables) {
+        final ProcessInstanceEntity entity = new ProcessInstanceEntity(UUID.randomUUID().toString(),
+                this.definitionEntity(definition), variables == null ? Map.of() : variables, new Date());
+        this.entityManager.persist(entity);
+        return entity;
+    }
+
+    private ProcessDefinitionEntity definitionEntity(final ProcessDefinition definition) {
+        if (definition instanceof final ProcessDefinitionEntity entity && entity.getId() != null) {
+            final ProcessDefinitionEntity stored = this.entityManager.find(ProcessDefinitionEntity.class, entity.getId());
+            if (stored != null) {
+                return stored;
+            }
+        }
+        throw new IllegalArgumentException("Process definition '" + definition.name()
+                + "' is not stored in the JPA repository.");
+    }
+}

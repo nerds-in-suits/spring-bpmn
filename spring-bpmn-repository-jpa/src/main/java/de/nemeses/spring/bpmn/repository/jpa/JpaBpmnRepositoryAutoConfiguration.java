@@ -11,6 +11,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
@@ -28,5 +29,11 @@ public class JpaBpmnRepositoryAutoConfiguration {
         return new JpaProcessDefinitionService(
                 SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory),
                 new TransactionTemplate(transactionManager));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ProcessInstanceRepository.class)
+    JpaProcessInstanceRepository processInstanceRepository(final EntityManagerFactory entityManagerFactory) {
+        return new JpaProcessInstanceRepository(SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory));
     }
 }
