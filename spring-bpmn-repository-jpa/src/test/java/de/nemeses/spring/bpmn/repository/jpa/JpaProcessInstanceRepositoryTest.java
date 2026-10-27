@@ -5,6 +5,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -12,6 +18,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
@@ -37,6 +46,9 @@ class JpaProcessInstanceRepositoryTest {
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void testCreateStoresInstance() throws NoSuchProcessDefinitionException {
@@ -203,6 +215,67 @@ class JpaProcessInstanceRepositoryTest {
     void testUpdateEndDateOfUnknownInstanceFails() {
         Assertions.assertThrows(NoSuchProcessInstanceException.class,
                 () -> this.repository.updateEndDate(UUID.randomUUID(), new Date()));
+    }
+
+    @Test
+    void testLockRequiresTransaction() throws NoSuchProcessDefinitionException {
+        this.definitions.register(new ProcessDefinitionEntity("lockTx", null, "<l/>"));
+        final ProcessInstance created = this.repository.create(this.definitions.retrieveLatest("lockTx"), Map.of());
+        Assertions.assertThrows(IllegalTransactionStateException.class, () -> this.repository.lock(created.id()));
+        final IllegalStateException unknown = Assertions.assertThrows(IllegalStateException.class,
+                () -> new TransactionTemplate(this.transactionManager).executeWithoutResult(status -> {
+                    try {
+                        this.repository.lock(UUID.randomUUID());
+                    } catch (final NoSuchProcessInstanceException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }));
+        Assertions.assertInstanceOf(NoSuchProcessInstanceException.class, unknown.getCause());
+    }
+
+    @Test
+    void testLockSerializesTransactions() throws Exception {
+        this.definitions.register(new ProcessDefinitionEntity("lock", null, "<l/>"));
+        final UUID id = this.repository.create(this.definitions.retrieveLatest("lock"), Map.of("a", 1, "b", 2)).id();
+        final TransactionTemplate transaction = new TransactionTemplate(this.transactionManager);
+        final CountDownLatch locked = new CountDownLatch(1);
+        final AtomicBoolean released = new AtomicBoolean();
+        final Date endDate = new Date();
+
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final Future<?> first = executor.submit(() -> transaction.executeWithoutResult(status -> {
+                try {
+                    this.repository.lock(id);
+                    locked.countDown();
+                    Thread.sleep(300);
+                    this.repository.updateEndDate(id, endDate);
+                    this.repository.updateVariables(id, Map.of("a", 10, "c", 3));
+                    released.set(true);
+                } catch (final NoSuchProcessInstanceException | InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            }));
+            Assertions.assertTrue(locked.await(10, TimeUnit.SECONDS));
+
+            final ProcessInstance second = transaction.execute(status -> {
+                try {
+                    // loads the instance and its variables into the persistence context before the lock
+                    this.repository.retrieve(id);
+                    return this.repository.lock(id);
+                } catch (final NoSuchProcessInstanceException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            // only got the lock after the first transaction committed, and sees its changes
+            Assertions.assertTrue(released.get());
+            Assertions.assertEquals(endDate.getTime(), second.endDate().getTime());
+            // the lock reloads the eagerly loaded variable rows as well
+            Assertions.assertEquals(Map.of("a", 10, "c", 3), second.variables());
+            first.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     /**
