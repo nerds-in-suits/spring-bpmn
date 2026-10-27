@@ -82,8 +82,9 @@ class ProcessDefinitionRegistrarTest {
 
     @Test
     void rejectsInvalidDocument() {
-        Assertions.assertThrows(BpmnParseException.class,
+        final IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
                 () -> this.registrar(new ByteArrayResource("<nope/>".getBytes(StandardCharsets.UTF_8))).registerAll());
+        Assertions.assertInstanceOf(BpmnParseException.class, e.getCause());
     }
 
     @Test

@@ -54,7 +54,7 @@ class JpaProcessDefinitionServiceTest {
      * Test application.
      */
     @Configuration
-    @EnableAutoConfiguration
+    @EnableAutoConfiguration(excludeName = "de.nemeses.spring.bpmn.ProcessDefinitionAutoConfiguration")
     static class TestConfig {
     }
 }
