@@ -44,7 +44,7 @@ class BpmnNodeTaskTest {
 
     private ProcessInstance instance(final String definitionsAttributes, final String processContent) {
         final String bpmnXml = "<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" " + SPRING_NS
-                + XSI_NS + definitionsAttributes + " id=\"d\" targetNamespace=\"urn:t\"><process id=\"p\">"
+                + XSI_NS + definitionsAttributes + " id=\"definitions\" targetNamespace=\"urn:t\"><process id=\"p\">"
                 + processContent + "</process></definitions>";
         return this.instances.create(new ProcessDefinition() {
             @Override
