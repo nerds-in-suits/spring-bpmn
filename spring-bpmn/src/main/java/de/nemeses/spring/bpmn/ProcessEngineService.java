@@ -15,10 +15,12 @@ import de.nemeses.spring.bpmn.model.bpmn20.Process;
 import de.nemeses.spring.bpmn.model.bpmn20.RootElement;
 import de.nemeses.spring.bpmn.model.bpmn20.StartEvent;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
+import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.TaskService;
 import jakarta.xml.bind.JAXBElement;
 
@@ -30,13 +32,15 @@ public class ProcessEngineService {
 
     private final ProcessDefinitionService definitions;
     private final ProcessInstanceRepository instances;
+    private final ProcessStepRepository steps;
     private final BpmnParser parser;
     private final TaskService taskService;
 
     ProcessEngineService(final ProcessDefinitionService definitions, final ProcessInstanceRepository instances,
-            final BpmnParser parser, final TaskService taskService) {
+            final ProcessStepRepository steps, final BpmnParser parser, final TaskService taskService) {
         this.definitions = definitions;
         this.instances = instances;
+        this.steps = steps;
         this.parser = parser;
         this.taskService = taskService;
     }
@@ -60,8 +64,8 @@ public class ProcessEngineService {
     }
 
     /**
-     * Persists a new instance of the given definition and schedules a {@link BpmnNodeTask} for each start event of
-     * the BPMN process whose name (or id, if it has no name) equals the definition name.
+     * Persists a new instance of the given definition and creates a step and triggers a {@link BpmnNodeTask} for each
+     * start event of the BPMN process whose name (or id, if it has no name) equals the definition name.
      *
      * @param definition the definition version to start
      * @param variables the initial process variables; {@code null} means none
@@ -74,8 +78,12 @@ public class ProcessEngineService {
             throws ProcessEngineException {
         final List<String> startNodes = this.startNodes(definition);
         final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables);
-        for (final String nodeId : startNodes) {
-            this.taskService.trigger(BpmnNodeTask.BEAN_NAME, new NodeTaskPayload(instance.id(), nodeId));
+        try {
+            for (final String nodeId : startNodes) {
+                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), nodeId, null);
+            }
+        } catch (final NoSuchProcessInstanceException e) {
+            throw new ProcessEngineException("Cannot start process instance " + instance.id() + ".", e);
         }
         LoggerFactory.getLogger(this.getClass()).info("Started process instance {} of {} at start nodes {}",
                 instance.id(), definition.name(), startNodes);

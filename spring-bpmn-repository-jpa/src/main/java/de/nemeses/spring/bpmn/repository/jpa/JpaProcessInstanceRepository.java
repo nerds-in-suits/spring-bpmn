@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
@@ -13,6 +14,7 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 
 /**
  * JPA backed {@link ProcessInstanceRepository}. Variables are stored as JSON. Imported by
@@ -45,6 +47,18 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     @Transactional(readOnly = true)
     public ProcessInstance retrieve(final UUID id) throws NoSuchProcessInstanceException {
         return this.entity(id);
+    }
+
+    /**
+     * Loads the instance with {@code SELECT ... FOR UPDATE} ({@link LockModeType#PESSIMISTIC_WRITE}); the state is
+     * refreshed from the database even if the instance was already loaded in this transaction.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ProcessInstance lock(final UUID id) throws NoSuchProcessInstanceException {
+        final ProcessInstanceEntity entity = this.entity(id);
+        this.entityManager.refresh(entity, LockModeType.PESSIMISTIC_WRITE);
+        return entity;
     }
 
     @Override

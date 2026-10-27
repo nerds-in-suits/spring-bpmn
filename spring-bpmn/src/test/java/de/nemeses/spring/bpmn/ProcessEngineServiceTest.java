@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,8 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessStep;
+import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.TaskConfiguration;
 import de.nemeses.spring.tasks.TaskPersistence;
 
@@ -25,6 +28,7 @@ class ProcessEngineServiceTest {
 
     private final Map<String, ProcessDefinition> definitions = new HashMap<>();
     private final InMemoryProcessInstanceRepository instances = new InMemoryProcessInstanceRepository();
+    private final InMemoryProcessStepRepository steps = new InMemoryProcessStepRepository(this.instances);
     private final RecordingTaskPersistence tasks = new RecordingTaskPersistence();
 
     private static String bpmn(final String... processes) {
@@ -57,6 +61,7 @@ class ProcessEngineServiceTest {
                 .withUserConfiguration(TaskConfiguration.class)
                 .withBean(ProcessDefinitionService.class, () -> new MapDefinitionService(this.definitions))
                 .withBean(ProcessInstanceRepository.class, () -> this.instances)
+                .withBean(ProcessStepRepository.class, () -> this.steps)
                 .withBean(TaskPersistence.class, () -> this.tasks)
                 .run(test);
     }
@@ -76,8 +81,13 @@ class ProcessEngineServiceTest {
             final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
             Assertions.assertEquals(List.of(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.BEAN_NAME),
                     this.tasks.persisted().stream().map(RecordingTaskPersistence.Recorded::beanName).toList());
-            Assertions.assertEquals(List.of(new NodeTaskPayload(instance.id(), "s1"), new NodeTaskPayload(instance.id(), "s2")),
-                    this.tasks.persisted().stream().map(task -> nodeTask.deserializePayload(task.payload())).toList());
+            final List<UUID> stepIds = this.tasks.persisted().stream()
+                    .map(task -> nodeTask.deserializePayload(task.payload())).toList();
+            final List<ProcessStep> started = this.steps.steps(instance.id());
+            Assertions.assertEquals(started.stream().map(ProcessStep::id).toList(), stepIds);
+            Assertions.assertEquals(List.of("s1", "s2"), started.stream().map(ProcessStep::nodeId).toList());
+            Assertions.assertTrue(started.stream().allMatch(step -> step.incomingFlowId() == null
+                    && step.endDate() == null && step.startDate() != null));
         });
     }
 
@@ -89,7 +99,8 @@ class ProcessEngineServiceTest {
             context.getBean(ProcessEngineService.class).startProcess(this.definitions.get("Second"), null);
 
             Assertions.assertEquals(1, this.tasks.persisted().size());
-            Assertions.assertTrue(this.tasks.persisted().get(0).payload().contains("\"sb\""));
+            Assertions.assertEquals(List.of("sb"), this.steps.steps(this.instances.created().get(0).id()).stream()
+                    .map(ProcessStep::nodeId).toList());
             Assertions.assertEquals(Map.of(), this.instances.created().get(0).variables());
         });
     }

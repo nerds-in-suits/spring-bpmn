@@ -26,6 +26,16 @@ public interface ProcessInstanceRepository {
     ProcessInstance retrieve(UUID id) throws NoSuchProcessInstanceException;
 
     /**
+     * Retrieves an instance and locks it exclusively until the current transaction ends, so concurrent node
+     * executions of one instance are serialized (pessimistic write lock). Must be called in a transaction.
+     *
+     * @param id the id of the instance
+     * @return the stored instance
+     * @throws NoSuchProcessInstanceException if no instance with that id exists
+     */
+    ProcessInstance lock(UUID id) throws NoSuchProcessInstanceException;
+
+    /**
      * Sets the end date of an instance, which marks it as ended.
      *
      * @param id the id of the instance

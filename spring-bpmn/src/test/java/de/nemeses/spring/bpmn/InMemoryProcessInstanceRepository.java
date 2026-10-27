@@ -32,6 +32,11 @@ class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
     }
 
     @Override
+    public ProcessInstance lock(final UUID id) throws NoSuchProcessInstanceException {
+        return this.retrieve(id);
+    }
+
+    @Override
     public ProcessInstance updateEndDate(final UUID id, final Date endDate) throws NoSuchProcessInstanceException {
         final int index = this.index(id);
         final ProcessInstance old = this.created.get(index);
