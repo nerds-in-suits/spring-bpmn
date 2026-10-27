@@ -40,7 +40,7 @@ public class BpmnNodeExecutor {
     public static final String NAMESPACE = "https://nemeses.de/spring-bpmn";
 
     /** Extension attribute of a {@code serviceTask} naming its {@link BpmnNodeImplementation} bean. */
-    public static final QName BEAN_ATTRIBUTE = new QName(NAMESPACE, "bean");
+    public static final QName BEAN_ATTRIBUTE = new QName(BpmnNodeExecutor.NAMESPACE, "bean");
 
     private final ProcessInstanceRepository instances;
     private final BpmnParser parser;
@@ -77,25 +77,25 @@ public class BpmnNodeExecutor {
      */
     @Transactional(rollbackFor = ProcessEngineException.class)
     public void executeNode(final UUID processId, final String nodeId) throws ProcessEngineException {
-        final ProcessInstance instance;
         try {
-            instance = this.instances.retrieve(processId);
+            final ProcessInstance instance = this.instances.retrieve(processId);
+            if (instance.endDate() != null) {
+                LoggerFactory.getLogger(this.getClass()).warn(
+                    "Skipping node {} of process instance {}, which has ended.",
+                        nodeId, processId);
+                return;
+            }
+            final Process process = ProcessEngineService.process(this.parser, instance.processDefinition());
+            final List<SequenceFlow> taken = this.run(instance, process, BpmnNodeExecutor.flowNode(process, nodeId));
+            for (final SequenceFlow flow : taken) {
+                final String target = ((FlowElement) flow.getTargetRef()).getId();
+                this.taskService.trigger(BpmnNodeTask.BEAN_NAME, new NodeTaskPayload(processId, target));
+            }
+            LoggerFactory.getLogger(this.getClass()).debug("Executed node {} of process instance {}, taken flows {}",
+                    nodeId, processId, taken.stream().map(SequenceFlow::getId).toList());
         } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot execute node '" + nodeId + "'.", e);
         }
-        if (instance.endDate() != null) {
-            LoggerFactory.getLogger(this.getClass()).info("Skipping node {} of process instance {}, which has ended.",
-                    nodeId, processId);
-            return;
-        }
-        final Process process = ProcessEngineService.process(this.parser, instance.processDefinition());
-        final List<SequenceFlow> taken = this.run(instance, process, BpmnNodeExecutor.flowNode(process, nodeId));
-        for (final SequenceFlow flow : taken) {
-            final String target = ((FlowElement) flow.getTargetRef()).getId();
-            this.taskService.trigger(BpmnNodeTask.BEAN_NAME, new NodeTaskPayload(processId, target));
-        }
-        LoggerFactory.getLogger(this.getClass()).debug("Executed node {} of process instance {}, taken flows {}",
-                nodeId, processId, taken.stream().map(SequenceFlow::getId).toList());
     }
 
     /**
@@ -111,7 +111,7 @@ public class BpmnNodeExecutor {
         }
         final List<SequenceFlow> outgoing = BpmnNodeExecutor.outgoing(process, node);
         return switch (node) {
-        case StartEvent _, ParallelGateway _ -> BpmnNodeExecutor.unconditional(outgoing);
+        case final StartEvent _, final ParallelGateway _ -> BpmnNodeExecutor.unconditional(outgoing);
         case final EndEvent event -> {
             this.end(instance, event);
             yield List.of();
@@ -141,9 +141,9 @@ public class BpmnNodeExecutor {
     }
 
     private BpmnNodeImplementation implementation(final ServiceTask task) throws ProcessEngineException {
-        final String beanName = task.getOtherAttributes().get(BEAN_ATTRIBUTE);
+        final String beanName = task.getOtherAttributes().get(BpmnNodeExecutor.BEAN_ATTRIBUTE);
         if (beanName == null) {
-            throw new ProcessEngineException("Service task '" + task.getId() + "' has no attribute " + BEAN_ATTRIBUTE
+            throw new ProcessEngineException("Service task '" + task.getId() + "' has no attribute " + BpmnNodeExecutor.BEAN_ATTRIBUTE
                     + ".");
         }
         final BpmnNodeImplementation implementation = this.implementations.get(beanName);
