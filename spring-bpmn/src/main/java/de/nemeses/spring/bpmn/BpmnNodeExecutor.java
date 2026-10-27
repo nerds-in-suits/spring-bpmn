@@ -20,6 +20,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.ParallelGateway;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
+import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
 import de.nemeses.spring.bpmn.model.bpmn20.StartEvent;
@@ -34,6 +35,7 @@ import jakarta.xml.bind.JAXBElement;
  * Executes single nodes of process instances; called by the {@link BpmnNodeTask}.
  */
 @Component
+@SuppressWarnings("PMD.CouplingBetweenObjects") // dispatches on all supported node types
 public class BpmnNodeExecutor {
 
     /** Namespace of the BPMN extension attributes understood by the engine. */
@@ -47,14 +49,17 @@ public class BpmnNodeExecutor {
     private final TaskService taskService;
     private final Map<String, BpmnNodeImplementation> implementations;
     private final ConditionEvaluator conditions;
+    private final ScriptTaskInvoker scripts;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final BpmnParser parser, final TaskService taskService,
-            final Map<String, BpmnNodeImplementation> implementations, final ConditionEvaluator conditions) {
+            final Map<String, BpmnNodeImplementation> implementations, final ConditionEvaluator conditions,
+            final ScriptTaskInvoker scripts) {
         this.instances = instances;
         this.parser = parser;
         this.taskService = taskService;
         this.implementations = implementations;
         this.conditions = conditions;
+        this.scripts = scripts;
     }
 
     /**
@@ -67,6 +72,8 @@ public class BpmnNodeExecutor {
      * {@link #BEAN_ATTRIBUTE}, stores the variables it changed through its {@link BpmnNodeContext}
      * ({@link ProcessInstanceRepository#updateVariables}), then takes the outgoing flows like for every activity,
      * evaluating their conditions against the changed variables.</li>
+     * <li>{@code scriptTask}: runs its SpEL script through the {@link ScriptTaskInvoker}, then stores the changed
+     * variables and takes the outgoing flows like a {@code serviceTask}.</li>
      * <li>{@code exclusiveGateway}: takes the first non-default outgoing flow (in document order) without condition or
      * whose condition is true, else the {@code default} flow; fails if there is none.</li>
      * <li>{@code parallelGateway}: takes all outgoing flows (forks; joining is not synchronized yet).</li>
@@ -130,6 +137,12 @@ public class BpmnNodeExecutor {
         case final ServiceTask task -> {
             final NodeContext context = new NodeContext(instance.id(), task.getId(), instance.variables());
             this.implementation(task).execute(context);
+            this.storeVariables(context);
+            yield this.activityFlows(task, outgoing, language, context.changedVariables());
+        }
+        case final ScriptTask task -> {
+            final NodeContext context = new NodeContext(instance.id(), task.getId(), instance.variables());
+            this.scripts.execute(task, context);
             this.storeVariables(context);
             yield this.activityFlows(task, outgoing, language, context.changedVariables());
         }

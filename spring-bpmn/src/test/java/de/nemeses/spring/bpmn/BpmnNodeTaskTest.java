@@ -244,6 +244,38 @@ class BpmnNodeTaskTest {
     }
 
     @Test
+    void scriptTaskStoresAssignedVariablesForConditions() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\" scriptFormat=\""
+                + ConditionEvaluator.SPEL_LANGUAGE + "\" default=\"f2\"><script>amount = amount * 2;"
+                + " result = (amount &gt; 5 ? 'big' : 'small')</script></scriptTask>"
+                + "<task id=\"a\"/><task id=\"b\"/>"
+                + BpmnNodeTaskTest.flow("f1", "st", "a", "result == 'big'")
+                + "<sequenceFlow id=\"f2\" sourceRef=\"st\" targetRef=\"b\"/>");
+        this.withEngine(context -> {
+            BpmnNodeTaskTest.execute(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 6, "result", "big"),
+                    this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("a"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void failingScriptTaskDiscardsVariablesAndTakesNoFlow() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\"><script>result = 'ok'; x = missing"
+                + "</script></scriptTask><scriptTask id=\"groovy\" scriptFormat=\"groovy\"><script>x = 1</script>"
+                + "</scriptTask><endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>"
+                + "<sequenceFlow id=\"f2\" sourceRef=\"groovy\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            BpmnNodeTaskTest.assertFails(context, instance, "st");
+            BpmnNodeTaskTest.assertFails(context, instance, "groovy");
+
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+        });
+    }
+
+    @Test
     void exclusiveGatewayTakesDefaultFlow() {
         final ProcessInstance instance = this.instance("<exclusiveGateway id=\"g\" default=\"f2\"/>"
                 + "<task id=\"a\"/><task id=\"b\"/>"
