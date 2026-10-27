@@ -4,17 +4,17 @@ Software architecture of `spring-bpmn`, a BPMN 2.0 process engine for Spring Boo
 
 ## Goal
 
-`spring-bpmn` reads and interprets BPMN 2.0 files and executes the processes. It delegates scheduling/execution of work to `spring-tasks` and storage of models and history to `spring-bpmn-repository`.
+`spring-bpmn` reads and interprets BPMN 2.0 files and executes the processes. It delegates scheduling/execution of work to `spring-tasks` and storage of models and history through its repository API (`de.nemeses.spring.bpmn.repository`).
 
 ## Modules and dependency directions
 
 ```text
-spring-bpmn ──> spring-tasks              <── spring-tasks-jpa
-     │                                    <── spring-tasks-jms
-     └───────> spring-bpmn-repository     <── spring-bpmn-repository-jpa
+spring-bpmn ──> spring-tasks   <── spring-tasks-jpa
+     ^                         <── spring-tasks-jms
+     └─────── spring-bpmn-repository-jpa
 ```
 
-An arrow points from the dependent module to the module it depends on. Implementation modules depend on their API module, never the other way round. `spring-bpmn` depends only on the API modules (`spring-tasks`, `spring-bpmn-repository`); concrete backends are chosen by the application by adding the implementation module to its classpath.
+An arrow points from the dependent module to the module it depends on. Implementation modules depend on their API module, never the other way round. `spring-bpmn` depends only on the API module `spring-tasks` and contains the repository API itself; concrete backends are chosen by the application by adding the implementation module to its classpath.
 
 | Module | Responsibility | State |
 |--------|----------------|-------|
@@ -22,18 +22,17 @@ An arrow points from the dependent module to the module it depends on. Implement
 | `spring-tasks` | Interface to schedule and execute tasks: `TaskService`, `TaskImplementation`, `TaskPersistence`, `Data`. | enqueue only; no poller/executor |
 | `spring-tasks-jpa` | Stores tasks in JPA (`JpaTaskPersistence`, `TaskEntity`, table `spring_tasks`). Planned: query JPA store for due tasks and execute them. | persist and next (polling) implemented, untested |
 | `spring-tasks-jms` | Sends scheduled tasks to a JMS queue and listens to it for execution. | `JmsTaskPersistence` (send, blocking `next()`, ack/recover); tests use embedded Artemis |
-| `spring-bpmn-repository` | API of the persistence layer of the engine: process definitions (`ProcessDefinitionService`). | `ProcessDefinitionService` only |
-| `spring-bpmn-repository-jpa` | Only repository implementation for now; stores everything in JPA. | `ProcessDefinitionService` implemented and tested (H2) |
-| `spring-bpmn` | Reads and interprets BPMN files; uses `spring-tasks` to run steps and `spring-bpmn-repository` for models/history. | Generated JAXB model (BPMN 2.0 XSDs, one package per namespace: `de.nemeses.spring.bpmn.model.bpmn20` (BPMN20 + Semantic), `.bpmndi`, `.dc`, `.di`; classes without the `t` prefix, see `src/main/xjb/bpmn.xjb`); `BpmnParser` (JAXB unmarshalling of BPMN documents into the model, `BpmnParseException`); no engine code yet |
+| `spring-bpmn-repository-jpa` | Only repository implementation for now (implements the API in `spring-bpmn`); stores everything in JPA. | `ProcessDefinitionService` implemented and tested (H2) |
+| `spring-bpmn` | Reads and interprets BPMN files; uses `spring-tasks` to run steps; contains the repository API (`ProcessDefinitionService`) for models/history. | Generated JAXB model (BPMN 2.0 XSDs, one package per namespace: `de.nemeses.spring.bpmn.model.bpmn20` (BPMN20 + Semantic), `.bpmndi`, `.dc`, `.di`; classes without the `t` prefix, see `src/main/xjb/bpmn.xjb`); `BpmnParser` (JAXB unmarshalling of BPMN documents into the model, `BpmnParseException`); no engine code yet |
 
 ## Key types
 
 - `de.nemeses.spring.tasks`: `TaskService` (public entry: `trigger`, `schedule`), `TaskImplementation<T>` / `JsonPayloadTaskImplementation<T>` (Jackson), `TaskPersistence` + record `Data`, `TaskException`, `PayloadException`, `TaskConfiguration`.
 - `de.nemeses.spring.tasks.jpa` (module `spring-tasks-jpa`): `JpaTaskPersistenceAutoConfiguration`, `JpaTaskPersistence`, `TaskEntity`.
 - `de.nemeses.spring.tasks.jms` (module `spring-tasks-jms`): `JmsTaskPersistenceAutoConfiguration` (registers `JmsTaskPersistence`), `JmsTaskProperties` (`spring.tasks.jms.queue`, default `spring.tasks`), `JmsTaskPersistence`: `persist` sends a text message with `beanName` property and JMS 2.0 delivery delay for `earliestExecution`; `next()` receives with client acknowledge; `complete()` acknowledges, `fail()` recovers (redelivery).
-- `de.nemeses.spring.bpmn` (module `spring-bpmn`): `BpmnParser` (`parse(InputStream)` returns `Definitions`), `BpmnParseException`, `ProcessDefinitionSource` (`Collection<Resource> resources() throws IOException`; beans of this type contribute BPMN documents), `ConfiguredLocationsProcessDefinitionSource` (the default source; resolves the location patterns from `spring.bpmn.process-definition-locations`, injected with `@Value`), `ProcessDefinitionRegistrar`, `ProcessDefinitionAutoConfiguration` (conditional on a `ProcessDefinitionService` bean; runs the registrar from an `ApplicationRunner`). The registrar iterates all `ProcessDefinitionSource` beans, parses each document and registers every `process` separately (name = `name` attribute, else `id`; the whole document is stored as XML). A process is skipped if the latest registered version has the same MD5 hash (`ProcessDefinition.md5Hash()`, default method over `bpmnXml()`). Parse/read errors abort startup.
-- `de.nemeses.spring.bpmn.repository` (module `spring-bpmn-repository`): `ProcessDefinition`, `NoSuchProcessDefinitionException`, `ProcessDefinitionService` (`register`, `retrieveLatest`, `retrieveAll`).
-- `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`): `JpaBpmnRepositoryAutoConfiguration` (registers `JpaProcessDefinitionService`, conditional on `EntityManagerFactory`, adds the package to the entity scan), `JpaProcessDefinitionService` (every `register` adds a version; latest = newest `createdDate`; `retrieveLatest` throws the checked `NoSuchProcessDefinitionException` if unknown; `createdDate` defaults to the first-persist time via `@PrePersist`), `ProcessDefinitionEntity` (table `spring_bpmn_process_definition`; `bpmn_xml` is not updatable).
+- `de.nemeses.spring.bpmn` (module `spring-bpmn`): `BpmnParser` (`parse(InputStream)` returns `Definitions`), `BpmnParseException`, `ProcessDefinitionSource` (`Collection<Resource> resources() throws IOException`; beans of this type contribute BPMN documents), `ConfiguredLocationsProcessDefinitionSource` (the default source; resolves, de-duplicated, the location patterns from `spring.bpmn.process-definition-locations`, injected with `@Value`), `ProcessDefinitionRegistrar` (an `ApplicationRunner`), `ProcessDefinitionAutoConfiguration` (component-scans the package, all classes are `@Component`s wired by constructor; requires a `ProcessDefinitionService` bean, e.g. from `spring-bpmn-repository-jpa`). The registrar iterates all `ProcessDefinitionSource` beans, parses each document and registers every `process` separately (name = `name` attribute, else `id`; the whole document is stored as XML). A process is skipped if the latest registered version has the same MD5 hash (`ProcessDefinition.md5Hash()`, default method over `bpmnXml()`). Parse/read errors abort startup.
+- `de.nemeses.spring.bpmn.repository` (module `spring-bpmn`): `ProcessDefinition`, `NoSuchProcessDefinitionException`, `ProcessDefinitionService` (`register`, `retrieveLatest`, `retrieveAll`).
+- `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`): `JpaBpmnRepositoryAutoConfiguration` (registers `JpaProcessDefinitionService`, conditional on `EntityManagerFactory`, adds the package to the entity scan), `JpaProcessDefinitionService` (every `register` adds a version; latest = newest `createdDate`; `retrieveLatest` throws the checked `NoSuchProcessDefinitionException` if unknown; `createdDate` defaults to the first-persist time via `@PrePersist`), `ProcessDefinitionEntity` (table `spring_bpmn_process_definition`).
 
 ## Flow of a task
 

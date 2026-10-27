@@ -2,6 +2,8 @@ package de.nemeses.spring.bpmn;
 
 import java.io.InputStream;
 
+import org.springframework.stereotype.Component;
+
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBElement;
@@ -10,6 +12,7 @@ import jakarta.xml.bind.JAXBException;
 /**
  * Unmarshals BPMN 2.0 XML documents into the generated object model.
  */
+@Component
 public class BpmnParser {
 
     private static final String CONTEXT_PATH = "de.nemeses.spring.bpmn.model.bpmn20"

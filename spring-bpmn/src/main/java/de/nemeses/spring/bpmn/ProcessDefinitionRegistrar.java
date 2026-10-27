@@ -8,7 +8,10 @@ import java.util.Collection;
 import java.util.Date;
 
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
@@ -23,7 +26,8 @@ import jakarta.xml.bind.JAXBElement;
  * {@code name} (or its {@code id} if it has no name); the whole document is stored as XML. A process is skipped if
  * the latest registered version has the same MD5 hash.
  */
-public class ProcessDefinitionRegistrar {
+@Component
+public class ProcessDefinitionRegistrar implements ApplicationRunner {
 
     private final BpmnParser parser;
     private final ProcessDefinitionService service;
@@ -34,6 +38,11 @@ public class ProcessDefinitionRegistrar {
         this.parser = parser;
         this.service = service;
         this.sources = sources;
+    }
+
+    @Override
+    public void run(final ApplicationArguments args) throws IOException, BpmnParseException {
+        registerAll();
     }
 
     /**
