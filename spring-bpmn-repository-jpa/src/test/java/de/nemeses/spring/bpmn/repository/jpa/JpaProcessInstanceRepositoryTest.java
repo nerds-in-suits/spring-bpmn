@@ -149,12 +149,10 @@ class JpaProcessInstanceRepositoryTest {
         this.definitions.register(new ProcessDefinitionEntity("rowupdate", null, "<u/>"));
         final ProcessInstance created = this.repository.create(this.definitions.retrieveLatest("rowupdate"),
                 Map.of("kept", "k", "changed", 1, "removed", true));
-        final Object keptId = this.rowId(created.id(), "kept");
 
         this.repository.updateVariables(created.id(), Map.of("kept", "k", "changed", 2, "added", List.of(1)));
 
         Assertions.assertEquals(Map.of("kept", "\"k\"", "changed", "2", "added", "[1]"), this.rows(created.id()));
-        Assertions.assertEquals(keptId, this.rowId(created.id(), "kept"));
 
         this.repository.updateVariables(created.id(), Map.of());
 
@@ -179,12 +177,17 @@ class JpaProcessInstanceRepositoryTest {
         }
     }
 
-    private Object rowId(final UUID instanceId, final String name) {
+    @Test
+    void testVariablePrimaryKeyIsInstanceAndName() {
         final EntityManager entityManager = this.entityManagerFactory.createEntityManager();
         try {
-            return entityManager.createNativeQuery("select cast(id as varchar(36)) from spring_bpmn_process_variable"
-                    + " where process_instance_id = ?1 and variable_name = ?2")
-                    .setParameter(1, instanceId).setParameter(2, name).getSingleResult();
+            final List<?> columns = entityManager.createNativeQuery("select lower(k.column_name)"
+                    + " from information_schema.table_constraints c join information_schema.key_column_usage k"
+                    + " on k.constraint_name = c.constraint_name and k.table_name = c.table_name"
+                    + " where c.constraint_type = 'PRIMARY KEY'"
+                    + " and lower(c.table_name) = 'spring_bpmn_process_variable' order by k.column_name")
+                    .getResultList();
+            Assertions.assertEquals(List.of("process_instance_id", "variable_name"), columns);
         } finally {
             entityManager.close();
         }

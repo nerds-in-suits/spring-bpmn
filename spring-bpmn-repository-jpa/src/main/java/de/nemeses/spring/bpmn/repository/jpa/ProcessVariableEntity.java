@@ -1,40 +1,36 @@
 package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Objects;
-import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * One variable of a {@link ProcessInstanceEntity}; the value is stored as JSON.
+ * One variable of a {@link ProcessInstanceEntity}; the value is stored as JSON. The primary key is the owning instance
+ * plus the variable name ({@link ProcessVariableId}).
  */
 @Entity
-@Table(name = "spring_bpmn_process_variable", uniqueConstraints = @UniqueConstraint(
-        name = "ux_spring_bpmn_process_variable_instance_name", columnNames = { "process_instance_id", "variable_name" }))
+@IdClass(ProcessVariableId.class)
+@Table(name = "spring_bpmn_process_variable")
 public class ProcessVariableEntity {
 
     private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
-
     @ManyToOne(optional = false)
     @JoinColumn(name = "process_instance_id", nullable = false, updatable = false)
     private ProcessInstanceEntity instance;
 
+    @Id
     @Column(name = "variable_name", nullable = false, updatable = false)
     private String name;
 

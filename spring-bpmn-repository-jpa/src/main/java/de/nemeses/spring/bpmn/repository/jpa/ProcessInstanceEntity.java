@@ -97,7 +97,7 @@ public class ProcessInstanceEntity implements ProcessInstance {
     /**
      * Replaces all variables: rows of variables no longer present are deleted, rows of remaining variables are updated
      * in place (only if their JSON value changed) and new variables get new rows. Updating in place also avoids a
-     * delete and insert of the same name in one flush, which would violate the unique constraint.
+     * delete and insert of the same name in one flush, which would violate the primary key (instance and name).
      *
      * @param variables the new variables
      */
