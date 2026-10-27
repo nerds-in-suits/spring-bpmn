@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="gw" targetNamespace="urn:test">
+  <bpmn:process id="p2" name="Order">
+    <bpmn:startEvent id="start"/>
+    <bpmn:serviceTask id="check" name="Check"/>
+    <bpmn:exclusiveGateway id="decide"/>
+    <bpmn:userTask id="approve"/>
+    <bpmn:endEvent id="end"/>
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="check"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="check" targetRef="decide"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="decide" targetRef="approve">
+      <bpmn:conditionExpression>${ok}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f4" sourceRef="approve" targetRef="end"/>
+  </bpmn:process>
+</bpmn:definitions>
