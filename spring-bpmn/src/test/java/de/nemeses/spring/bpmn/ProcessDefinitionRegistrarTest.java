@@ -20,6 +20,7 @@ import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.TaskConfiguration;
 import de.nemeses.spring.tasks.TaskPersistence;
 
@@ -103,6 +104,8 @@ class ProcessDefinitionRegistrarTest {
                 .withUserConfiguration(TaskConfiguration.class)
                 .withBean(ProcessDefinitionService.class, () -> this.service)
                 .withBean(ProcessInstanceRepository.class, InMemoryProcessInstanceRepository::new)
+                .withBean(ProcessStepRepository.class,
+                        () -> new InMemoryProcessStepRepository(new InMemoryProcessInstanceRepository()))
                 .withBean(TaskPersistence.class, RecordingTaskPersistence::new)
                 .withBean(ProcessDefinitionSource.class,
                         () -> () -> List.of(ProcessDefinitionRegistrarTest.bpmn("<process id=\"fromSource\"/>")).stream())
@@ -120,6 +123,8 @@ class ProcessDefinitionRegistrarTest {
                 .withUserConfiguration(TaskConfiguration.class)
                 .withBean(ProcessDefinitionService.class, () -> this.service)
                 .withBean(ProcessInstanceRepository.class, InMemoryProcessInstanceRepository::new)
+                .withBean(ProcessStepRepository.class,
+                        () -> new InMemoryProcessStepRepository(new InMemoryProcessInstanceRepository()))
                 .withBean(TaskPersistence.class, RecordingTaskPersistence::new)
                 .withPropertyValues("spring.bpmn.process-definition-locations=classpath:/bpmn/simple.bpmn")
                 .run(context -> {

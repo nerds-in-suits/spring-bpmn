@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
@@ -13,6 +14,7 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 
 /**
  * JPA backed {@link ProcessInstanceRepository}. Each variable is stored as one row with a JSON value
@@ -45,6 +47,24 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     @Transactional(readOnly = true)
     public ProcessInstance retrieve(final UUID id) throws NoSuchProcessInstanceException {
         return this.entity(id);
+    }
+
+    /**
+     * Locks the instance with {@code SELECT ... FOR UPDATE} ({@link LockModeType#PESSIMISTIC_WRITE}), then refreshes
+     * it and its variable rows from the database, so the state is current even if the instance was already loaded in
+     * this transaction. The refresh is a separate call without lock mode, because Hibernate fails to refresh with a
+     * lock mode when the eagerly loaded variables use the instance as part of their primary key.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ProcessInstance lock(final UUID id) throws NoSuchProcessInstanceException {
+        final ProcessInstanceEntity entity = this.entityManager.find(ProcessInstanceEntity.class, id,
+                LockModeType.PESSIMISTIC_WRITE);
+        if (entity == null) {
+            throw new NoSuchProcessInstanceException(id);
+        }
+        this.entityManager.refresh(entity);
+        return entity;
     }
 
     @Override

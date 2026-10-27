@@ -1,5 +1,7 @@
 package de.nemeses.spring.bpmn;
 
+import java.util.UUID;
+
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -7,10 +9,11 @@ import de.nemeses.spring.tasks.JsonPayloadTaskImplementation;
 import de.nemeses.spring.tasks.TaskException;
 
 /**
- * Executes a single node of a process instance through {@link BpmnNodeExecutor#executeNode}.
+ * Executes one process step (a node of a process instance) through {@link BpmnNodeExecutor#executeNode}. The payload
+ * is the id of the {@link de.nemeses.spring.bpmn.repository.ProcessStep}.
  */
 @Component(BpmnNodeTask.BEAN_NAME)
-public class BpmnNodeTask extends JsonPayloadTaskImplementation<NodeTaskPayload> {
+public class BpmnNodeTask extends JsonPayloadTaskImplementation<UUID> {
 
     /** Bean name under which the task is scheduled with the {@code TaskService}. */
     public static final String BEAN_NAME = "bpmnNodeTask";
@@ -26,17 +29,16 @@ public class BpmnNodeTask extends JsonPayloadTaskImplementation<NodeTaskPayload>
     }
 
     @Override
-    protected Class<NodeTaskPayload> payloadType() {
-        return NodeTaskPayload.class;
+    protected Class<UUID> payloadType() {
+        return UUID.class;
     }
 
     @Override
-    public void execute(final NodeTaskPayload payload) throws TaskException {
+    public void execute(final UUID stepId) throws TaskException {
         try {
-            this.executor.getObject().executeNode(payload.processId(), payload.nodeId());
+            this.executor.getObject().executeNode(stepId);
         } catch (final ProcessEngineException e) {
-            throw new TaskException("Cannot execute node " + payload.nodeId() + " of process instance "
-                    + payload.processId() + ".", e);
+            throw new TaskException("Cannot execute process step " + stepId + ".", e);
         }
     }
 }

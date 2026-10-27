@@ -20,7 +20,7 @@ import jakarta.persistence.EntityManagerFactory;
 @AutoConfiguration(after = HibernateJpaAutoConfiguration.class)
 @AutoConfigurationPackage(basePackageClasses = ProcessDefinitionEntity.class)
 @ConditionalOnBean(EntityManagerFactory.class)
-@Import(JpaProcessInstanceRepository.class)
+@Import({ JpaProcessInstanceRepository.class, JpaProcessStepRepository.class })
 public class JpaBpmnRepositoryAutoConfiguration {
 
     @Bean
