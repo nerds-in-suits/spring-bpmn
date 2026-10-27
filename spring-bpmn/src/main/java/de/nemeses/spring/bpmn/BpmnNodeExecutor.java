@@ -16,7 +16,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.EndEvent;
 import de.nemeses.spring.bpmn.model.bpmn20.ExclusiveGateway;
-import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.ParallelGateway;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
@@ -47,19 +46,19 @@ public class BpmnNodeExecutor {
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
     private final BpmnParser parser;
-    private final TaskService taskService;
     private final ServiceTaskInvoker serviceTasks;
     private final FlowSelector flows;
+    private final SubProcessScopes subProcesses;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final BpmnParser parser, final TaskService taskService,
-            final ServiceTaskInvoker serviceTasks, final FlowSelector flows) {
+            final BpmnParser parser,
+            final ServiceTaskInvoker serviceTasks, final FlowSelector flows, final SubProcessScopes subProcesses) {
         this.instances = instances;
         this.steps = steps;
         this.parser = parser;
-        this.taskService = taskService;
         this.serviceTasks = serviceTasks;
         this.flows = flows;
+        this.subProcesses = subProcesses;
     }
 
     /**
@@ -70,13 +69,15 @@ public class BpmnNodeExecutor {
      * @param instanceId the id of the process instance
      * @param nodeId the id of the flow node to execute
      * @param incomingFlowId the id of the sequence flow taken to the node, {@code null} for a start event
+     * @param parentStepId the id of the step of the embedded sub-process the node runs in, {@code null} at the top
+     *            level
      * @return the created step
      * @throws NoSuchProcessInstanceException if the instance does not exist
      */
     static ProcessStep schedule(final ProcessStepRepository steps, final TaskService taskService,
-            final UUID instanceId, final String nodeId, final String incomingFlowId)
+            final UUID instanceId, final String nodeId, final String incomingFlowId, final UUID parentStepId)
             throws NoSuchProcessInstanceException {
-        final ProcessStep step = steps.create(instanceId, nodeId, incomingFlowId);
+        final ProcessStep step = steps.create(instanceId, nodeId, incomingFlowId, parentStepId);
         taskService.trigger(BpmnNodeTask.BEAN_NAME, step.id());
         return step;
     }
@@ -100,7 +101,12 @@ public class BpmnNodeExecutor {
      * for every incoming flow. Then the oldest pending step of each incoming flow is completed and all outgoing flows
      * are taken once. Otherwise the step stays pending (parked at the join) and no flow is taken.</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date) if no other step of the
-     * instance is pending.</li>
+     * instance is pending. Inside a sub-process it only completes its step (see below).</li>
+     * <li>embedded {@code subProcess}: creates a step for each start event inside it, with the sub-process step as
+     * {@link ProcessStep#parentStepId() parent}; the sub-process step stays pending. Steps inside it are created with
+     * the same parent. When no child step of the sub-process step is pending any more, the sub-process step is
+     * completed and the outgoing flows of the sub-process are taken like for every activity (with the variables as
+     * changed inside it); if it takes none, the enclosing sub-process is checked the same way.</li>
      * </ul>
      * An activity takes every outgoing flow without condition and every flow whose condition is true; its
      * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}
@@ -138,18 +144,21 @@ public class BpmnNodeExecutor {
             final List<SequenceFlow> incoming = ProcessNavigator.incoming(process, node);
             final List<SequenceFlow> taken;
             if (node instanceof ParallelGateway && incoming.size() > 1) {
-                taken = this.join(instance, process, node, incoming, pendingAtNode);
+                taken = this.join(instance, process, node, incoming, pendingAtNode.stream()
+                        .filter(pending -> SubProcessScopes.inSameScope(pending, step))
+                        .toList());
+            } else if (this.subProcesses.enter(instance, step, node)) {
+                taken = List.of();
             } else {
                 taken = this.run(instance, document.getExpressionLanguage(), process, node);
                 this.steps.complete(List.of(stepId), new Date());
             }
-            for (final SequenceFlow flow : taken) {
-                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(),
-                        ((FlowElement) flow.getTargetRef()).getId(), flow.getId());
-            }
-            if (node instanceof EndEvent) {
+            this.subProcesses.take(instance, taken, step.parentStepId());
+            if (node instanceof EndEvent && step.parentStepId() == null) {
                 this.end(instance, node);
             }
+            this.subProcesses.leaveCompleted(instance, document.getExpressionLanguage(), process,
+                    step.parentStepId());
             LoggerFactory.getLogger(this.getClass()).debug(
                     "Executed step {} (node {}) of process instance {}, taken flows {}",
                     stepId, step.nodeId(), instance.id(), taken.stream().map(SequenceFlow::getId).toList());
