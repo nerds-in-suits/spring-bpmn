@@ -69,6 +69,15 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
         return entity;
     }
 
+    @Override
+    @Transactional
+    public ProcessInstance updateVariables(final UUID id, final Map<String, Object> variables)
+            throws NoSuchProcessInstanceException {
+        final ProcessInstanceEntity entity = this.entity(id);
+        entity.variables(variables);
+        return entity;
+    }
+
     private ProcessInstanceEntity entity(final UUID id) throws NoSuchProcessInstanceException {
         final ProcessInstanceEntity entity = this.entityManager.find(ProcessInstanceEntity.class, id);
         if (entity == null) {

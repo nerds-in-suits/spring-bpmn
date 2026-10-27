@@ -127,6 +127,31 @@ class JpaProcessInstanceRepositoryTest {
     }
 
     @Test
+    void testUpdateVariablesReplacesVariables()
+            throws NoSuchProcessDefinitionException, NoSuchProcessInstanceException {
+        this.definitions.register(new ProcessDefinitionEntity("vars", null, "<v/>"));
+        final ProcessInstance created = this.repository.create(this.definitions.retrieveLatest("vars"),
+                Map.of("amount", 3, "customer", "c1"));
+        final Map<String, Object> variables = Map.of("amount", 4, "items", List.of("a"));
+
+        Assertions.assertEquals(variables, this.repository.updateVariables(created.id(), variables).variables());
+
+        final EntityManager entityManager = this.entityManagerFactory.createEntityManager();
+        try {
+            Assertions.assertEquals(variables, entityManager.find(ProcessInstanceEntity.class, created.id()).variables());
+        } finally {
+            entityManager.close();
+        }
+        Assertions.assertEquals(variables, this.repository.retrieve(created.id()).variables());
+    }
+
+    @Test
+    void testUpdateVariablesOfUnknownInstanceFails() {
+        Assertions.assertThrows(NoSuchProcessInstanceException.class,
+                () -> this.repository.updateVariables(UUID.randomUUID(), Map.of()));
+    }
+
+    @Test
     void testUpdateEndDateOfUnknownInstanceFails() {
         Assertions.assertThrows(NoSuchProcessInstanceException.class,
                 () -> this.repository.updateEndDate(UUID.randomUUID(), new Date()));
