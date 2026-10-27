@@ -15,8 +15,8 @@ import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import jakarta.persistence.EntityManager;
 
 /**
- * JPA backed {@link ProcessInstanceRepository}. Variables are stored as JSON. Imported by
- * {@link JpaBpmnRepositoryAutoConfiguration}.
+ * JPA backed {@link ProcessInstanceRepository}. Each variable is stored as one row with a JSON value
+ * ({@link ProcessVariableEntity}). Imported by {@link JpaBpmnRepositoryAutoConfiguration}.
  */
 @Component
 @ConditionalOnMissingBean(ProcessInstanceRepository.class)
