@@ -15,6 +15,8 @@ gh issue list --label claude --state open --json number,title,body,author,commen
 
 Skip an issue (and say why in the final summary) when any of these hold:
 
+- The issue is **blocked by** another issue that is still open (GitHub "Blocked by" relationship): `gh api repos/{owner}/{repo}/issues/<number>/dependencies/blocked_by --jq '[.[] | select(.state == "open") | .number]'` returns a non-empty list. This also applies to follow-ups. Name the blocking issues in the summary.
+
 - An open PR already exists for it: `gh pr list --state open --search "<number> in:body"` or a branch `feature/issue-<number>-*` / `bugfix/issue-<number>-*` exists on `origin`. Exception: the PR has unresolved review comments or the issue has newer human comments than the PR; then hand the issue to an agent as a **follow-up** (push to the existing branch, do not open a second PR).
 - The last comment on the issue is from Claude (a question was asked) and the user has not replied since. Compare comment authors with `gh api user --jq .login`; Claude posts as the user's account, so mark Claude comments with the prefix `🤖 Claude:` and treat comments starting with it as Claude's.
 
