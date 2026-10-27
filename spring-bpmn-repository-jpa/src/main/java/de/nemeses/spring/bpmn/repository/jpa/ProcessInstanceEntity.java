@@ -80,4 +80,8 @@ public class ProcessInstanceEntity implements ProcessInstance {
     public Date endDate() {
         return this.end;
     }
+
+    void endDate(final Date endDate) {
+        this.end = endDate;
+    }
 }
