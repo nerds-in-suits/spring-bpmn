@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+    xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+    xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+    id="collab" targetNamespace="urn:test">
+  <bpmn:collaboration id="c1">
+    <bpmn:participant id="part1" name="Customer" processRef="p3"/>
+  </bpmn:collaboration>
+  <bpmn:process id="p3">
+    <bpmn:startEvent id="start"/>
+    <bpmn:task id="t1"/>
+    <bpmn:parallelGateway id="fork"/>
+    <bpmn:endEvent id="end"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="diag">
+    <bpmndi:BPMNPlane id="plane" bpmnElement="c1">
+      <bpmndi:BPMNShape id="shape1" bpmnElement="start">
+        <dc:Bounds x="10" y="20" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
