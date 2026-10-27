@@ -16,10 +16,6 @@
             <groupId>de.nemeses.spring</groupId>
             <artifactId>spring-tasks</artifactId>
         </dependency>
-        <dependency>
-            <groupId>de.nemeses.spring</groupId>
-            <artifactId>spring-bpmn-repository</artifactId>
-        </dependency>
 
         <dependency>
             <groupId>jakarta.xml.bind</groupId>

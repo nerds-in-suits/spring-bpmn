@@ -12,9 +12,8 @@ Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a *
 | `spring-tasks` | `de.nemeses.spring:spring-tasks` | Task scheduling API and core (`TaskService`, `TaskPersistence`). |
 | `spring-tasks-jpa` | `de.nemeses.spring:spring-tasks-jpa` | JPA `TaskPersistence` (moved out of `spring-tasks`, same package names). |
 | `spring-tasks-jms` | `de.nemeses.spring:spring-tasks-jms` | JMS persistence, `JmsTaskPersistence` (queue-backed, embedded Artemis in tests). |
-| `spring-bpmn-repository` | `de.nemeses.spring:spring-bpmn-repository` | Repository API (`ProcessDefinitionService`). |
-| `spring-bpmn-repository-jpa` | `de.nemeses.spring:spring-bpmn-repository-jpa` | JPA implementation of the repository (`JpaProcessDefinitionService`). |
-| `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks` and `spring-bpmn-repository`. **No hand-written sources yet; BPMN 2.0 XSDs in `src/main/resources/xsd/bpmn` are compiled by XJC (jaxb2-maven-plugin, bindings `src/main/xjb/bpmn.xjb`) into one package per namespace: `de.nemeses.spring.bpmn.model.{bpmn20,bpmndi,dc,di}` (`bpmn20` holds BPMN20.xsd + Semantic.xsd, which share a namespace). The `t` type-name prefix is dropped (`TProcess` -> `Process`; `tError` -> `ErrorType` to avoid `java.lang.Error`).** |
+| `spring-bpmn-repository-jpa` | `de.nemeses.spring:spring-bpmn-repository-jpa` | JPA implementation of the `spring-bpmn` repository API (`JpaProcessDefinitionService`). Depends on `spring-bpmn`. |
+| `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | Intended engine module. Depends on `spring-tasks`. Contains the repository API (`de.nemeses.spring.bpmn.repository`: `ProcessDefinitionService`, `ProcessDefinition`). **Little hand-written code yet; BPMN 2.0 XSDs in `src/main/resources/xsd/bpmn` are compiled by XJC (jaxb2-maven-plugin, bindings `src/main/xjb/bpmn.xjb`) into one package per namespace: `de.nemeses.spring.bpmn.model.{bpmn20,bpmndi,dc,di}` (`bpmn20` holds BPMN20.xsd + Semantic.xsd, which share a namespace). The `t` type-name prefix is dropped (`TProcess` -> `Process`; `tError` -> `ErrorType` to avoid `java.lang.Error`).** |
 
 **Read `ARCHITECTURE.md` first** for module responsibilities, dependency directions and planned vs. implemented state. Keep it updated when modules or key types change.
 
@@ -86,7 +85,7 @@ No runnable `@SpringBootApplication` main class.
 ## Current gaps (do not paper over)
 
 - **`spring-bpmn` has only generated JAXB model classes.** No engine yet; do not invent Camunda-like APIs.
-- **Repository modules are minimal.** `spring-bpmn-repository` only has `ProcessDefinitionService`. Task polling/execution (JPA query for due tasks, JMS listener) is not implemented either.
+- **Repository modules are minimal.** The repository API (in `spring-bpmn`) only has `ProcessDefinitionService`. Task polling/execution (JPA query for due tasks, JMS listener) is not implemented either.
 - **JPA auto-config is untested.** `TaskServiceTest` uses a recording stub `TaskPersistence`; nothing exercises `JpaTaskPersistence` against a real `EntityManager`.
 
 ## Style and extension points
