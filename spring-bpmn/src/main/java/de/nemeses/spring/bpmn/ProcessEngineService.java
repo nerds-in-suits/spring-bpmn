@@ -83,7 +83,7 @@ public class ProcessEngineService {
     }
 
     private List<String> startNodes(final ProcessDefinition definition) throws ProcessEngineException {
-        final Process process = this.process(definition);
+        final Process process = ProcessEngineService.process(this.parser, definition);
         final List<String> startNodes = process.getFlowElement().stream()
                 .map(JAXBElement::getValue)
                 .filter(StartEvent.class::isInstance)
@@ -95,10 +95,19 @@ public class ProcessEngineService {
         return startNodes;
     }
 
-    private Process process(final ProcessDefinition definition) throws ProcessEngineException {
+    /**
+     * Parses the BPMN document of a definition and selects the process whose name (or id, if it has no name) equals
+     * the definition name.
+     *
+     * @param parser the parser
+     * @param definition the definition
+     * @return the process
+     * @throws ProcessEngineException if the document cannot be parsed or does not contain the process
+     */
+    static Process process(final BpmnParser parser, final ProcessDefinition definition) throws ProcessEngineException {
         final Definitions document;
         try {
-            document = this.parser.parse(new ByteArrayInputStream(definition.bpmnXml().getBytes(StandardCharsets.UTF_8)));
+            document = parser.parse(new ByteArrayInputStream(definition.bpmnXml().getBytes(StandardCharsets.UTF_8)));
         } catch (final BpmnParseException e) {
             throw new ProcessEngineException("Cannot parse process definition '" + definition.name() + "'.", e);
         }

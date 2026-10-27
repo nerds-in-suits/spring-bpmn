@@ -6,12 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 
 /**
- * Keeps created process instances in memory.
+ * Keeps created process instances in memory, in creation order.
  */
 class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
 
@@ -23,6 +24,30 @@ class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
                 new Date(), null);
         this.created.add(instance);
         return instance;
+    }
+
+    @Override
+    public ProcessInstance retrieve(final UUID id) throws NoSuchProcessInstanceException {
+        return this.created.get(this.index(id));
+    }
+
+    @Override
+    public ProcessInstance updateEndDate(final UUID id, final Date endDate) throws NoSuchProcessInstanceException {
+        final int index = this.index(id);
+        final ProcessInstance old = this.created.get(index);
+        final ProcessInstance updated = new Instance(id, old.processDefinition(), old.variables(), old.startDate(),
+                endDate);
+        this.created.set(index, updated);
+        return updated;
+    }
+
+    private int index(final UUID id) throws NoSuchProcessInstanceException {
+        for (int i = 0; i < this.created.size(); i++) {
+            if (this.created.get(i).id().equals(id)) {
+                return i;
+            }
+        }
+        throw new NoSuchProcessInstanceException(id);
     }
 
     List<ProcessInstance> created() {

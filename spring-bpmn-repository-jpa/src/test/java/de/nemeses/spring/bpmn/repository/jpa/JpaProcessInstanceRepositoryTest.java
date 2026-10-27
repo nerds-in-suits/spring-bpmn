@@ -3,6 +3,7 @@ package de.nemeses.spring.bpmn.repository.jpa;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
 
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
+import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
@@ -73,6 +75,49 @@ class JpaProcessInstanceRepositoryTest {
     void testCreateRejectsUnknownDefinition() {
         final ProcessDefinition foreign = new ProcessDefinitionEntity("foreign", new Date(), "<f/>");
         Assertions.assertThrows(IllegalArgumentException.class, () -> this.repository.create(foreign, Map.of()));
+    }
+
+    @Test
+    void testRetrieveReturnsStoredInstance() throws NoSuchProcessDefinitionException, NoSuchProcessInstanceException {
+        this.definitions.register(new ProcessDefinitionEntity("retrieve", null, "<r/>"));
+        final ProcessInstance created = this.repository.create(this.definitions.retrieveLatest("retrieve"),
+                Map.of("amount", 5));
+
+        final ProcessInstance retrieved = this.repository.retrieve(created.id());
+
+        Assertions.assertEquals(created.id(), retrieved.id());
+        Assertions.assertEquals(Map.of("amount", 5), retrieved.variables());
+        Assertions.assertEquals("<r/>", retrieved.processDefinition().bpmnXml());
+        Assertions.assertNull(retrieved.endDate());
+    }
+
+    @Test
+    void testRetrieveUnknownInstanceFails() {
+        Assertions.assertThrows(NoSuchProcessInstanceException.class, () -> this.repository.retrieve(UUID.randomUUID()));
+    }
+
+    @Test
+    void testUpdateEndDateStoresEndDate() throws NoSuchProcessDefinitionException, NoSuchProcessInstanceException {
+        this.definitions.register(new ProcessDefinitionEntity("end", null, "<e/>"));
+        final ProcessInstance created = this.repository.create(this.definitions.retrieveLatest("end"), Map.of());
+        final Date endDate = new Date(created.startDate().getTime() + 1000);
+
+        Assertions.assertEquals(endDate.getTime(), this.repository.updateEndDate(created.id(), endDate).endDate().getTime());
+
+        final EntityManager entityManager = this.entityManagerFactory.createEntityManager();
+        try {
+            Assertions.assertEquals(endDate.getTime(),
+                    entityManager.find(ProcessInstanceEntity.class, created.id()).endDate().getTime());
+        } finally {
+            entityManager.close();
+        }
+        Assertions.assertEquals(endDate.getTime(), this.repository.retrieve(created.id()).endDate().getTime());
+    }
+
+    @Test
+    void testUpdateEndDateOfUnknownInstanceFails() {
+        Assertions.assertThrows(NoSuchProcessInstanceException.class,
+                () -> this.repository.updateEndDate(UUID.randomUUID(), new Date()));
     }
 
     /**

@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
@@ -37,6 +38,28 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
         final ProcessInstanceEntity entity = new ProcessInstanceEntity(UUID.randomUUID(),
                 this.definitionEntity(definition), variables == null ? Map.of() : variables, new Date());
         this.entityManager.persist(entity);
+        return entity;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProcessInstance retrieve(final UUID id) throws NoSuchProcessInstanceException {
+        return this.entity(id);
+    }
+
+    @Override
+    @Transactional
+    public ProcessInstance updateEndDate(final UUID id, final Date endDate) throws NoSuchProcessInstanceException {
+        final ProcessInstanceEntity entity = this.entity(id);
+        entity.endDate(endDate);
+        return entity;
+    }
+
+    private ProcessInstanceEntity entity(final UUID id) throws NoSuchProcessInstanceException {
+        final ProcessInstanceEntity entity = this.entityManager.find(ProcessInstanceEntity.class, id);
+        if (entity == null) {
+            throw new NoSuchProcessInstanceException(id);
+        }
         return entity;
     }
 

@@ -1,6 +1,8 @@
 package de.nemeses.spring.bpmn.repository;
 
+import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Stores {@link ProcessInstance}s.
@@ -15,4 +17,21 @@ public interface ProcessInstanceRepository {
      * @return the persisted instance
      */
     ProcessInstance create(ProcessDefinition definition, Map<String, Object> variables);
+
+    /**
+     * @param id the id of the instance
+     * @return the stored instance
+     * @throws NoSuchProcessInstanceException if no instance with that id exists
+     */
+    ProcessInstance retrieve(UUID id) throws NoSuchProcessInstanceException;
+
+    /**
+     * Sets the end date of an instance, which marks it as ended.
+     *
+     * @param id the id of the instance
+     * @param endDate the time the instance ended
+     * @return the updated instance
+     * @throws NoSuchProcessInstanceException if no instance with that id exists
+     */
+    ProcessInstance updateEndDate(UUID id, Date endDate) throws NoSuchProcessInstanceException;
 }

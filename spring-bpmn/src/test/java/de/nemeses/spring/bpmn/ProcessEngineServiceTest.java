@@ -140,7 +140,7 @@ class ProcessEngineServiceTest {
         Assertions.assertTrue(this.tasks.persisted().isEmpty());
     }
 
-    private record MapDefinitionService(Map<String, ProcessDefinition> definitions) implements ProcessDefinitionService {
+    record MapDefinitionService(Map<String, ProcessDefinition> definitions) implements ProcessDefinitionService {
 
         @Override
         public void register(final ProcessDefinition definition) {
