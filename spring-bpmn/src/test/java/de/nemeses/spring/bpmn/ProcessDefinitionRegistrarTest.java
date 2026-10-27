@@ -14,7 +14,6 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
@@ -41,8 +40,7 @@ class ProcessDefinitionRegistrarTest {
     }
 
     private ProcessDefinitionRegistrar registrar(final Resource... resources) {
-        return new ProcessDefinitionRegistrar(this.parser, this.service, new PathMatchingResourcePatternResolver(),
-                List.of(), List.of(() -> List.of(resources)));
+        return new ProcessDefinitionRegistrar(this.parser, this.service, List.of(() -> List.of(resources)));
     }
 
     @Test
@@ -90,7 +88,7 @@ class ProcessDefinitionRegistrarTest {
     @Test
     void md5HashIsHexOfContent() {
         Assertions.assertEquals("d41d8cd98f00b204e9800998ecf8427e",
-                new ParsedProcessDefinition("x", null, "").md5Hash());
+                definition("x", null, "").md5Hash());
     }
 
     @Test
@@ -119,13 +117,32 @@ class ProcessDefinitionRegistrarTest {
                 });
     }
 
+    private static ProcessDefinition definition(final String name, final Date createdDate, final String bpmnXml) {
+        return new ProcessDefinition() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public Date createdDate() {
+                return createdDate;
+            }
+
+            @Override
+            public String bpmnXml() {
+                return bpmnXml;
+            }
+        };
+    }
+
     private static final class InMemoryService implements ProcessDefinitionService {
 
         private final List<ProcessDefinition> all = new ArrayList<>();
 
         @Override
         public void register(final ProcessDefinition definition) {
-            this.all.add(0, new ParsedProcessDefinition(definition.name(), new Date(), definition.bpmnXml()));
+            this.all.add(0, definition(definition.name(), new Date(), definition.bpmnXml()));
         }
 
         @Override
