@@ -36,6 +36,9 @@ public abstract class JsonPayloadTaskImplementation<T> implements TaskImplementa
         }
     }
 
-    abstract Class<T> payloadType();
+    /**
+     * @return the type the JSON payload is deserialized into
+     */
+    protected abstract Class<T> payloadType();
 
 }
