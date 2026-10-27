@@ -52,6 +52,10 @@ public class ProcessDefinitionEntity implements ProcessDefinition {
         }
     }
 
+    Long getId() {
+        return this.id;
+    }
+
     @Override
     public String name() {
         return this.processDefinitionName;

@@ -106,7 +106,7 @@ public class ProcessDefinitionRegistrar implements ApplicationRunner {
         LoggerFactory.getLogger(this.getClass()).info("Registered process definition {} from {}", definition.name(), resource);
     }
 
-    private static String processName(final Process process) {
+    static String processName(final Process process) {
         final String name = process.getName();
         return name == null || name.isBlank() ? process.getId() : name;
     }

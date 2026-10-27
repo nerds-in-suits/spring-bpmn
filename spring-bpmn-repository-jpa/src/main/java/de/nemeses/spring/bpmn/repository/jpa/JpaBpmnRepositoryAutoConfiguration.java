@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -19,6 +20,7 @@ import jakarta.persistence.EntityManagerFactory;
 @AutoConfiguration(after = HibernateJpaAutoConfiguration.class)
 @AutoConfigurationPackage(basePackageClasses = ProcessDefinitionEntity.class)
 @ConditionalOnBean(EntityManagerFactory.class)
+@Import(JpaProcessInstanceRepository.class)
 public class JpaBpmnRepositoryAutoConfiguration {
 
     @Bean
