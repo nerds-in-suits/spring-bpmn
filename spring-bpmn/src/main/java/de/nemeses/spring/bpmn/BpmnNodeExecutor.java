@@ -111,7 +111,7 @@ public class BpmnNodeExecutor {
         }
         final List<SequenceFlow> outgoing = BpmnNodeExecutor.outgoing(process, node);
         return switch (node) {
-        case final StartEvent _, final ParallelGateway _ -> BpmnNodeExecutor.unconditional(outgoing);
+        case StartEvent _, ParallelGateway _ -> BpmnNodeExecutor.unconditional(outgoing);
         case final EndEvent event -> {
             this.end(instance, event);
             yield List.of();
