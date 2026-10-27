@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.EndEvent;
 import de.nemeses.spring.bpmn.model.bpmn20.ExclusiveGateway;
@@ -104,8 +103,10 @@ public class BpmnNodeExecutor {
      * </ul>
      * An activity takes every outgoing flow without condition and every flow whose condition is true; its
      * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}
-     * (through the {@link FlowSelector}). Flows out of start events and parallel gateways must not have a condition;
-     * activities must not have loop characteristics.
+     * (through the {@link FlowSelector}). Flows out of start events and parallel gateways must not have a condition.
+     * {@code task} and {@code serviceTask} may have {@code standardLoopCharacteristics}: all iterations run in this
+     * step (see {@link ActivityLoop}) and the outgoing flows are taken once after the last iteration;
+     * {@code multiInstanceLoopCharacteristics} are not supported yet.
      * A step that is no longer pending (a task delivered again, or a join step completed by another step) and the steps
      * of an instance that has already ended are skipped.
      *
@@ -196,10 +197,6 @@ public class BpmnNodeExecutor {
      */
     private List<SequenceFlow> run(final ProcessInstance instance, final String language, final Process process,
             final FlowNode node) throws ProcessEngineException {
-        if (node instanceof final Activity activity && activity.getLoopCharacteristics() != null) {
-            throw new ProcessEngineException("Activity '" + node.getId()
-                    + "' has loop characteristics, which are not supported yet.");
-        }
         final List<SequenceFlow> outgoing = ProcessNavigator.outgoing(process, node);
         return switch (node) {
         case StartEvent _, ParallelGateway _ -> FlowSelector.unconditional(outgoing);
@@ -208,13 +205,15 @@ public class BpmnNodeExecutor {
             yield List.of();
         }
         case final ServiceTask task -> {
-            final Map<String, Object> variables = this.serviceTasks.invoke(instance, task);
+            final Map<String, Object> variables = this.serviceTasks.invoke(instance, task, language);
             yield this.flows.activity(task, outgoing, language, variables);
         }
         case final ExclusiveGateway gateway ->
             List.of(this.flows.exclusive(gateway.getId(), gateway.getDefault(), outgoing, language, instance.variables()));
-        case final Task task when task.getClass() == Task.class ->
-            this.flows.activity(task, outgoing, language, instance.variables());
+        case final Task task when task.getClass() == Task.class -> {
+            final Map<String, Object> variables = this.serviceTasks.loop(instance, task, language);
+            yield this.flows.activity(task, outgoing, language, variables);
+        }
         default -> throw new ProcessEngineException("Node '" + node.getId() + "' is a "
                 + node.getClass().getSimpleName() + ", which is not supported yet.");
         };
