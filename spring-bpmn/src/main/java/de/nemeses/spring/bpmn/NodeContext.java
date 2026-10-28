@@ -7,8 +7,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * The {@link BpmnNodeContext} passed by the {@link BpmnNodeExecutor} to a {@link BpmnNodeImplementation}; collects
- * the variable changes.
+ * The {@link BpmnNodeContext} passed by the {@link TaskInvoker} to a {@link BpmnNodeImplementation} or a script;
+ * collects the variable changes.
  */
 final class NodeContext implements BpmnNodeContext {
 

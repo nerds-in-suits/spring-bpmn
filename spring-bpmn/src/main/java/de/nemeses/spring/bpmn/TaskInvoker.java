@@ -4,25 +4,28 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 
 /**
- * Calls the {@link BpmnNodeImplementation} of a {@code serviceTask} for the {@link BpmnNodeExecutor} and stores the
- * variables it changed.
+ * Runs the work of a {@code serviceTask} (its {@link BpmnNodeImplementation}) or a {@code scriptTask} (its script,
+ * through the {@link ScriptTaskInvoker}) for the {@link BpmnNodeExecutor} and stores the variables it changed.
  */
 @Component
-class ServiceTaskInvoker {
+class TaskInvoker {
 
     private final ProcessInstanceRepository instances;
     private final Map<String, BpmnNodeImplementation> implementations;
+    private final ScriptTaskInvoker scripts;
 
-    ServiceTaskInvoker(final ProcessInstanceRepository instances,
-            final Map<String, BpmnNodeImplementation> implementations) {
+    TaskInvoker(final ProcessInstanceRepository instances, final Map<String, BpmnNodeImplementation> implementations,
+            final ScriptTaskInvoker scripts) {
         this.instances = instances;
         this.implementations = implementations;
+        this.scripts = scripts;
     }
 
     /**
@@ -39,6 +42,25 @@ class ServiceTaskInvoker {
     Map<String, Object> invoke(final ProcessInstance instance, final ServiceTask task) throws ProcessEngineException {
         final NodeContext context = new NodeContext(instance.id(), task.getId(), instance.variables());
         this.implementation(task).execute(context);
+        return this.store(context);
+    }
+
+    /**
+     * Runs the script of the task through the {@link ScriptTaskInvoker} and stores the variables it changed
+     * ({@link ProcessInstanceRepository#updateVariables}, only if something changed).
+     *
+     * @param instance the (locked) process instance
+     * @param task the script task
+     * @return the variables including the changes of the script
+     * @throws ProcessEngineException if the script fails or the variables cannot be stored
+     */
+    Map<String, Object> invoke(final ProcessInstance instance, final ScriptTask task) throws ProcessEngineException {
+        final NodeContext context = new NodeContext(instance.id(), task.getId(), instance.variables());
+        this.scripts.execute(task, context);
+        return this.store(context);
+    }
+
+    private Map<String, Object> store(final NodeContext context) throws ProcessEngineException {
         if (context.isChanged()) {
             try {
                 this.instances.updateVariables(context.processInstanceId(), context.changedVariables());
