@@ -2,6 +2,7 @@ package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Date;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -13,6 +14,7 @@ import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessStep;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 
@@ -31,16 +33,39 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     }
 
     /**
-     * @param definition a definition retrieved from the {@link JpaProcessDefinitionService}
-     * @throws IllegalArgumentException if the definition is not stored by the {@link JpaProcessDefinitionService}
+     * Overridden only to be transactional (the inherited default method is not proxied).
      */
     @Override
     @Transactional
     public ProcessInstance create(final ProcessDefinition definition, final Map<String, Object> variables) {
+        return this.create(definition, variables, null);
+    }
+
+    /**
+     * @param definition a definition retrieved from the {@link JpaProcessDefinitionService}
+     * @param parentStep a step stored by the {@link JpaProcessStepRepository}, or {@code null}
+     * @throws IllegalArgumentException if the definition is not stored by the {@link JpaProcessDefinitionService} or the
+     *             parent step is not stored by the {@link JpaProcessStepRepository}
+     */
+    @Override
+    @Transactional
+    public ProcessInstance create(final ProcessDefinition definition, final Map<String, Object> variables,
+            final ProcessStep parentStep) {
         final ProcessInstanceEntity entity = new ProcessInstanceEntity(UUID.randomUUID(),
-                this.definitionEntity(definition), variables == null ? Map.of() : variables, new Date());
+                this.definitionEntity(definition), variables == null ? Map.of() : variables, new Date(),
+                parentStep == null ? null : this.stepEntity(parentStep));
         this.entityManager.persist(entity);
         return entity;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ProcessInstance> retrieveChild(final UUID parentStepId) {
+        return this.entityManager.createQuery("select i from ProcessInstanceEntity i where i.parentStepId = :stepId",
+                ProcessInstance.class)
+                .setParameter("stepId", parentStepId)
+                .getResultStream()
+                .findFirst();
     }
 
     @Override
@@ -90,6 +115,14 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
             throw new NoSuchProcessInstanceException(id);
         }
         return entity;
+    }
+
+    private ProcessStepEntity stepEntity(final ProcessStep step) {
+        final ProcessStepEntity stored = this.entityManager.find(ProcessStepEntity.class, step.id());
+        if (stored == null) {
+            throw new IllegalArgumentException("Process step " + step.id() + " is not stored in the JPA repository.");
+        }
+        return stored;
     }
 
     private ProcessDefinitionEntity definitionEntity(final ProcessDefinition definition) {

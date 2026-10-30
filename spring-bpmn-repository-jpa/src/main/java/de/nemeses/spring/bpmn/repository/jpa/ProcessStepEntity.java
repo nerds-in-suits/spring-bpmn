@@ -27,7 +27,7 @@ public class ProcessStepEntity implements ProcessStep {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID uuid;
 
-    /** Only mapped for the foreign key; never loaded by the engine. */
+    /** Mapped for the foreign key and {@link ProcessInstanceEntity#parentInstance()}; never loaded by the engine. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "process_instance_id", nullable = false, updatable = false)
     private ProcessInstanceEntity instance;
@@ -101,6 +101,13 @@ public class ProcessStepEntity implements ProcessStep {
     @Override
     public Date endDate() {
         return this.end;
+    }
+
+    /**
+     * @return the owning instance, loaded lazily
+     */
+    ProcessInstanceEntity processInstance() {
+        return this.instance;
     }
 
     void endDate(final Date endDate) {

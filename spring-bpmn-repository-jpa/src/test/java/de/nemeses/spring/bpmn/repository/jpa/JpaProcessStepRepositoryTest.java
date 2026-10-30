@@ -149,6 +149,24 @@ class JpaProcessStepRepositoryTest {
         Assertions.assertEquals(0, this.repository.countPending(this.instance.id()));
     }
 
+    @Test
+    void testChildInstanceReferencesParentStep() throws NoSuchProcessInstanceException {
+        final ProcessStep call = this.repository.create(this.instance.id(), "call", "f", null);
+        final ProcessInstance child = this.instances.create(this.instance.processDefinition(), Map.of("a", 1), call);
+        Assertions.assertEquals(call.id(), child.parentStep().id());
+
+        new TransactionTemplate(this.transactionManager).executeWithoutResult(status -> {
+            final ProcessInstance loaded = this.instances.retrieveChild(call.id()).orElseThrow();
+            Assertions.assertEquals(child.id(), loaded.id());
+            Assertions.assertEquals(call.id(), loaded.parentStep().id());
+            Assertions.assertEquals(this.instance.id(), loaded.parentInstance().id());
+            Assertions.assertEquals(Map.of("a", 1), loaded.variables());
+        });
+        Assertions.assertTrue(this.instances.retrieveChild(UUID.randomUUID()).isEmpty());
+        Assertions.assertNull(this.instances.retrieve(this.instance.id()).parentStep());
+        Assertions.assertNull(this.instances.retrieve(this.instance.id()).parentInstance());
+    }
+
     private static List<UUID> ids(final List<ProcessStep> steps) {
         return steps.stream().map(ProcessStep::id).toList();
     }

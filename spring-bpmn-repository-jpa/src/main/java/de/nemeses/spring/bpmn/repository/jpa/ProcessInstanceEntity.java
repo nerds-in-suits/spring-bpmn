@@ -9,11 +9,13 @@ import java.util.UUID;
 
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
+import de.nemeses.spring.bpmn.repository.ProcessStep;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapKey;
@@ -24,7 +26,8 @@ import jakarta.persistence.Table;
  *
  */
 @Entity
-@Table(name = "spring_bpmn_process_instance")
+@Table(name = "spring_bpmn_process_instance",
+        indexes = @Index(name = "ix_spring_bpmn_process_instance_parent", columnList = "parent_step_id"))
 public class ProcessInstanceEntity implements ProcessInstance {
 
     @Id
@@ -47,6 +50,18 @@ public class ProcessInstanceEntity implements ProcessInstance {
     @Column(name = "start_date", nullable = false, updatable = false)
     private Date start;
 
+    /**
+     * The waiting call activity step of the parent instance ({@code null} for a top-level instance). Its instance is
+     * loaded lazily, so {@link #parentInstance()} needs an open persistence context.
+     */
+    @ManyToOne
+    @JoinColumn(name = "parent_step_id", updatable = false)
+    private ProcessStepEntity parent;
+
+    /** The same column as {@link #parent}, for queries without join. */
+    @Column(name = "parent_step_id", insertable = false, updatable = false)
+    private UUID parentStepId;
+
     @Column(name = "end_date")
     private Date end;
 
@@ -55,10 +70,12 @@ public class ProcessInstanceEntity implements ProcessInstance {
     }
 
     ProcessInstanceEntity(final UUID id, final ProcessDefinitionEntity definition, final Map<String, Object> variables,
-            final Date startDate) {
+            final Date startDate, final ProcessStepEntity parentStep) {
         this.uuid = id;
         this.definition = definition;
         this.start = startDate;
+        this.parent = parentStep;
+        this.parentStepId = parentStep == null ? null : parentStep.id();
         this.replaceVariables(variables);
     }
 
@@ -88,6 +105,16 @@ public class ProcessInstanceEntity implements ProcessInstance {
     @Override
     public Date endDate() {
         return this.end;
+    }
+
+    @Override
+    public ProcessStep parentStep() {
+        return this.parent;
+    }
+
+    @Override
+    public ProcessInstance parentInstance() {
+        return this.parent == null ? null : this.parent.processInstance();
     }
 
     void endDate(final Date endDate) {

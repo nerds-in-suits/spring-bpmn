@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import de.nemeses.spring.bpmn.model.bpmn20.CallActivity;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.EndEvent;
 import de.nemeses.spring.bpmn.model.bpmn20.ExclusiveGateway;
@@ -35,6 +36,7 @@ import de.nemeses.spring.tasks.TaskService;
  * Executes single steps (nodes) of process instances; called by the {@link BpmnNodeTask}.
  */
 @Component
+@SuppressWarnings("PMD.CouplingBetweenObjects") // dispatches over all supported node types
 public class BpmnNodeExecutor {
 
     /** Namespace of the BPMN extension attributes understood by the engine. */
@@ -49,16 +51,19 @@ public class BpmnNodeExecutor {
     private final TaskInvoker tasks;
     private final FlowSelector flows;
     private final SubProcessScopes subProcesses;
+    private final CallActivityInvoker callActivities;
 
+    @SuppressWarnings("PMD.ExcessiveParameterList") // constructor injection of the collaborators
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final BpmnParser parser, final TaskInvoker tasks, final FlowSelector flows,
-            final SubProcessScopes subProcesses) {
+            final SubProcessScopes subProcesses, final CallActivityInvoker callActivities) {
         this.instances = instances;
         this.steps = steps;
         this.parser = parser;
         this.tasks = tasks;
         this.flows = flows;
         this.subProcesses = subProcesses;
+        this.callActivities = callActivities;
     }
 
     /**
@@ -103,8 +108,13 @@ public class BpmnNodeExecutor {
      * <li>{@code parallelGateway} with more incoming flows (join): continues only if a step is pending at the gateway
      * for every incoming flow. Then the oldest pending step of each incoming flow is completed and all outgoing flows
      * are taken once. Otherwise the step stays pending (parked at the join) and no flow is taken.</li>
+     * <li>{@code callActivity}: a wait state (through the {@link CallActivityInvoker}). The first execution starts an
+     * instance of the called process and leaves the step pending; when that child instance ends, the step is executed
+     * again, passes the variables back, completes and takes the outgoing flows like for every activity.</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date) if no other step of the
-     * instance is pending. Inside a sub-process it only completes its step (see below).</li>
+     * instance is pending; if the instance was started by a call activity, triggers a {@link BpmnNodeTask} for the
+     * waiting call activity step of the parent instance. Inside a sub-process it only completes its step (see
+     * below).</li>
      * <li>embedded {@code subProcess}: creates a step for each start event inside it, with the sub-process step as
      * {@link ProcessStep#parentStepId() parent}; the sub-process step stays pending. Steps inside it are created with
      * the same parent. When no child step of the sub-process step is pending any more, the sub-process step is
@@ -154,6 +164,9 @@ public class BpmnNodeExecutor {
                         .toList());
             } else if (this.subProcesses.enter(instance, step, node)) {
                 taken = List.of();
+            } else if (node instanceof final CallActivity call) {
+                taken = this.callActivities.execute(instance, step, call,
+                        ProcessNavigator.outgoing(process, node), document.getExpressionLanguage());
             } else {
                 taken = this.run(instance, document.getExpressionLanguage(), process, node);
                 this.steps.complete(List.of(stepId), new Date());
@@ -256,5 +269,6 @@ public class BpmnNodeExecutor {
         }
         this.instances.updateEndDate(instance.id(), new Date());
         LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
+        this.callActivities.resumeCaller(instance);
     }
 }
