@@ -53,7 +53,7 @@ public class BpmnNodeExecutor {
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
-    private final BpmnParser parser;
+    private final ProcessDefinitionModelCache models;
     private final TaskInvoker tasks;
     private final FlowSelector flows;
     private final SubProcessScopes subProcesses;
@@ -61,11 +61,11 @@ public class BpmnNodeExecutor {
 
     @SuppressWarnings("PMD.ExcessiveParameterList") // constructor injection of the collaborators
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final BpmnParser parser, final TaskInvoker tasks, final FlowSelector flows,
+            final ProcessDefinitionModelCache models, final TaskInvoker tasks, final FlowSelector flows,
             final SubProcessScopes subProcesses, final CallActivityInvoker callActivities) {
         this.instances = instances;
         this.steps = steps;
-        this.parser = parser;
+        this.models = models;
         this.tasks = tasks;
         this.flows = flows;
         this.subProcesses = subProcesses;
@@ -159,7 +159,7 @@ public class BpmnNodeExecutor {
                         stepId, step.nodeId(), instance.id());
                 return;
             }
-            final Definitions document = ProcessEngineService.parse(this.parser, instance.processDefinition());
+            final Definitions document = this.models.document(instance.processDefinition());
             final Process process = ProcessEngineService.process(document, instance.processDefinition());
             final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
             final List<SequenceFlow> incoming = ProcessNavigator.incoming(process, node);

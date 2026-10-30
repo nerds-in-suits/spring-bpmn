@@ -52,6 +52,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ConfiguredLocationsProcessDefinitionSource`: the default `ProcessDefinitionSource`, reading `spring.bpmn.process-definition-locations`.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
 - `ProcessDefinitionAutoConfiguration`: component-scans the package; needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
+- `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly.
 - `ProcessDefinitionRegistrar`: registers every `process` of every `ProcessDefinitionSource` document on startup, skipping unchanged ones.
 - `ProcessDefinitionSource`: contributes BPMN documents to register.
 - `ProcessEngineException`: checked exception of all engine operations.
