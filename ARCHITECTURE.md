@@ -41,19 +41,22 @@ Package-private helpers are listed when they hold engine behaviour.
 
 ### `de.nemeses.spring.bpmn` (module `spring-bpmn`)
 
+- `BpmnParser`: unmarshals and schema-validates BPMN documents into the generated JAXB model (`BpmnParseException`).
+- `ConfiguredLocationsProcessDefinitionSource`: the default `ProcessDefinitionSource`, reading `spring.bpmn.process-definition-locations`.
+- `ProcessDefinitionAutoConfiguration`: component-scans the package and its sub-packages (`exec`); needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
+- `ProcessDefinitionRegistrar`: registers every `process` of every `ProcessDefinitionSource` document on startup, skipping unchanged ones.
+- `ProcessDefinitionSource`: contributes BPMN documents to register.
+
+### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
+
 - `ActivityLoop`: runs the `standardLoopCharacteristics` of an activity within one step.
 - `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `NodeContext`).
 - `BpmnNodeExecutor`: executes one `ProcessStep` per `bpmnNodeTask` under a lock on the instance and schedules the steps of the flows taken.
 - `BpmnNodeImplementation`: application code bound to a `serviceTask` by bean name.
 - `BpmnNodeTask`: the `bpmnNodeTask` task bean; its payload is the id of the step to execute.
-- `BpmnParser`: unmarshals and schema-validates BPMN documents into the generated JAXB model (`BpmnParseException`).
 - `CallActivityInvoker`: starts and resumes `callActivity` steps and maps variables to and from the child instance.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
-- `ConfiguredLocationsProcessDefinitionSource`: the default `ProcessDefinitionSource`, reading `spring.bpmn.process-definition-locations`.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
-- `ProcessDefinitionAutoConfiguration`: component-scans the package; needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
-- `ProcessDefinitionRegistrar`: registers every `process` of every `ProcessDefinitionSource` document on startup, skipping unchanged ones.
-- `ProcessDefinitionSource`: contributes BPMN documents to register.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
@@ -136,6 +139,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 Implementation modules keep the package names of their API (`...tasks.jpa`, `...tasks.jms`), so consumers are not affected by the module split.
 Every package needs `package-info.java`.
+`de.nemeses.spring.bpmn.exec` may use `de.nemeses.spring.bpmn`, but never the other way round.
 Auto-configurations are registered in `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` of the module that contains them (`spring-tasks` itself has none).
 
 ## Configuration properties

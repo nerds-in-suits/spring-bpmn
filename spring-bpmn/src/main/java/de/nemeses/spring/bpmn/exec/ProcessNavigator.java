@@ -1,9 +1,10 @@
-package de.nemeses.spring.bpmn;
+package de.nemeses.spring.bpmn.exec;
 
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import de.nemeses.spring.bpmn.ProcessDefinitionRegistrar;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;

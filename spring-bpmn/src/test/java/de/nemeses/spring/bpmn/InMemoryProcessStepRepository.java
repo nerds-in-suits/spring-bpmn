@@ -14,12 +14,12 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 /**
  * Keeps created process steps in memory, in creation order.
  */
-class InMemoryProcessStepRepository implements ProcessStepRepository {
+public class InMemoryProcessStepRepository implements ProcessStepRepository {
 
     private final InMemoryProcessInstanceRepository instances;
     private final List<ProcessStep> created = new ArrayList<>();
 
-    InMemoryProcessStepRepository(final InMemoryProcessInstanceRepository instances) {
+    public InMemoryProcessStepRepository(final InMemoryProcessInstanceRepository instances) {
         this.instances = instances;
     }
 
