@@ -15,12 +15,15 @@ final class NodeContext implements BpmnNodeContext {
     private final UUID instanceId;
     private final String node;
     private final Map<String, Object> vars;
+    private final int counter;
     private boolean changed;
 
-    NodeContext(final UUID instanceId, final String node, final Map<String, Object> variables) {
+    NodeContext(final UUID instanceId, final String node, final Map<String, Object> variables,
+            final int loopCounter) {
         this.instanceId = instanceId;
         this.node = node;
         this.vars = new LinkedHashMap<>(variables);
+        this.counter = loopCounter;
     }
 
     @Override
@@ -31,6 +34,11 @@ final class NodeContext implements BpmnNodeContext {
     @Override
     public String nodeId() {
         return this.node;
+    }
+
+    @Override
+    public int loopCounter() {
+        return this.counter;
     }
 
     @Override

@@ -33,7 +33,7 @@ class ScriptTaskInvokerTest {
     }
 
     private NodeContext run(final String format, final String text) throws ProcessEngineException {
-        final NodeContext context = new NodeContext(UUID.randomUUID(), "st", VARIABLES);
+        final NodeContext context = new NodeContext(UUID.randomUUID(), "st", VARIABLES, 0);
         this.invoker.execute(ScriptTaskInvokerTest.task(format, text), context);
         return context;
     }
