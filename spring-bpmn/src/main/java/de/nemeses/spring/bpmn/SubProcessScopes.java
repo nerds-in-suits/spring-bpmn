@@ -28,6 +28,11 @@ import de.nemeses.spring.tasks.TaskService;
  * sub-process it runs in ({@link ProcessStep#parentStepId()}, {@code null} at the top level of the process). The
  * step of a sub-process stays pending while the sub-process runs and is completed when none of its child steps is
  * pending any more.
+ * <p>
+ * The scope is checked after every step ({@link #leaveCompleted}), so nested sub-processes and parallel paths inside
+ * one work, and two tokens in the same sub-process (two pending sub-process steps) are kept apart; a join only joins
+ * the pending steps of its own scope ({@link #inSameScope}). Like a task without outgoing flow, a top-level
+ * sub-process without outgoing flow does not end the instance; only a top-level end event does.
  */
 @Component
 class SubProcessScopes {

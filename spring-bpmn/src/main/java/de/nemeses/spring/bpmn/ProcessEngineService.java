@@ -27,6 +27,10 @@ import jakarta.xml.bind.JAXBElement;
 
 /**
  * Core service of the process engine: starts process instances.
+ * <p>
+ * Starting an instance creates it, a {@link ProcessStep} for each start event of the process and a
+ * {@link BpmnNodeTask} for each step, in one transaction. Failures (unknown definition, parse error, no matching
+ * process, no start event) throw {@link ProcessEngineException} and roll back.
  */
 @Component
 public class ProcessEngineService {

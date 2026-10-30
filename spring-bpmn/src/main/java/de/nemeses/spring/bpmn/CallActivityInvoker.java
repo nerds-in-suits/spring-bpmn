@@ -37,6 +37,16 @@ import de.nemeses.spring.tasks.TaskService;
  * directions: {@code in} copies the parent variable {@code source} to the child variable {@code target}, {@code out}
  * copies the child variable {@code source} to the parent variable {@code target}. A mapping whose source variable does
  * not exist is ignored.
+ * <p>
+ * {@code calledElement} is resolved by its local part (namespace and prefix are ignored) to the latest
+ * {@link ProcessDefinition} of that name, i.e. the process {@code name}, else its {@code id}, as registered. When the
+ * child ends, {@link #resumeCaller} triggers the call step in the child's transaction, without locking the parent; the
+ * step then runs under the parent's lock and finds the child through
+ * {@link ProcessInstanceRepository#retrieveChild}. A task delivered again starts no second child, and the step is
+ * skipped while the child is still running.
+ * <p>
+ * Not handled yet: a child that fails or never ends leaves the parent waiting, and ending a parent does not end its
+ * children.
  */
 @Component
 class CallActivityInvoker {

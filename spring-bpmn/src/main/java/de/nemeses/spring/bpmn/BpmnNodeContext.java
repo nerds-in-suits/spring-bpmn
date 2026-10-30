@@ -7,6 +7,10 @@ import java.util.UUID;
  * The state a {@link BpmnNodeImplementation} sees while its node is executed. Changes to the process variables are
  * stored when the node completes successfully, in the same transaction as the node execution and before the following
  * nodes are scheduled; if the node fails, they are discarded.
+ * <p>
+ * The context starts from the variables read after the process instance was locked. Because of that lock, the steps
+ * of parallel paths of one instance read and write the variables one after the other; the stored variables are
+ * replaced as a whole, so no update is lost.
  */
 public interface BpmnNodeContext {
 

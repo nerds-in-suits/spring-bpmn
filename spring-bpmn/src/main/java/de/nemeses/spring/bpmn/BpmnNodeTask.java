@@ -10,7 +10,8 @@ import de.nemeses.spring.tasks.TaskException;
 
 /**
  * Executes one process step (a node of a process instance) through {@link BpmnNodeExecutor#executeNode}. The payload
- * is the id of the {@link de.nemeses.spring.bpmn.repository.ProcessStep}.
+ * is the id of the {@link de.nemeses.spring.bpmn.repository.ProcessStep}. A {@link ProcessEngineException} becomes a
+ * {@link TaskException}, so the task fails; whether it is retried depends on the task backend.
  */
 @Component(BpmnNodeTask.BEAN_NAME)
 public class BpmnNodeTask extends JsonPayloadTaskImplementation<UUID> {
