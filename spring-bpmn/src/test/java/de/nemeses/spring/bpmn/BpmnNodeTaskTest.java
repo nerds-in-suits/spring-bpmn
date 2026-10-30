@@ -86,6 +86,16 @@ class BpmnNodeTaskTest {
                     context.setVariable("result", "ok");
                     throw new ProcessEngineException("failed");
                 })
+                .withBean("counting", BpmnNodeImplementation.class, () -> context -> {
+                    context.setVariable("count", ((Integer) context.variables().getOrDefault("count", 0)) + 1);
+                    this.calls.add(context);
+                })
+                .withBean("countingThenFailing", BpmnNodeImplementation.class, () -> context -> {
+                    context.setVariable("count", ((Integer) context.variables().getOrDefault("count", 0)) + 1);
+                    if (context.loopCounter() == 1) {
+                        throw new ProcessEngineException("failed");
+                    }
+                })
                 .run(test);
     }
 
@@ -383,6 +393,38 @@ class BpmnNodeTaskTest {
             this.assertFails(context, instance, "none");
             this.assertFails(context, instance, "unknown");
             this.assertFails(context, instance, "wrongType");
+        });
+    }
+
+    @Test
+    void scriptTaskStoresAssignedVariablesForConditions() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\" scriptFormat=\""
+                + ConditionEvaluator.SPEL_LANGUAGE + "\" default=\"f2\"><script>amount = amount * 2;"
+                + " result = (amount &gt; 5 ? 'big' : 'small')</script></scriptTask>"
+                + "<task id=\"a\"/><task id=\"b\"/>"
+                + BpmnNodeTaskTest.flow("f1", "st", "a", "result == 'big'")
+                + "<sequenceFlow id=\"f2\" sourceRef=\"st\" targetRef=\"b\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 6, "result", "big"),
+                    this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("a"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void failingScriptTaskDiscardsVariablesAndTakesNoFlow() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\"><script>result = 'ok'; x = missing"
+                + "</script></scriptTask><scriptTask id=\"groovy\" scriptFormat=\"groovy\"><script>x = 1</script>"
+                + "</scriptTask><endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>"
+                + "<sequenceFlow id=\"f2\" sourceRef=\"groovy\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "st");
+            this.assertFails(context, instance, "groovy");
+
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
         });
     }
 
@@ -725,10 +767,163 @@ class BpmnNodeTaskTest {
         this.withEngine(context -> this.assertFails(context, instance, "u"));
     }
 
+    private ProcessInstance loopingServiceTask(final String bean, final String loop) {
+        return this.instance("<serviceTask id=\"st\" spring:bean=\"" + bean + "\">" + loop + "</serviceTask>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>");
+    }
+
+    private List<Integer> loopCounters() {
+        return this.calls.stream().map(BpmnNodeContext::loopCounter).toList();
+    }
+
     @Test
-    void loopActivityFails() {
-        final ProcessInstance instance = this.instance("<task id=\"t\"><standardLoopCharacteristics/></task>");
-        this.withEngine(context -> this.assertFails(context, instance, "t"));
+    void standardLoopRepeatsWhileConditionIsTrue() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics><loopCondition>count &lt; 3</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            final ProcessStep step = this.execute(context, instance, "st");
+
+            Assertions.assertEquals(List.of(0, 1, 2), this.loopCounters());
+            // each iteration sees the changes of the previous ones
+            Assertions.assertEquals(Map.of("amount", 3, "count", 2), this.calls.get(1).variables());
+            Assertions.assertEquals(Map.of("amount", 3, "count", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+            Assertions.assertNotNull(this.stored(step).endDate());
+        });
+    }
+
+    @Test
+    void standardLoopWithoutTestBeforeRunsOnceEvenIfConditionIsFalse() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics><loopCondition>false</loopCondition></standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(List.of(0), this.loopCounters());
+            Assertions.assertEquals(Map.of("amount", 3, "count", 1), this.instances.retrieve(instance.id()).variables());
+        });
+    }
+
+    @Test
+    void standardLoopWithTestBeforeMayRunNever() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics testBefore=\"true\"><loopCondition>amount &gt; 5</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertTrue(this.calls.isEmpty());
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void standardLoopConditionSeesLoopCounter() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics testBefore=\"true\"><loopCondition>${loopCounter &lt; 2}</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(List.of(0, 1), this.loopCounters());
+            Assertions.assertFalse(this.instances.retrieve(instance.id()).variables().containsKey("loopCounter"));
+        });
+    }
+
+    @Test
+    void standardLoopStopsAtLoopMaximum() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics loopMaximum=\"2\"><loopCondition>true</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertEquals(List.of(0, 1), this.loopCounters());
+        });
+    }
+
+    @Test
+    void standardLoopWithoutConditionRunsLoopMaximumTimes() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics loopMaximum=\"3\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertEquals(List.of(0, 1, 2), this.loopCounters());
+        });
+    }
+
+    @Test
+    void standardLoopWithLoopMaximumZeroRunsNever() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics loopMaximum=\"0\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertTrue(this.calls.isEmpty());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void plainTaskLoopTakesOutgoingFlowsOnce() {
+        final ProcessInstance instance = this.instance("<task id=\"t\"><standardLoopCharacteristics loopMaximum=\"5\">"
+                + "<loopCondition>loopCounter &lt; 3</loopCondition></standardLoopCharacteristics></task>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "t");
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void scriptTaskLoopSeesChangesOfPreviousIterations() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\"><standardLoopCharacteristics>"
+                + "<loopCondition>amount &lt; 20</loopCondition></standardLoopCharacteristics>"
+                + "<script>amount = amount * 2</script></scriptTask>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 24), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void failingLoopIterationDiscardsAllIterations() {
+        final ProcessInstance instance = this.loopingServiceTask("countingThenFailing",
+                "<standardLoopCharacteristics loopMaximum=\"3\"/>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+        });
+    }
+
+    @Test
+    void invalidStandardLoopFails() {
+        final ProcessInstance instance = this.instance("<task id=\"endless\"><standardLoopCharacteristics/></task>"
+                + "<task id=\"negative\"><standardLoopCharacteristics loopMaximum=\"-1\"/></task>"
+                + "<task id=\"nonBoolean\"><standardLoopCharacteristics><loopCondition>amount</loopCondition>"
+                + "</standardLoopCharacteristics></task>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "endless");
+            this.assertFails(context, instance, "negative");
+            this.assertFails(context, instance, "nonBoolean");
+        });
+    }
+
+    @Test
+    void multiInstanceActivityFails() {
+        final ProcessInstance instance = this.instance("<task id=\"t\"><multiInstanceLoopCharacteristics/></task>"
+                + "<serviceTask id=\"st\" spring:bean=\"recording\"><multiInstanceLoopCharacteristics "
+                + "isSequential=\"true\"/></serviceTask>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "t");
+            this.assertFails(context, instance, "st");
+            Assertions.assertTrue(this.calls.isEmpty());
+        });
     }
 
     @Test

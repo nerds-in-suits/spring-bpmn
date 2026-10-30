@@ -21,6 +21,12 @@ public interface BpmnNodeContext {
     String nodeId();
 
     /**
+     * @return the number of iterations of the node's standard loop ({@code standardLoopCharacteristics}) completed
+     *         before this execution; {@code 0} for the first iteration and for nodes without loop
+     */
+    int loopCounter();
+
+    /**
      * @return the current process variables including the changes made through this context, unmodifiable
      */
     Map<String, Object> variables();
