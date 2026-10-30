@@ -18,8 +18,8 @@ import de.nemeses.spring.bpmn.model.bpmn20.FormalExpression;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 
 /**
- * Evaluates the {@code conditionExpression} of sequence flows as Spring Expression Language (SpEL) expressions against
- * the process variables.
+ * Evaluates the {@code conditionExpression} of sequence flows (and the {@code loopCondition} of standard loops) as Spring
+ * Expression Language (SpEL) expressions against the process variables.
  * <p>
  * The language of a condition is the {@code language} attribute of its {@code formalExpression}, else the
  * {@code expressionLanguage} of the {@code definitions} element. Accepted are {@link #SPEL_LANGUAGE} and the BPMN
@@ -59,17 +59,34 @@ public class ConditionEvaluator {
      */
     public boolean evaluate(final SequenceFlow flow, final String defaultLanguage, final Map<String, Object> variables)
             throws ProcessEngineException {
-        final Expression condition = flow.getConditionExpression();
+        return this.evaluate("condition of sequence flow '" + flow.getId() + "'", flow.getConditionExpression(),
+                defaultLanguage, variables);
+    }
+
+    /**
+     * Evaluates any boolean BPMN expression the same way as a sequence flow condition, e.g. the {@code loopCondition}
+     * of a {@code standardLoopCharacteristics}.
+     *
+     * @param description what the expression is, for error messages (e.g. {@code "loop condition of activity 't'"})
+     * @param condition the expression
+     * @param defaultLanguage the {@code expressionLanguage} of the {@code definitions} element
+     * @param variables the variables visible to the expression
+     * @return whether the expression is true
+     * @throws ProcessEngineException if the language is not supported, the expression is empty or invalid, cannot be
+     *             evaluated (e.g. unknown variable) or does not yield a {@link Boolean}
+     */
+    public boolean evaluate(final String description, final Expression condition, final String defaultLanguage,
+            final Map<String, Object> variables) throws ProcessEngineException {
         final String language = condition instanceof final FormalExpression formal && formal.getLanguage() != null
                 ? formal.getLanguage()
                 : defaultLanguage;
         if (!SPEL_LANGUAGE.equals(language) && !BPMN_DEFAULT_LANGUAGE.equals(language)) {
-            throw new ProcessEngineException("Condition of sequence flow '" + flow.getId() + "' uses expression language '"
-                    + language + "', which is not supported; use " + SPEL_LANGUAGE + ".");
+            throw new ProcessEngineException("The " + description + " uses expression language '" + language
+                    + "', which is not supported; use " + SPEL_LANGUAGE + ".");
         }
         final String text = ConditionEvaluator.text(condition);
         if (text.isEmpty()) {
-            throw new ProcessEngineException("Condition of sequence flow '" + flow.getId() + "' is empty.");
+            throw new ProcessEngineException("The " + description + " is empty.");
         }
         final Map<String, Object> root = Collections.unmodifiableMap(variables);
         final SimpleEvaluationContext.Builder builder = SimpleEvaluationContext
@@ -82,14 +99,13 @@ public class ConditionEvaluator {
         try {
             result = this.parser.parseExpression(text).getValue(context);
         } catch (final ExpressionException e) {
-            throw new ProcessEngineException("Cannot evaluate condition '" + text + "' of sequence flow '" + flow.getId()
-                    + "'.", e);
+            throw new ProcessEngineException("Cannot evaluate the " + description + " '" + text + "'.", e);
         }
         if (result instanceof final Boolean value) {
             return value;
         }
-        throw new ProcessEngineException("Condition '" + text + "' of sequence flow '" + flow.getId()
-                + "' did not yield a boolean but " + result + ".");
+        throw new ProcessEngineException("The " + description + " '" + text + "' did not yield a boolean but " + result
+                + ".");
     }
 
     private static String text(final Expression condition) {

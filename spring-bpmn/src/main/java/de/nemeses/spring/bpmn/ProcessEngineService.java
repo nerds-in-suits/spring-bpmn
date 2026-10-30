@@ -18,12 +18,17 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.TaskService;
 import jakarta.xml.bind.JAXBElement;
 
 /**
  * Core service of the process engine: starts process instances.
+ * <p>
+ * Starting an instance creates it, a {@link ProcessStep} for each start event of the process and a
+ * {@link BpmnNodeTask} for each step, in one transaction. Failures (unknown definition, parse error, no matching
+ * process, no start event) throw {@link ProcessEngineException} and roll back.
  */
 @Component
 public class ProcessEngineService {
@@ -74,11 +79,28 @@ public class ProcessEngineService {
     @Transactional(rollbackFor = ProcessEngineException.class)
     public ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables)
             throws ProcessEngineException {
+        return this.startProcess(definition, variables, null);
+    }
+
+    /**
+     * Like {@link #startProcess(ProcessDefinition, Map)}, for an instance started by a {@code callActivity} step. Runs
+     * in the caller's transaction.
+     *
+     * @param definition the definition version to start
+     * @param variables the initial process variables; {@code null} means none
+     * @param parentStep the call activity step of the parent instance that waits for the new instance, or {@code null}
+     * @return the created instance
+     * @throws ProcessEngineException if the BPMN document cannot be parsed, does not contain the process or the
+     *             process has no start event
+     */
+    ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables,
+            final ProcessStep parentStep) throws ProcessEngineException {
         final List<String> startNodes = this.startNodes(definition);
-        final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables);
+        final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables,
+                parentStep);
         try {
             for (final String nodeId : startNodes) {
-                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), nodeId, null);
+                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), nodeId, null, null);
             }
         } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot start process instance " + instance.id() + ".", e);

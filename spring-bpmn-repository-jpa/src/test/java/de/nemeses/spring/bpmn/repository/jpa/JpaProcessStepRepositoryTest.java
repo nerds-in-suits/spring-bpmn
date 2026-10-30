@@ -55,7 +55,7 @@ class JpaProcessStepRepositoryTest {
 
     @Test
     void testCreateAndRetrieve() throws NoSuchProcessInstanceException, NoSuchProcessStepException {
-        final ProcessStep created = this.repository.create(this.instance.id(), "t", "f");
+        final ProcessStep created = this.repository.create(this.instance.id(), "t", "f", null);
 
         Assertions.assertNotNull(created.id());
         final ProcessStep retrieved = this.repository.retrieve(created.id());
@@ -65,13 +65,31 @@ class JpaProcessStepRepositoryTest {
         Assertions.assertEquals("f", retrieved.incomingFlowId());
         Assertions.assertNotNull(retrieved.startDate());
         Assertions.assertNull(retrieved.endDate());
-        Assertions.assertNull(this.repository.create(this.instance.id(), "s", null).incomingFlowId());
+        Assertions.assertNull(this.repository.create(this.instance.id(), "s", null, null).incomingFlowId());
+    }
+
+    @Test
+    void testChildrenOfSubProcessStep() throws NoSuchProcessInstanceException, NoSuchProcessStepException {
+        final ProcessStep subProcess = this.repository.create(this.instance.id(), "sp", null, null);
+        final ProcessStep start = this.repository.create(this.instance.id(), "ss", null, subProcess.id());
+        final ProcessStep task = this.repository.create(this.instance.id(), "t", "f", subProcess.id());
+        this.repository.create(this.instance.id(), "other", null, null);
+
+        Assertions.assertNull(this.repository.retrieve(subProcess.id()).parentStepId());
+        Assertions.assertEquals(subProcess.id(), this.repository.retrieve(start.id()).parentStepId());
+        Assertions.assertEquals(Set.of(start.id(), task.id()),
+                Set.copyOf(JpaProcessStepRepositoryTest.ids(this.repository.children(subProcess.id()))));
+        Assertions.assertTrue(this.repository.children(start.id()).isEmpty());
+
+        this.repository.complete(List.of(start.id()), new Date());
+        Assertions.assertEquals(List.of(task.id()), this.repository.children(subProcess.id()).stream()
+                .filter(step -> step.endDate() == null).map(ProcessStep::id).toList());
     }
 
     @Test
     void testCreateForUnknownInstanceFails() {
         Assertions.assertThrows(NoSuchProcessInstanceException.class,
-                () -> this.repository.create(UUID.randomUUID(), "t", null));
+                () -> this.repository.create(UUID.randomUUID(), "t", null, null));
     }
 
     @Test
@@ -83,9 +101,9 @@ class JpaProcessStepRepositoryTest {
 
     @Test
     void testPendingCountAndComplete() throws NoSuchProcessInstanceException, NoSuchProcessStepException {
-        final ProcessStep a = this.repository.create(this.instance.id(), "join", "fa");
-        final ProcessStep b = this.repository.create(this.instance.id(), "join", "fb");
-        final ProcessStep other = this.repository.create(this.instance.id(), "t", null);
+        final ProcessStep a = this.repository.create(this.instance.id(), "join", "fa", null);
+        final ProcessStep b = this.repository.create(this.instance.id(), "join", "fb", null);
+        final ProcessStep other = this.repository.create(this.instance.id(), "t", null, null);
 
         // steps created in the same millisecond have no defined order
         Assertions.assertEquals(Set.of(a.id(), b.id()), Set.copyOf(JpaProcessStepRepositoryTest.ids(
@@ -106,7 +124,7 @@ class JpaProcessStepRepositoryTest {
 
     @Test
     void testPendingIgnoresStepsCompletedByOtherTransaction() throws NoSuchProcessInstanceException {
-        final ProcessStep step = this.repository.create(this.instance.id(), "t", null);
+        final ProcessStep step = this.repository.create(this.instance.id(), "t", null, null);
         final TransactionTemplate outer = new TransactionTemplate(this.transactionManager);
         final TransactionTemplate inner = new TransactionTemplate(this.transactionManager);
         inner.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -129,6 +147,24 @@ class JpaProcessStepRepositoryTest {
         });
         Assertions.assertEquals(List.of(), pending);
         Assertions.assertEquals(0, this.repository.countPending(this.instance.id()));
+    }
+
+    @Test
+    void testChildInstanceReferencesParentStep() throws NoSuchProcessInstanceException {
+        final ProcessStep call = this.repository.create(this.instance.id(), "call", "f", null);
+        final ProcessInstance child = this.instances.create(this.instance.processDefinition(), Map.of("a", 1), call);
+        Assertions.assertEquals(call.id(), child.parentStep().id());
+
+        new TransactionTemplate(this.transactionManager).executeWithoutResult(status -> {
+            final ProcessInstance loaded = this.instances.retrieveChild(call.id()).orElseThrow();
+            Assertions.assertEquals(child.id(), loaded.id());
+            Assertions.assertEquals(call.id(), loaded.parentStep().id());
+            Assertions.assertEquals(this.instance.id(), loaded.parentInstance().id());
+            Assertions.assertEquals(Map.of("a", 1), loaded.variables());
+        });
+        Assertions.assertTrue(this.instances.retrieveChild(UUID.randomUUID()).isEmpty());
+        Assertions.assertNull(this.instances.retrieve(this.instance.id()).parentStep());
+        Assertions.assertNull(this.instances.retrieve(this.instance.id()).parentInstance());
     }
 
     private static List<UUID> ids(final List<ProcessStep> steps) {

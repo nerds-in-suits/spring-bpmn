@@ -19,14 +19,15 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "spring_bpmn_process_step", indexes = {
     @Index(name = "ix_spring_bpmn_process_step_pending", columnList = "process_instance_id, end_date"),
-    @Index(name = "ix_spring_bpmn_process_step_node", columnList = "process_instance_id, node_id, end_date") })
+    @Index(name = "ix_spring_bpmn_process_step_node", columnList = "process_instance_id, node_id, end_date"),
+    @Index(name = "ix_spring_bpmn_process_step_parent", columnList = "parent_step_id, end_date") })
 public class ProcessStepEntity implements ProcessStep {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
     private UUID uuid;
 
-    /** Only mapped for the foreign key; never loaded by the engine. */
+    /** Mapped for the foreign key and {@link ProcessInstanceEntity#parentInstance()}; never loaded by the engine. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "process_instance_id", nullable = false, updatable = false)
     private ProcessInstanceEntity instance;
@@ -41,6 +42,10 @@ public class ProcessStepEntity implements ProcessStep {
     @Column(name = "incoming_flow_id", updatable = false)
     private String incomingFlow;
 
+    /** The step of the embedded sub-process this step runs in; {@code null} at the top level. */
+    @Column(name = "parent_step_id", updatable = false)
+    private UUID parentStep;
+
     @Column(name = "start_date", nullable = false, updatable = false)
     private Date start;
 
@@ -52,12 +57,13 @@ public class ProcessStepEntity implements ProcessStep {
     }
 
     ProcessStepEntity(final UUID id, final ProcessInstanceEntity instance, final String nodeId,
-            final String incomingFlowId, final Date startDate) {
+            final String incomingFlowId, final UUID parentStepId, final Date startDate) {
         this.uuid = id;
         this.instance = instance;
         this.instanceId = instance.id();
         this.node = nodeId;
         this.incomingFlow = incomingFlowId;
+        this.parentStep = parentStepId;
         this.start = startDate;
     }
 
@@ -83,6 +89,11 @@ public class ProcessStepEntity implements ProcessStep {
     }
 
     @Override
+    public UUID parentStepId() {
+        return this.parentStep;
+    }
+
+    @Override
     public Date startDate() {
         return this.start;
     }
@@ -90,6 +101,13 @@ public class ProcessStepEntity implements ProcessStep {
     @Override
     public Date endDate() {
         return this.end;
+    }
+
+    /**
+     * @return the owning instance, loaded lazily
+     */
+    ProcessInstanceEntity processInstance() {
+        return this.instance;
     }
 
     void endDate(final Date endDate) {

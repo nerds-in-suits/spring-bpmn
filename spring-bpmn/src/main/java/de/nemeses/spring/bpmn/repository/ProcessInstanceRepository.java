@@ -2,6 +2,7 @@ package de.nemeses.spring.bpmn.repository;
 
 import java.util.Date;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -16,7 +17,27 @@ public interface ProcessInstanceRepository {
      * @param variables the initial process variables
      * @return the persisted instance
      */
-    ProcessInstance create(ProcessDefinition definition, Map<String, Object> variables);
+    default ProcessInstance create(final ProcessDefinition definition, final Map<String, Object> variables) {
+        return this.create(definition, variables, null);
+    }
+
+    /**
+     * Persists a new instance, started by a {@code callActivity} step of a parent instance. The repository assigns its
+     * id and start date.
+     *
+     * @param definition the definition version the instance is started from
+     * @param variables the initial process variables
+     * @param parentStep the call activity step of the parent instance that waits for the new instance, or {@code null}
+     *            for a top-level instance
+     * @return the persisted instance
+     */
+    ProcessInstance create(ProcessDefinition definition, Map<String, Object> variables, ProcessStep parentStep);
+
+    /**
+     * @param parentStepId the id of a {@code callActivity} step
+     * @return the instance started by that step (see {@link ProcessInstance#parentStep()}), if any
+     */
+    Optional<ProcessInstance> retrieveChild(UUID parentStepId);
 
     /**
      * @param id the id of the instance

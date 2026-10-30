@@ -17,7 +17,11 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 
 /**
- *
+ * {@link TaskPersistence} backed by table {@code spring_tasks} ({@link TaskEntity}).
+ * {@link #next()} claims up to {@code spring.tasks.jpa.max-results} of the oldest due pending tasks at once
+ * (pessimistic lock, status {@code RUNNING}) and serves them from memory; while none is due it polls the database
+ * every second. {@link TaskInfo#complete()} sets the status {@code COMPLETED}, {@link TaskInfo#fail(Exception)} sets
+ * {@code FAILED} and stores the stack trace; failed tasks are not retried.
  */
 public class JpaTaskPersistence implements TaskPersistence {
     private static final long POLL_INTERVAL_MILLIS = 1000L;

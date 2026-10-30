@@ -16,10 +16,13 @@ public interface ProcessStepRepository {
      * @param instanceId the id of the owning process instance
      * @param nodeId the id of the flow node to execute
      * @param incomingFlowId the id of the sequence flow the step arrived on, {@code null} for a start event
+     * @param parentStepId the id of the step of the embedded sub-process the new step runs in, {@code null} at the
+     *            top level of the process
      * @return the persisted step
      * @throws NoSuchProcessInstanceException if no instance with that id exists
      */
-    ProcessStep create(UUID instanceId, String nodeId, String incomingFlowId) throws NoSuchProcessInstanceException;
+    ProcessStep create(UUID instanceId, String nodeId, String incomingFlowId, UUID parentStepId)
+            throws NoSuchProcessInstanceException;
 
     /**
      * @param id the id of the step
@@ -37,6 +40,14 @@ public interface ProcessStepRepository {
      * @return the pending steps of the instance at that node, oldest first
      */
     List<ProcessStep> pending(UUID instanceId, String nodeId);
+
+    /**
+     * Reads the steps that ran or run inside an embedded sub-process from the store, like {@link #pending}.
+     *
+     * @param parentStepId the id of the step of the sub-process
+     * @return the steps whose {@link ProcessStep#parentStepId()} is that id (pending and completed), oldest first
+     */
+    List<ProcessStep> children(UUID parentStepId);
 
     /**
      * @param instanceId the id of the process instance
