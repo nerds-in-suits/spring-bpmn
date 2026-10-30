@@ -92,6 +92,15 @@ class ProcessDefinitionRegistrarTest {
     }
 
     @Test
+    void rejectsDocumentViolatingSchema() {
+        final IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
+                () -> this.registrar(ProcessDefinitionRegistrarTest.bpmn("<process id=\"a\"><bogus/></process>"))
+                        .registerAll());
+        Assertions.assertInstanceOf(BpmnParseException.class, e.getCause());
+        Assertions.assertTrue(this.service.all.isEmpty());
+    }
+
+    @Test
     void md5HashIsHexOfContent() {
         Assertions.assertEquals("d41d8cd98f00b204e9800998ecf8427e",
                 ProcessDefinitionRegistrarTest.definition("x", null, "").md5Hash());

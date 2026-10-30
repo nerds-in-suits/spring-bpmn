@@ -44,7 +44,7 @@ class BpmnNodeTaskTest {
 
     private ProcessInstance instance(final String definitionsAttributes, final String processContent) {
         final String bpmnXml = "<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" " + SPRING_NS
-                + XSI_NS + definitionsAttributes + " id=\"d\" targetNamespace=\"urn:t\"><process id=\"p\">"
+                + XSI_NS + definitionsAttributes + " id=\"definitions\" targetNamespace=\"urn:t\"><process id=\"p\">"
                 + processContent + "</process></definitions>";
         return this.instances.create(new ProcessDefinition() {
             @Override
@@ -86,6 +86,16 @@ class BpmnNodeTaskTest {
                     context.setVariable("result", "ok");
                     throw new ProcessEngineException("failed");
                 })
+                .withBean("counting", BpmnNodeImplementation.class, () -> context -> {
+                    context.setVariable("count", ((Integer) context.variables().getOrDefault("count", 0)) + 1);
+                    this.calls.add(context);
+                })
+                .withBean("countingThenFailing", BpmnNodeImplementation.class, () -> context -> {
+                    context.setVariable("count", ((Integer) context.variables().getOrDefault("count", 0)) + 1);
+                    if (context.loopCounter() == 1) {
+                        throw new ProcessEngineException("failed");
+                    }
+                })
                 .run(test);
     }
 
@@ -99,14 +109,14 @@ class BpmnNodeTaskTest {
      */
     private ProcessStep execute(final AssertableApplicationContext context, final ProcessInstance instance,
             final String nodeId) throws TaskException, NoSuchProcessInstanceException {
-        final ProcessStep step = this.steps.create(instance.id(), nodeId, null);
+        final ProcessStep step = this.steps.create(instance.id(), nodeId, null, null);
         BpmnNodeTaskTest.execute(context, step);
         return step;
     }
 
     private void assertFails(final AssertableApplicationContext context, final ProcessInstance instance,
             final String nodeId) throws NoSuchProcessInstanceException {
-        final ProcessStep step = this.steps.create(instance.id(), nodeId, null);
+        final ProcessStep step = this.steps.create(instance.id(), nodeId, null, null);
         final TaskException e = Assertions.assertThrows(TaskException.class,
                 () -> BpmnNodeTaskTest.execute(context, step));
         Assertions.assertInstanceOf(ProcessEngineException.class, e.getCause());
@@ -194,8 +204,8 @@ class BpmnNodeTaskTest {
                 + "<sequenceFlow id=\"f1\" sourceRef=\"s1\" targetRef=\"e1\"/>"
                 + "<sequenceFlow id=\"f2\" sourceRef=\"s2\" targetRef=\"e2\"/>");
         this.withEngine(context -> {
-            final ProcessStep start1 = this.steps.create(instance.id(), "s1", null);
-            final ProcessStep start2 = this.steps.create(instance.id(), "s2", null);
+            final ProcessStep start1 = this.steps.create(instance.id(), "s1", null, null);
+            final ProcessStep start2 = this.steps.create(instance.id(), "s2", null, null);
             this.execute(context, start1);
             this.execute(context, this.triggered(context, "e1"));
             Assertions.assertNull(this.endDate(instance));
@@ -249,9 +259,9 @@ class BpmnNodeTaskTest {
                 + "<sequenceFlow id=\"jb\" sourceRef=\"b\" targetRef=\"join\"/>"
                 + "<sequenceFlow id=\"ft\" sourceRef=\"join\" targetRef=\"t\"/>");
         this.withEngine(context -> {
-            final ProcessStep a1 = this.steps.create(instance.id(), "join", "ja");
-            final ProcessStep a2 = this.steps.create(instance.id(), "join", "ja");
-            final ProcessStep b1 = this.steps.create(instance.id(), "join", "jb");
+            final ProcessStep a1 = this.steps.create(instance.id(), "join", "ja", null);
+            final ProcessStep a2 = this.steps.create(instance.id(), "join", "ja", null);
+            final ProcessStep b1 = this.steps.create(instance.id(), "join", "jb", null);
 
             // the newer step on flow ja completes the join with the oldest one of each flow
             this.execute(context, a2);
@@ -366,7 +376,7 @@ class BpmnNodeTaskTest {
         final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"failing\"/>"
                 + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>");
         this.withEngine(context -> {
-            final ProcessStep step = this.steps.create(instance.id(), "st", null);
+            final ProcessStep step = this.steps.create(instance.id(), "st", null, null);
             final TaskException e = Assertions.assertThrows(TaskException.class,
                     () -> BpmnNodeTaskTest.execute(context, step));
             Assertions.assertEquals("failed", e.getCause().getMessage());
@@ -383,6 +393,38 @@ class BpmnNodeTaskTest {
             this.assertFails(context, instance, "none");
             this.assertFails(context, instance, "unknown");
             this.assertFails(context, instance, "wrongType");
+        });
+    }
+
+    @Test
+    void scriptTaskStoresAssignedVariablesForConditions() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\" scriptFormat=\""
+                + ConditionEvaluator.SPEL_LANGUAGE + "\" default=\"f2\"><script>amount = amount * 2;"
+                + " result = (amount &gt; 5 ? 'big' : 'small')</script></scriptTask>"
+                + "<task id=\"a\"/><task id=\"b\"/>"
+                + BpmnNodeTaskTest.flow("f1", "st", "a", "result == 'big'")
+                + "<sequenceFlow id=\"f2\" sourceRef=\"st\" targetRef=\"b\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 6, "result", "big"),
+                    this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("a"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void failingScriptTaskDiscardsVariablesAndTakesNoFlow() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\"><script>result = 'ok'; x = missing"
+                + "</script></scriptTask><scriptTask id=\"groovy\" scriptFormat=\"groovy\"><script>x = 1</script>"
+                + "</scriptTask><endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>"
+                + "<sequenceFlow id=\"f2\" sourceRef=\"groovy\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "st");
+            this.assertFails(context, instance, "groovy");
+
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
         });
     }
 
@@ -545,16 +587,343 @@ class BpmnNodeTaskTest {
                 + "<conditionExpression>" + condition + "</conditionExpression></sequenceFlow>";
     }
 
+    /**
+     * Executes the first triggered step at the node.
+     */
+    private ProcessStep executeTriggered(final AssertableApplicationContext context, final String nodeId)
+            throws TaskException {
+        final ProcessStep step = this.triggered(context, nodeId);
+        BpmnNodeTaskTest.execute(context, step);
+        return step;
+    }
+
+    @Test
+    void subProcessRunsEmbeddedFlowAndContinues() {
+        final ProcessInstance instance = this.instance("<startEvent id=\"s\"/>"
+                + "<subProcess id=\"sp\"><startEvent id=\"ss\"/><task id=\"t\"/><endEvent id=\"se\"/>"
+                + "<sequenceFlow id=\"i1\" sourceRef=\"ss\" targetRef=\"t\"/>"
+                + "<sequenceFlow id=\"i2\" sourceRef=\"t\" targetRef=\"se\"/></subProcess>"
+                + "<endEvent id=\"e\"/>"
+                + "<sequenceFlow id=\"f1\" sourceRef=\"s\" targetRef=\"sp\"/>"
+                + "<sequenceFlow id=\"f2\" sourceRef=\"sp\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "s");
+            final ProcessStep subProcess = this.executeTriggered(context, "sp");
+            Assertions.assertNull(subProcess.parentStepId());
+            final ProcessStep start = this.triggered(context, "ss");
+            Assertions.assertEquals(subProcess.id(), start.parentStepId());
+            Assertions.assertNull(start.incomingFlowId());
+            Assertions.assertNull(this.stored(subProcess).endDate());
+
+            this.executeTriggered(context, "ss");
+            Assertions.assertEquals(subProcess.id(), this.triggered(context, "t").parentStepId());
+            this.executeTriggered(context, "t");
+            this.executeTriggered(context, "se");
+            // the end inside the sub-process completes the sub-process, not the instance
+            Assertions.assertNull(this.endDate(instance));
+            Assertions.assertNotNull(this.stored(subProcess).endDate());
+            final ProcessStep end = this.triggered(context, "e");
+            Assertions.assertEquals("f2", end.incomingFlowId());
+            Assertions.assertNull(end.parentStepId());
+            Assertions.assertEquals(List.of("sp", "ss", "t", "se", "e"), this.triggeredNodes(context));
+
+            this.executeTriggered(context, "e");
+            Assertions.assertNotNull(this.endDate(instance));
+            Assertions.assertTrue(this.steps.steps(instance.id()).stream().allMatch(step -> step.endDate() != null));
+        });
+    }
+
+    @Test
+    void enteredSubProcessIsNotEnteredAgain() {
+        final ProcessInstance instance = this.instance("<subProcess id=\"sp\"><startEvent id=\"ss\"/></subProcess>");
+        this.withEngine(context -> {
+            final ProcessStep subProcess = this.execute(context, instance, "sp");
+            BpmnNodeTaskTest.execute(context, subProcess);
+            Assertions.assertEquals(List.of("ss"), this.triggeredNodes(context));
+            Assertions.assertNull(this.stored(subProcess).endDate());
+        });
+    }
+
+    @Test
+    void nestedSubProcessesCompleteFromInside() {
+        final ProcessInstance instance = this.instance("<subProcess id=\"outer\"><startEvent id=\"os\"/>"
+                + "<subProcess id=\"inner\"><startEvent id=\"is\"/><endEvent id=\"ie\"/>"
+                + "<sequenceFlow id=\"i1\" sourceRef=\"is\" targetRef=\"ie\"/></subProcess>"
+                + "<sequenceFlow id=\"o1\" sourceRef=\"os\" targetRef=\"inner\"/></subProcess>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"outer\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            final ProcessStep outer = this.execute(context, instance, "outer");
+            this.executeTriggered(context, "os");
+            final ProcessStep inner = this.executeTriggered(context, "inner");
+            Assertions.assertEquals(outer.id(), inner.parentStepId());
+            Assertions.assertEquals(inner.id(), this.triggered(context, "is").parentStepId());
+            this.executeTriggered(context, "is");
+            Assertions.assertNull(this.stored(inner).endDate());
+            Assertions.assertNull(this.stored(outer).endDate());
+
+            // the inner sub-process has no outgoing flow, so completing it also completes the outer one
+            this.executeTriggered(context, "ie");
+            Assertions.assertNotNull(this.stored(inner).endDate());
+            Assertions.assertNotNull(this.stored(outer).endDate());
+            Assertions.assertNull(this.endDate(instance));
+            Assertions.assertEquals(List.of("os", "inner", "is", "ie", "e"), this.triggeredNodes(context));
+
+            this.executeTriggered(context, "e");
+            Assertions.assertNotNull(this.endDate(instance));
+        });
+    }
+
+    @Test
+    void subProcessWithParallelPathsCompletesAfterLastPath() {
+        final ProcessInstance instance = this.instance("<subProcess id=\"sp\"><startEvent id=\"ss\"/>"
+                + "<parallelGateway id=\"fork\"/><task id=\"a\"/><task id=\"b\"/>"
+                + "<endEvent id=\"ea\"/><endEvent id=\"eb\"/>"
+                + "<sequenceFlow id=\"i1\" sourceRef=\"ss\" targetRef=\"fork\"/>"
+                + "<sequenceFlow id=\"i2\" sourceRef=\"fork\" targetRef=\"a\"/>"
+                + "<sequenceFlow id=\"i3\" sourceRef=\"fork\" targetRef=\"b\"/>"
+                + "<sequenceFlow id=\"i4\" sourceRef=\"a\" targetRef=\"ea\"/>"
+                + "<sequenceFlow id=\"i5\" sourceRef=\"b\" targetRef=\"eb\"/></subProcess>"
+                + "<task id=\"t\"/><sequenceFlow id=\"f\" sourceRef=\"sp\" targetRef=\"t\"/>");
+        this.withEngine(context -> {
+            final ProcessStep subProcess = this.execute(context, instance, "sp");
+            this.executeTriggered(context, "ss");
+            this.executeTriggered(context, "fork");
+            this.executeTriggered(context, "a");
+            this.executeTriggered(context, "ea");
+            // path b is still pending inside the sub-process
+            Assertions.assertNull(this.stored(subProcess).endDate());
+            Assertions.assertNull(this.endDate(instance));
+            Assertions.assertFalse(this.triggeredNodes(context).contains("t"));
+
+            this.executeTriggered(context, "b");
+            this.executeTriggered(context, "eb");
+            Assertions.assertNotNull(this.stored(subProcess).endDate());
+            Assertions.assertNull(this.endDate(instance));
+            Assertions.assertEquals(1, this.triggeredNodes(context).stream().filter("t"::equals).count());
+        });
+    }
+
+    @Test
+    void joinInsideSubProcessOnlyJoinsStepsOfTheSameSubProcessStep() {
+        final ProcessInstance instance = this.instance("<subProcess id=\"sp\"><parallelGateway id=\"join\"/>"
+                + "<task id=\"a\"/><task id=\"b\"/><task id=\"t\"/>"
+                + "<sequenceFlow id=\"ja\" sourceRef=\"a\" targetRef=\"join\"/>"
+                + "<sequenceFlow id=\"jb\" sourceRef=\"b\" targetRef=\"join\"/>"
+                + "<sequenceFlow id=\"ft\" sourceRef=\"join\" targetRef=\"t\"/></subProcess>");
+        this.withEngine(context -> {
+            final ProcessStep sp1 = this.steps.create(instance.id(), "sp", null, null);
+            final ProcessStep sp2 = this.steps.create(instance.id(), "sp", null, null);
+            final ProcessStep a1 = this.steps.create(instance.id(), "join", "ja", sp1.id());
+            this.steps.create(instance.id(), "join", "jb", sp2.id());
+            BpmnNodeTaskTest.execute(context, a1);
+            Assertions.assertNull(this.stored(a1).endDate());
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+
+            final ProcessStep b1 = this.steps.create(instance.id(), "join", "jb", sp1.id());
+            BpmnNodeTaskTest.execute(context, b1);
+            Assertions.assertNotNull(this.stored(a1).endDate());
+            Assertions.assertEquals(sp1.id(), this.triggered(context, "t").parentStepId());
+        });
+    }
+
+    @Test
+    void variablesChangedInsideSubProcessDecideItsOutgoingFlows() {
+        final ProcessInstance instance = this.instance("<subProcess id=\"sp\" default=\"f2\"><startEvent id=\"ss\"/>"
+                + "<serviceTask id=\"st\" spring:bean=\"writing\"/>"
+                + "<sequenceFlow id=\"i1\" sourceRef=\"ss\" targetRef=\"st\"/></subProcess>"
+                + "<task id=\"a\"/><task id=\"b\"/>"
+                + BpmnNodeTaskTest.flow("f1", "sp", "a", "result == 'ok'")
+                + "<sequenceFlow id=\"f2\" sourceRef=\"sp\" targetRef=\"b\"/>");
+        this.withEngine(context -> {
+            final ProcessStep subProcess = this.execute(context, instance, "sp");
+            this.executeTriggered(context, "ss");
+            // the service task has no outgoing flow, so it completes the sub-process
+            this.executeTriggered(context, "st");
+            Assertions.assertNotNull(this.stored(subProcess).endDate());
+            Assertions.assertEquals(List.of("ss", "st", "a"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void unsupportedSubProcessesFail() {
+        final ProcessInstance instance = this.instance("<subProcess id=\"noStart\"><task id=\"t\"/></subProcess>"
+                + "<subProcess id=\"event\" triggeredByEvent=\"true\"><startEvent id=\"es\"/></subProcess>"
+                + "<transaction id=\"tx\"><startEvent id=\"ts\"/></transaction>"
+                + "<adHocSubProcess id=\"adHoc\"><task id=\"at\"/></adHocSubProcess>"
+                + "<subProcess id=\"loop\"><standardLoopCharacteristics/><startEvent id=\"ls\"/></subProcess>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "noStart");
+            this.assertFails(context, instance, "event");
+            this.assertFails(context, instance, "tx");
+            this.assertFails(context, instance, "adHoc");
+            this.assertFails(context, instance, "loop");
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+        });
+    }
+
     @Test
     void unsupportedNodeTypeFails() {
         final ProcessInstance instance = this.instance("<userTask id=\"u\"/>");
         this.withEngine(context -> this.assertFails(context, instance, "u"));
     }
 
+    private ProcessInstance loopingServiceTask(final String bean, final String loop) {
+        return this.instance("<serviceTask id=\"st\" spring:bean=\"" + bean + "\">" + loop + "</serviceTask>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>");
+    }
+
+    private List<Integer> loopCounters() {
+        return this.calls.stream().map(BpmnNodeContext::loopCounter).toList();
+    }
+
     @Test
-    void loopActivityFails() {
-        final ProcessInstance instance = this.instance("<task id=\"t\"><standardLoopCharacteristics/></task>");
-        this.withEngine(context -> this.assertFails(context, instance, "t"));
+    void standardLoopRepeatsWhileConditionIsTrue() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics><loopCondition>count &lt; 3</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            final ProcessStep step = this.execute(context, instance, "st");
+
+            Assertions.assertEquals(List.of(0, 1, 2), this.loopCounters());
+            // each iteration sees the changes of the previous ones
+            Assertions.assertEquals(Map.of("amount", 3, "count", 2), this.calls.get(1).variables());
+            Assertions.assertEquals(Map.of("amount", 3, "count", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+            Assertions.assertNotNull(this.stored(step).endDate());
+        });
+    }
+
+    @Test
+    void standardLoopWithoutTestBeforeRunsOnceEvenIfConditionIsFalse() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics><loopCondition>false</loopCondition></standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(List.of(0), this.loopCounters());
+            Assertions.assertEquals(Map.of("amount", 3, "count", 1), this.instances.retrieve(instance.id()).variables());
+        });
+    }
+
+    @Test
+    void standardLoopWithTestBeforeMayRunNever() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics testBefore=\"true\"><loopCondition>amount &gt; 5</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertTrue(this.calls.isEmpty());
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void standardLoopConditionSeesLoopCounter() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics testBefore=\"true\"><loopCondition>${loopCounter &lt; 2}</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(List.of(0, 1), this.loopCounters());
+            Assertions.assertFalse(this.instances.retrieve(instance.id()).variables().containsKey("loopCounter"));
+        });
+    }
+
+    @Test
+    void standardLoopStopsAtLoopMaximum() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics loopMaximum=\"2\"><loopCondition>true</loopCondition>"
+                        + "</standardLoopCharacteristics>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertEquals(List.of(0, 1), this.loopCounters());
+        });
+    }
+
+    @Test
+    void standardLoopWithoutConditionRunsLoopMaximumTimes() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics loopMaximum=\"3\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertEquals(List.of(0, 1, 2), this.loopCounters());
+        });
+    }
+
+    @Test
+    void standardLoopWithLoopMaximumZeroRunsNever() {
+        final ProcessInstance instance = this.loopingServiceTask("counting",
+                "<standardLoopCharacteristics loopMaximum=\"0\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+            Assertions.assertTrue(this.calls.isEmpty());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void plainTaskLoopTakesOutgoingFlowsOnce() {
+        final ProcessInstance instance = this.instance("<task id=\"t\"><standardLoopCharacteristics loopMaximum=\"5\">"
+                + "<loopCondition>loopCounter &lt; 3</loopCondition></standardLoopCharacteristics></task>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "t");
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void scriptTaskLoopSeesChangesOfPreviousIterations() {
+        final ProcessInstance instance = this.instance("<scriptTask id=\"st\"><standardLoopCharacteristics>"
+                + "<loopCondition>amount &lt; 20</loopCondition></standardLoopCharacteristics>"
+                + "<script>amount = amount * 2</script></scriptTask>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 24), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void failingLoopIterationDiscardsAllIterations() {
+        final ProcessInstance instance = this.loopingServiceTask("countingThenFailing",
+                "<standardLoopCharacteristics loopMaximum=\"3\"/>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "st");
+
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+        });
+    }
+
+    @Test
+    void invalidStandardLoopFails() {
+        final ProcessInstance instance = this.instance("<task id=\"endless\"><standardLoopCharacteristics/></task>"
+                + "<task id=\"negative\"><standardLoopCharacteristics loopMaximum=\"-1\"/></task>"
+                + "<task id=\"nonBoolean\"><standardLoopCharacteristics><loopCondition>amount</loopCondition>"
+                + "</standardLoopCharacteristics></task>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "endless");
+            this.assertFails(context, instance, "negative");
+            this.assertFails(context, instance, "nonBoolean");
+        });
+    }
+
+    @Test
+    void multiInstanceActivityFails() {
+        final ProcessInstance instance = this.instance("<task id=\"t\"><multiInstanceLoopCharacteristics/></task>"
+                + "<serviceTask id=\"st\" spring:bean=\"recording\"><multiInstanceLoopCharacteristics "
+                + "isSequential=\"true\"/></serviceTask>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "t");
+            this.assertFails(context, instance, "st");
+            Assertions.assertTrue(this.calls.isEmpty());
+        });
     }
 
     @Test

@@ -24,6 +24,7 @@ import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
+import de.nemeses.spring.tasks.TaskService;
 
 /**
  * Executes a {@code callActivity} step for the {@link BpmnNodeExecutor}. A call activity is a wait state: its first
@@ -51,14 +52,30 @@ class CallActivityInvoker {
     private final ProcessStepRepository steps;
     private final ProcessEngineService engine;
     private final FlowSelector flows;
+    private final TaskService taskService;
 
     CallActivityInvoker(final ProcessDefinitionService definitions, final ProcessInstanceRepository instances,
-            final ProcessStepRepository steps, final ProcessEngineService engine, final FlowSelector flows) {
+            final ProcessStepRepository steps, final ProcessEngineService engine, final FlowSelector flows,
+            final TaskService taskService) {
         this.definitions = definitions;
         this.instances = instances;
         this.steps = steps;
         this.engine = engine;
         this.flows = flows;
+        this.taskService = taskService;
+    }
+
+    /**
+     * Triggers a {@link BpmnNodeTask} for the call activity step waiting for the ended instance, if it was started by
+     * one; the step runs in its own task, which locks the parent instance.
+     *
+     * @param ended the instance that has just ended
+     */
+    void resumeCaller(final ProcessInstance ended) {
+        final ProcessStep parentStep = ended.parentStep();
+        if (parentStep != null) {
+            this.taskService.trigger(BpmnNodeTask.BEAN_NAME, parentStep.id());
+        }
     }
 
     /**

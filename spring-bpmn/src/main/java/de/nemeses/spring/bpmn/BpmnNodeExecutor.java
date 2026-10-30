@@ -12,15 +12,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.CallActivity;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.EndEvent;
 import de.nemeses.spring.bpmn.model.bpmn20.ExclusiveGateway;
-import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.ParallelGateway;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
+import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
 import de.nemeses.spring.bpmn.model.bpmn20.StartEvent;
@@ -37,6 +36,7 @@ import de.nemeses.spring.tasks.TaskService;
  * Executes single steps (nodes) of process instances; called by the {@link BpmnNodeTask}.
  */
 @Component
+@SuppressWarnings("PMD.CouplingBetweenObjects") // dispatches over all supported node types
 public class BpmnNodeExecutor {
 
     /** Namespace of the BPMN extension attributes understood by the engine. */
@@ -48,22 +48,21 @@ public class BpmnNodeExecutor {
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
     private final BpmnParser parser;
-    private final TaskService taskService;
-    private final ServiceTaskInvoker serviceTasks;
+    private final TaskInvoker tasks;
     private final FlowSelector flows;
+    private final SubProcessScopes subProcesses;
     private final CallActivityInvoker callActivities;
 
     @SuppressWarnings("PMD.ExcessiveParameterList") // constructor injection of the collaborators
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final BpmnParser parser, final TaskService taskService,
-            final ServiceTaskInvoker serviceTasks, final FlowSelector flows,
-            final CallActivityInvoker callActivities) {
+            final BpmnParser parser, final TaskInvoker tasks, final FlowSelector flows,
+            final SubProcessScopes subProcesses, final CallActivityInvoker callActivities) {
         this.instances = instances;
         this.steps = steps;
         this.parser = parser;
-        this.taskService = taskService;
-        this.serviceTasks = serviceTasks;
+        this.tasks = tasks;
         this.flows = flows;
+        this.subProcesses = subProcesses;
         this.callActivities = callActivities;
     }
 
@@ -75,13 +74,15 @@ public class BpmnNodeExecutor {
      * @param instanceId the id of the process instance
      * @param nodeId the id of the flow node to execute
      * @param incomingFlowId the id of the sequence flow taken to the node, {@code null} for a start event
+     * @param parentStepId the id of the step of the embedded sub-process the node runs in, {@code null} at the top
+     *            level
      * @return the created step
      * @throws NoSuchProcessInstanceException if the instance does not exist
      */
     static ProcessStep schedule(final ProcessStepRepository steps, final TaskService taskService,
-            final UUID instanceId, final String nodeId, final String incomingFlowId)
+            final UUID instanceId, final String nodeId, final String incomingFlowId, final UUID parentStepId)
             throws NoSuchProcessInstanceException {
-        final ProcessStep step = steps.create(instanceId, nodeId, incomingFlowId);
+        final ProcessStep step = steps.create(instanceId, nodeId, incomingFlowId, parentStepId);
         taskService.trigger(BpmnNodeTask.BEAN_NAME, step.id());
         return step;
     }
@@ -95,9 +96,12 @@ public class BpmnNodeExecutor {
      * <li>{@code startEvent}: nothing to do, all outgoing flows are taken.</li>
      * <li>{@code task}: nothing to do, the outgoing flows are taken like for every activity (see below).</li>
      * <li>{@code serviceTask}: calls the {@link BpmnNodeImplementation} bean named by the extension attribute
-     * {@link #BEAN_ATTRIBUTE} (through the {@link ServiceTaskInvoker}), stores the variables it changed through its
+     * {@link #BEAN_ATTRIBUTE} (through the {@link TaskInvoker}), stores the variables it changed through its
      * {@link BpmnNodeContext} ({@link ProcessInstanceRepository#updateVariables}), then takes the outgoing flows like for every activity,
      * evaluating their conditions against the changed variables.</li>
+     * <li>{@code scriptTask}: runs its SpEL script (through the {@link TaskInvoker} and the
+     * {@link ScriptTaskInvoker}), then stores the changed variables and takes the outgoing flows like a
+     * {@code serviceTask}.</li>
      * <li>{@code exclusiveGateway}: takes the first non-default outgoing flow (in document order) without condition or
      * whose condition is true, else the {@code default} flow; fails if there is none.</li>
      * <li>{@code parallelGateway} with at most one incoming flow: takes all outgoing flows (fork).</li>
@@ -109,12 +113,20 @@ public class BpmnNodeExecutor {
      * again, passes the variables back, completes and takes the outgoing flows like for every activity.</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date) if no other step of the
      * instance is pending; if the instance was started by a call activity, triggers a {@link BpmnNodeTask} for the
-     * waiting call activity step of the parent instance.</li>
+     * waiting call activity step of the parent instance. Inside a sub-process it only completes its step (see
+     * below).</li>
+     * <li>embedded {@code subProcess}: creates a step for each start event inside it, with the sub-process step as
+     * {@link ProcessStep#parentStepId() parent}; the sub-process step stays pending. Steps inside it are created with
+     * the same parent. When no child step of the sub-process step is pending any more, the sub-process step is
+     * completed and the outgoing flows of the sub-process are taken like for every activity (with the variables as
+     * changed inside it); if it takes none, the enclosing sub-process is checked the same way.</li>
      * </ul>
      * An activity takes every outgoing flow without condition and every flow whose condition is true; its
      * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}
-     * (through the {@link FlowSelector}). Flows out of start events and parallel gateways must not have a condition;
-     * activities must not have loop characteristics.
+     * (through the {@link FlowSelector}). Flows out of start events and parallel gateways must not have a condition.
+     * {@code task}, {@code serviceTask} and {@code scriptTask} may have {@code standardLoopCharacteristics}: all iterations run in this
+     * step (see {@link ActivityLoop}) and the outgoing flows are taken once after the last iteration;
+     * {@code multiInstanceLoopCharacteristics} are not supported yet.
      * A step that is no longer pending (a task delivered again, or a join step completed by another step) and the steps
      * of an instance that has already ended are skipped.
      *
@@ -147,7 +159,11 @@ public class BpmnNodeExecutor {
             final List<SequenceFlow> incoming = ProcessNavigator.incoming(process, node);
             final List<SequenceFlow> taken;
             if (node instanceof ParallelGateway && incoming.size() > 1) {
-                taken = this.join(instance, process, node, incoming, pendingAtNode);
+                taken = this.join(instance, process, node, incoming, pendingAtNode.stream()
+                        .filter(pending -> SubProcessScopes.inSameScope(pending, step))
+                        .toList());
+            } else if (this.subProcesses.enter(instance, step, node)) {
+                taken = List.of();
             } else if (node instanceof final CallActivity call) {
                 taken = this.callActivities.execute(instance, step, call,
                         ProcessNavigator.outgoing(process, node), document.getExpressionLanguage());
@@ -155,13 +171,12 @@ public class BpmnNodeExecutor {
                 taken = this.run(instance, document.getExpressionLanguage(), process, node);
                 this.steps.complete(List.of(stepId), new Date());
             }
-            for (final SequenceFlow flow : taken) {
-                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(),
-                        ((FlowElement) flow.getTargetRef()).getId(), flow.getId());
-            }
-            if (node instanceof EndEvent) {
+            this.subProcesses.take(instance, taken, step.parentStepId());
+            if (node instanceof EndEvent && step.parentStepId() == null) {
                 this.end(instance, node);
             }
+            this.subProcesses.leaveCompleted(instance, document.getExpressionLanguage(), process,
+                    step.parentStepId());
             LoggerFactory.getLogger(this.getClass()).debug(
                     "Executed step {} (node {}) of process instance {}, taken flows {}",
                     stepId, step.nodeId(), instance.id(), taken.stream().map(SequenceFlow::getId).toList());
@@ -208,10 +223,6 @@ public class BpmnNodeExecutor {
      */
     private List<SequenceFlow> run(final ProcessInstance instance, final String language, final Process process,
             final FlowNode node) throws ProcessEngineException {
-        if (node instanceof final Activity activity && activity.getLoopCharacteristics() != null) {
-            throw new ProcessEngineException("Activity '" + node.getId()
-                    + "' has loop characteristics, which are not supported yet.");
-        }
         final List<SequenceFlow> outgoing = ProcessNavigator.outgoing(process, node);
         return switch (node) {
         case StartEvent _, ParallelGateway _ -> FlowSelector.unconditional(outgoing);
@@ -220,13 +231,19 @@ public class BpmnNodeExecutor {
             yield List.of();
         }
         case final ServiceTask task -> {
-            final Map<String, Object> variables = this.serviceTasks.invoke(instance, task);
+            final Map<String, Object> variables = this.tasks.invoke(instance, task, language);
+            yield this.flows.activity(task, outgoing, language, variables);
+        }
+        case final ScriptTask task -> {
+            final Map<String, Object> variables = this.tasks.invoke(instance, task, language);
             yield this.flows.activity(task, outgoing, language, variables);
         }
         case final ExclusiveGateway gateway ->
             List.of(this.flows.exclusive(gateway.getId(), gateway.getDefault(), outgoing, language, instance.variables()));
-        case final Task task when task.getClass() == Task.class ->
-            this.flows.activity(task, outgoing, language, instance.variables());
+        case final Task task when task.getClass() == Task.class -> {
+            final Map<String, Object> variables = this.tasks.loop(instance, task, language);
+            yield this.flows.activity(task, outgoing, language, variables);
+        }
         default -> throw new ProcessEngineException("Node '" + node.getId() + "' is a "
                 + node.getClass().getSimpleName() + ", which is not supported yet.");
         };
@@ -252,10 +269,6 @@ public class BpmnNodeExecutor {
         }
         this.instances.updateEndDate(instance.id(), new Date());
         LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
-        final ProcessStep parentStep = instance.parentStep();
-        if (parentStep != null) {
-            // resume the waiting call activity in its own task, which locks the parent instance
-            this.taskService.trigger(BpmnNodeTask.BEAN_NAME, parentStep.id());
-        }
+        this.callActivities.resumeCaller(instance);
     }
 }

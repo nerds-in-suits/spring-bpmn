@@ -32,14 +32,14 @@ public class JpaProcessStepRepository implements ProcessStepRepository {
 
     @Override
     @Transactional
-    public ProcessStep create(final UUID instanceId, final String nodeId, final String incomingFlowId)
-            throws NoSuchProcessInstanceException {
+    public ProcessStep create(final UUID instanceId, final String nodeId, final String incomingFlowId,
+            final UUID parentStepId) throws NoSuchProcessInstanceException {
         final ProcessInstanceEntity instance = this.entityManager.find(ProcessInstanceEntity.class, instanceId);
         if (instance == null) {
             throw new NoSuchProcessInstanceException(instanceId);
         }
         final ProcessStepEntity entity = new ProcessStepEntity(UUID.randomUUID(), instance, nodeId, incomingFlowId,
-                new Date());
+                parentStepId, new Date());
         this.entityManager.persist(entity);
         return entity;
     }
@@ -58,6 +58,15 @@ public class JpaProcessStepRepository implements ProcessStepRepository {
                 ProcessStepEntity.class)
                 .setParameter("instanceId", instanceId)
                 .setParameter("nodeId", nodeId)
+                .getResultList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProcessStep> children(final UUID parentStepId) {
+        return List.copyOf(this.entityManager.createQuery("select s from ProcessStepEntity s"
+                + " where s.parentStep = :parentStepId order by s.start", ProcessStepEntity.class)
+                .setParameter("parentStepId", parentStepId)
                 .getResultList());
     }
 

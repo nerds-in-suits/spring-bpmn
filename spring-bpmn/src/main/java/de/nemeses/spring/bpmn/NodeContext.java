@@ -7,20 +7,23 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * The {@link BpmnNodeContext} passed by the {@link BpmnNodeExecutor} to a {@link BpmnNodeImplementation}; collects
- * the variable changes.
+ * The {@link BpmnNodeContext} passed by the {@link TaskInvoker} to a {@link BpmnNodeImplementation} or a script;
+ * collects the variable changes.
  */
 final class NodeContext implements BpmnNodeContext {
 
     private final UUID instanceId;
     private final String node;
     private final Map<String, Object> vars;
+    private final int counter;
     private boolean changed;
 
-    NodeContext(final UUID instanceId, final String node, final Map<String, Object> variables) {
+    NodeContext(final UUID instanceId, final String node, final Map<String, Object> variables,
+            final int loopCounter) {
         this.instanceId = instanceId;
         this.node = node;
         this.vars = new LinkedHashMap<>(variables);
+        this.counter = loopCounter;
     }
 
     @Override
@@ -31,6 +34,11 @@ final class NodeContext implements BpmnNodeContext {
     @Override
     public String nodeId() {
         return this.node;
+    }
+
+    @Override
+    public int loopCounter() {
+        return this.counter;
     }
 
     @Override

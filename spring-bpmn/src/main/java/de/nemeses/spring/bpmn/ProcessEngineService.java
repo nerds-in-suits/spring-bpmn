@@ -98,7 +98,7 @@ public class ProcessEngineService {
                 parentStep);
         try {
             for (final String nodeId : startNodes) {
-                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), nodeId, null);
+                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), nodeId, null, null);
             }
         } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot start process instance " + instance.id() + ".", e);

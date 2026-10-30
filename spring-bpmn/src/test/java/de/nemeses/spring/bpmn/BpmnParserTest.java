@@ -15,6 +15,9 @@ import de.nemeses.spring.bpmn.model.bpmn20.Process;
 
 class BpmnParserTest {
 
+    private static final String DEFINITIONS =
+            "<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"d\" targetNamespace=\"urn:t\"";
+
     private BpmnParser parser;
 
     @BeforeEach
@@ -65,5 +68,44 @@ class BpmnParserTest {
     void rejectsNonBpmnDocument() {
         final InputStream in = new ByteArrayInputStream("<foo/>".getBytes(StandardCharsets.UTF_8));
         Assertions.assertThrows(BpmnParseException.class, () -> this.parser.parse(in));
+    }
+
+    @Test
+    void acceptsExtensionAttributesInOtherNamespace() throws Exception {
+        final Definitions definitions = this.parseString(DEFINITIONS + " xmlns:spring=\"" + BpmnNodeExecutor.NAMESPACE
+                + "\"><process id=\"p\"><serviceTask id=\"s\" spring:bean=\"myBean\"/></process></definitions>");
+        Assertions.assertEquals(1, definitions.getRootElement().size());
+    }
+
+    @Test
+    void rejectsUnknownElement() {
+        final BpmnParseException e = Assertions.assertThrows(BpmnParseException.class, () -> this.parseString(
+                DEFINITIONS + "><process id=\"p\"><noSuchTask id=\"x\"/></process></definitions>"));
+        Assertions.assertTrue(e.getMessage().startsWith("Invalid BPMN document at line 1"), e.getMessage());
+        Assertions.assertTrue(e.getMessage().contains("noSuchTask"), e.getMessage());
+    }
+
+    @Test
+    void rejectsMissingRequiredAttribute() {
+        final BpmnParseException e = Assertions.assertThrows(BpmnParseException.class, () -> this.parseString(
+                DEFINITIONS + "><process id=\"p\"><sequenceFlow id=\"f\" sourceRef=\"a\"/></process></definitions>"));
+        Assertions.assertTrue(e.getMessage().contains("targetRef"), e.getMessage());
+    }
+
+    @Test
+    void rejectsDuplicateIds() {
+        Assertions.assertThrows(BpmnParseException.class, () -> this.parseString(
+                DEFINITIONS + "><process id=\"p\"><task id=\"t\"/><task id=\"t\"/></process></definitions>"));
+    }
+
+    @Test
+    void rejectsMalformedXml() {
+        final BpmnParseException e = Assertions.assertThrows(BpmnParseException.class,
+                () -> this.parseString(DEFINITIONS + "><process id=\"p\">"));
+        Assertions.assertTrue(e.getMessage().startsWith("Invalid BPMN document"), e.getMessage());
+    }
+
+    private Definitions parseString(final String xml) throws BpmnParseException {
+        return this.parser.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
     }
 }
