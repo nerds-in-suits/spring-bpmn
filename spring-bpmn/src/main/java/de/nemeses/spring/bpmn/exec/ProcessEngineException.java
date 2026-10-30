@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn;
+package de.nemeses.spring.bpmn.exec;
 
 /**
  * Thrown if the process engine cannot perform an operation, e.g. start a process.

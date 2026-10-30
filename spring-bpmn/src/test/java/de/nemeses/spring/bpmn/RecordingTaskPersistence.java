@@ -11,7 +11,7 @@ import de.nemeses.spring.tasks.TaskPersistence;
 /**
  * Records persisted tasks instead of storing them.
  */
-class RecordingTaskPersistence implements TaskPersistence {
+public class RecordingTaskPersistence implements TaskPersistence {
 
     private final List<Recorded> persisted = Collections.synchronizedList(new ArrayList<>());
 
@@ -27,7 +27,7 @@ class RecordingTaskPersistence implements TaskPersistence {
         throw new InterruptedException("Tasks are only recorded.");
     }
 
-    List<Recorded> persisted() {
+    public List<Recorded> persisted() {
         return this.persisted;
     }
 
@@ -37,6 +37,6 @@ class RecordingTaskPersistence implements TaskPersistence {
      * @param beanName the task bean name
      * @param payload the serialized payload
      */
-    record Recorded(String beanName, String payload) {
+    public record Recorded(String beanName, String payload) {
     }
 }
