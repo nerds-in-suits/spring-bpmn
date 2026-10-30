@@ -34,6 +34,12 @@ import de.nemeses.spring.tasks.TaskService;
 
 /**
  * Executes single steps (nodes) of process instances; called by the {@link BpmnNodeTask}.
+ * <p>
+ * Each step runs in one transaction. The process instance is locked first ({@link ProcessInstanceRepository#lock}),
+ * so the steps of one instance run one after the other, and the pending steps are read after locking. Running the
+ * node, completing its step, storing changed variables and creating the steps and {@link BpmnNodeTask}s of the flows
+ * taken all happen in that transaction; a {@link ProcessEngineException} rolls all of it back. The supported node
+ * types are listed at {@link #executeNode} and in {@code docs/bpmn-support.md}.
  */
 @Component
 @SuppressWarnings("PMD.CouplingBetweenObjects") // dispatches over all supported node types
