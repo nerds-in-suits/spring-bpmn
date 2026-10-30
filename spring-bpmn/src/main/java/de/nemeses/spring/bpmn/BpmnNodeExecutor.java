@@ -19,6 +19,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.ParallelGateway;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
+import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
 import de.nemeses.spring.bpmn.model.bpmn20.StartEvent;
@@ -47,17 +48,17 @@ public class BpmnNodeExecutor {
     private final ProcessStepRepository steps;
     private final BpmnParser parser;
     private final TaskService taskService;
-    private final ServiceTaskInvoker serviceTasks;
+    private final TaskInvoker tasks;
     private final FlowSelector flows;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final BpmnParser parser, final TaskService taskService,
-            final ServiceTaskInvoker serviceTasks, final FlowSelector flows) {
+            final BpmnParser parser, final TaskService taskService, final TaskInvoker tasks,
+            final FlowSelector flows) {
         this.instances = instances;
         this.steps = steps;
         this.parser = parser;
         this.taskService = taskService;
-        this.serviceTasks = serviceTasks;
+        this.tasks = tasks;
         this.flows = flows;
     }
 
@@ -89,9 +90,12 @@ public class BpmnNodeExecutor {
      * <li>{@code startEvent}: nothing to do, all outgoing flows are taken.</li>
      * <li>{@code task}: nothing to do, the outgoing flows are taken like for every activity (see below).</li>
      * <li>{@code serviceTask}: calls the {@link BpmnNodeImplementation} bean named by the extension attribute
-     * {@link #BEAN_ATTRIBUTE} (through the {@link ServiceTaskInvoker}), stores the variables it changed through its
+     * {@link #BEAN_ATTRIBUTE} (through the {@link TaskInvoker}), stores the variables it changed through its
      * {@link BpmnNodeContext} ({@link ProcessInstanceRepository#updateVariables}), then takes the outgoing flows like for every activity,
      * evaluating their conditions against the changed variables.</li>
+     * <li>{@code scriptTask}: runs its SpEL script (through the {@link TaskInvoker} and the
+     * {@link ScriptTaskInvoker}), then stores the changed variables and takes the outgoing flows like a
+     * {@code serviceTask}.</li>
      * <li>{@code exclusiveGateway}: takes the first non-default outgoing flow (in document order) without condition or
      * whose condition is true, else the {@code default} flow; fails if there is none.</li>
      * <li>{@code parallelGateway} with at most one incoming flow: takes all outgoing flows (fork).</li>
@@ -104,7 +108,7 @@ public class BpmnNodeExecutor {
      * An activity takes every outgoing flow without condition and every flow whose condition is true; its
      * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}
      * (through the {@link FlowSelector}). Flows out of start events and parallel gateways must not have a condition.
-     * {@code task} and {@code serviceTask} may have {@code standardLoopCharacteristics}: all iterations run in this
+     * {@code task}, {@code serviceTask} and {@code scriptTask} may have {@code standardLoopCharacteristics}: all iterations run in this
      * step (see {@link ActivityLoop}) and the outgoing flows are taken once after the last iteration;
      * {@code multiInstanceLoopCharacteristics} are not supported yet.
      * A step that is no longer pending (a task delivered again, or a join step completed by another step) and the steps
@@ -205,13 +209,17 @@ public class BpmnNodeExecutor {
             yield List.of();
         }
         case final ServiceTask task -> {
-            final Map<String, Object> variables = this.serviceTasks.invoke(instance, task, language);
+            final Map<String, Object> variables = this.tasks.invoke(instance, task, language);
+            yield this.flows.activity(task, outgoing, language, variables);
+        }
+        case final ScriptTask task -> {
+            final Map<String, Object> variables = this.tasks.invoke(instance, task, language);
             yield this.flows.activity(task, outgoing, language, variables);
         }
         case final ExclusiveGateway gateway ->
             List.of(this.flows.exclusive(gateway.getId(), gateway.getDefault(), outgoing, language, instance.variables()));
         case final Task task when task.getClass() == Task.class -> {
-            final Map<String, Object> variables = this.serviceTasks.loop(instance, task, language);
+            final Map<String, Object> variables = this.tasks.loop(instance, task, language);
             yield this.flows.activity(task, outgoing, language, variables);
         }
         default -> throw new ProcessEngineException("Node '" + node.getId() + "' is a "

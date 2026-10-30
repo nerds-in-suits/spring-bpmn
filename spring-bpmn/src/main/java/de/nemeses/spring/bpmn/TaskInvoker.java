@@ -4,6 +4,8 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import de.nemeses.spring.bpmn.model.bpmn20.Activity;
+import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
 import de.nemeses.spring.bpmn.model.bpmn20.Task;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
@@ -11,21 +13,24 @@ import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 
 /**
- * Calls the {@link BpmnNodeImplementation} of a {@code serviceTask} for the {@link BpmnNodeExecutor} and stores the
- * variables it changed; runs the standard loops of service tasks and plain tasks (through the {@link ActivityLoop}).
+ * Runs the work of a {@code serviceTask} (its {@link BpmnNodeImplementation}) or a {@code scriptTask} (its script,
+ * through the {@link ScriptTaskInvoker}) for the {@link BpmnNodeExecutor} and stores the variables it changed; runs the
+ * standard loops of service, script and plain tasks (through the {@link ActivityLoop}).
  */
 @Component
-class ServiceTaskInvoker {
+class TaskInvoker {
 
     private final ProcessInstanceRepository instances;
     private final ActivityLoop loops;
     private final Map<String, BpmnNodeImplementation> implementations;
+    private final ScriptTaskInvoker scripts;
 
-    ServiceTaskInvoker(final ProcessInstanceRepository instances, final ActivityLoop loops,
-            final Map<String, BpmnNodeImplementation> implementations) {
+    TaskInvoker(final ProcessInstanceRepository instances, final ActivityLoop loops,
+            final Map<String, BpmnNodeImplementation> implementations, final ScriptTaskInvoker scripts) {
         this.instances = instances;
         this.loops = loops;
         this.implementations = implementations;
+        this.scripts = scripts;
     }
 
     /**
@@ -45,11 +50,34 @@ class ServiceTaskInvoker {
     Map<String, Object> invoke(final ProcessInstance instance, final ServiceTask task, final String language)
             throws ProcessEngineException {
         final BpmnNodeImplementation implementation = this.implementation(task);
+        return this.run(instance, task, language, implementation::execute);
+    }
+
+    /**
+     * Runs the script of the task through the {@link ScriptTaskInvoker} (once, or per iteration of its standard loop
+     * like {@link #invoke(ProcessInstance, ServiceTask, String)}) and stores the variables it changed
+     * ({@link ProcessInstanceRepository#updateVariables}, once after the last iteration and only if something
+     * changed).
+     *
+     * @param instance the (locked) process instance
+     * @param task the script task
+     * @param language the default expression language of the document (for a loop condition)
+     * @return the variables including the changes of the script
+     * @throws ProcessEngineException if the loop is not supported, the script fails or the variables cannot be stored
+     */
+    Map<String, Object> invoke(final ProcessInstance instance, final ScriptTask task, final String language)
+            throws ProcessEngineException {
+        return this.run(instance, task, language, context -> this.scripts.execute(task, context));
+    }
+
+    private Map<String, Object> run(final ProcessInstance instance, final Activity activity, final String language,
+            final Body body) throws ProcessEngineException {
         final boolean[] changed = new boolean[1];
-        final Map<String, Object> variables = this.loops.run(task, language, instance.variables(),
+        final Map<String, Object> variables = this.loops.run(activity, language, instance.variables(),
                 (loopCounter, current) -> {
-                    final NodeContext context = new NodeContext(instance.id(), task.getId(), current, loopCounter);
-                    implementation.execute(context);
+                    final NodeContext context = new NodeContext(instance.id(), activity.getId(), current,
+                            loopCounter);
+                    body.execute(context);
                     changed[0] |= context.isChanged();
                     return context.changedVariables();
                 });
@@ -91,5 +119,14 @@ class ServiceTaskInvoker {
                     + "', which is no BpmnNodeImplementation.");
         }
         return implementation;
+    }
+
+    /**
+     * One execution of the work of a task.
+     */
+    @FunctionalInterface
+    private interface Body {
+
+        void execute(NodeContext context) throws ProcessEngineException;
     }
 }
