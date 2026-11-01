@@ -107,17 +107,17 @@ public class ConditionEvaluator {
                     + "', which is not supported; use " + SPEL_LANGUAGE + ".");
         }
         final String text = ConditionEvaluator.text(expression);
-        if (text.isEmpty()) {
-            throw new ProcessEngineException("The " + description + " is empty.");
-        }
-        final Map<String, Object> root = Collections.unmodifiableMap(variables);
-        final SimpleEvaluationContext.Builder builder = SimpleEvaluationContext
-                .forPropertyAccessors(new MapAccessor(false), DataBindingPropertyAccessor.forReadOnlyAccess())
-                .withAssignmentDisabled()
-                .withRootObject(root);
-        final EvaluationContext context = builder.build();
-        root.forEach(context::setVariable);
         try {
+            if (text.isEmpty()) {
+                throw new ProcessEngineException("The " + description + " is empty.");
+            }
+            final Map<String, Object> root = Collections.unmodifiableMap(variables);
+            final SimpleEvaluationContext.Builder builder = SimpleEvaluationContext
+                    .forPropertyAccessors(new MapAccessor(false), DataBindingPropertyAccessor.forReadOnlyAccess())
+                    .withAssignmentDisabled()
+                    .withRootObject(root);
+            final EvaluationContext context = builder.build();
+            root.forEach(context::setVariable);
             return this.parser.parseExpression(text).getValue(context);
         } catch (final ExpressionException e) {
             throw new ProcessEngineException("Cannot evaluate the " + description + " '" + text + "'.", e);

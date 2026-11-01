@@ -37,29 +37,29 @@ class TaskRunner {
      */
     Map<String, Object> run(final Activity activity, final NodeExecution execution, final Body body)
             throws ProcessEngineException {
-        final ProcessInstance instance = execution.instance();
-        final NodeExecution.LoopInstance loopInstance = execution.loopInstance();
-        final boolean[] changed = new boolean[1];
-        final Map<String, Object> variables = this.loops.run(activity, execution.language(), instance.variables(),
-                (loopCounter, current) -> {
-                    // an instance of a multi-instance loop runs once, with the index of the instance
-                    final NodeContext context = loopInstance == null
-                            ? new NodeContext(instance.id(), activity.getId(), current, loopCounter)
-                            : new NodeContext(instance.id(), activity.getId(), current, loopInstance.counter(),
-                                    loopInstance.item());
-                    body.execute(context);
-                    changed[0] |= context.isChanged();
-                    return context.changedVariables();
-                });
-        if (changed[0]) {
-            try {
+        try {
+            final ProcessInstance instance = execution.instance();
+            final NodeExecution.LoopInstance loopInstance = execution.loopInstance();
+            final boolean[] changed = new boolean[1];
+            final Map<String, Object> variables = this.loops.run(activity, execution.language(), instance.variables(),
+                    (loopCounter, current) -> {
+                        // an instance of a multi-instance loop runs once, with the index of the instance
+                        final NodeContext context = loopInstance == null
+                                ? new NodeContext(instance.id(), activity.getId(), current, loopCounter)
+                                : new NodeContext(instance.id(), activity.getId(), current, loopInstance.counter(),
+                                        loopInstance.item());
+                        body.execute(context);
+                        changed[0] |= context.isChanged();
+                        return context.changedVariables();
+                    });
+            if (changed[0]) {
                 this.instances.updateVariables(instance.id(), variables);
-            } catch (final NoSuchProcessInstanceException e) {
-                throw new ProcessEngineException("Cannot store the variables of process instance "
-                        + instance.id() + ".", e);
             }
+            return variables;
+        } catch (final NoSuchProcessInstanceException e) {
+            throw new ProcessEngineException("Cannot store the variables of process instance "
+                    + execution.instance().id() + ".", e);
         }
-        return variables;
     }
 
     /**

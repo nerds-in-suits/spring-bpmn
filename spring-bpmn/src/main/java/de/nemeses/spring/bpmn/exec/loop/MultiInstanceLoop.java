@@ -117,17 +117,17 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
      */
     @Override
     public Collection<SequenceFlow> invoke(final T node, final NodeExecution execution) throws ProcessEngineException {
-        final Activity activity = (Activity) node;
-        if (activity.getLoopCharacteristics() == null
-                || !(activity.getLoopCharacteristics().getValue()
-                        instanceof final MultiInstanceLoopCharacteristics characteristics)) {
-            return this.delegate.invoke(node, execution);
-        }
-        MultiInstanceLoop.validate(activity, characteristics);
-        final ProcessStep step = execution.step();
-        final Loop loop = new Loop(execution.instance(), activity, characteristics, execution.outgoing(),
-                execution.language());
         try {
+            final Activity activity = (Activity) node;
+            if (activity.getLoopCharacteristics() == null
+                    || !(activity.getLoopCharacteristics().getValue()
+                            instanceof final MultiInstanceLoopCharacteristics characteristics)) {
+                return this.delegate.invoke(node, execution);
+            }
+            MultiInstanceLoop.validate(activity, characteristics);
+            final ProcessStep step = execution.step();
+            final Loop loop = new Loop(execution.instance(), activity, characteristics, execution.outgoing(),
+                    execution.language());
             if (step.parentStepId() != null) {
                 final ProcessStep parent = this.steps.retrieve(step.parentStepId());
                 if (parent.nodeId().equals(step.nodeId())) {
@@ -137,7 +137,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
             }
             return this.start(loop, step);
         } catch (final NoSuchProcessStepException | NoSuchProcessInstanceException e) {
-            throw new ProcessEngineException("Cannot execute multi-instance activity '" + activity.getId()
+            throw new ProcessEngineException("Cannot execute multi-instance activity '" + node.getId()
                     + "' of process instance " + execution.instance().id() + ".", e);
         }
     }

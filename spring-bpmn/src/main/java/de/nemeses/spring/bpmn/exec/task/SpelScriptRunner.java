@@ -91,15 +91,14 @@ class SpelScriptRunner {
     }
 
     private SpelExpression parse(final ScriptTask task, final String statement) throws ProcessEngineException {
-        final SpelExpression expression;
         try {
-            expression = this.parser.parseRaw(statement);
+            final SpelExpression expression = this.parser.parseRaw(statement);
+            SpelScriptRunner.checkAssignments(task, statement, expression.getAST());
+            return expression;
         } catch (final ExpressionException e) {
             throw new ProcessEngineException("Cannot parse statement '" + statement + "' of script task '"
                     + task.getId() + "'.", e);
         }
-        SpelScriptRunner.checkAssignments(task, statement, expression.getAST());
-        return expression;
     }
 
     /**

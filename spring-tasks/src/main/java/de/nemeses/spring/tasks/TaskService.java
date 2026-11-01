@@ -80,9 +80,9 @@ public class TaskService implements SmartLifecycle {
         if (this.workers == null) {
             return;
         }
-        LoggerFactory.getLogger(this.getClass()).info("Stopping task worker threads.");
-        this.workers.shutdownNow();
         try {
+            LoggerFactory.getLogger(this.getClass()).info("Stopping task worker threads.");
+            this.workers.shutdownNow();
             if (!this.workers.awaitTermination(this.properties.shutdownTimeout().toMillis(), TimeUnit.MILLISECONDS)) {
                 LoggerFactory.getLogger(this.getClass()).warn("Task worker threads did not terminate within {}.",
                     this.properties.shutdownTimeout());

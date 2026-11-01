@@ -74,6 +74,8 @@ public class JmsTaskPersistence implements TaskPersistence {
                     message.acknowledge();
                 }
             }
+            closeQuietly(session);
+            throw new InterruptedException("Interrupted while waiting for the next task");
         } catch (final JMSException e) {
             closeQuietly(session);
             if (isInterruption(e)) {
@@ -85,8 +87,6 @@ public class JmsTaskPersistence implements TaskPersistence {
             }
             throw new JmsTaskException("Failed to receive task from JMS queue " + this.queueName, e);
         }
-        closeQuietly(session);
-        throw new InterruptedException("Interrupted while waiting for the next task");
     }
 
     private static boolean isInterruption(final Throwable error) {
@@ -180,8 +180,8 @@ public class JmsTaskPersistence implements TaskPersistence {
 
         @Override
         public void fail(final Exception error) {
-            LoggerFactory.getLogger(JmsTaskPersistence.class).warn("Task {} failed, it will be redelivered", this.name, error);
             try {
+                LoggerFactory.getLogger(JmsTaskPersistence.class).warn("Task {} failed, it will be redelivered", this.name, error);
                 this.session.recover();
                 this.session.close();
             } catch (final JMSException e) {

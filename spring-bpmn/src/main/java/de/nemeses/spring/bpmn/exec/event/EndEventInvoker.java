@@ -64,22 +64,22 @@ class EndEventInvoker implements Invoker<EndEvent> {
      * Ends the instance if none of its steps is pending any more.
      */
     private void end(final ProcessInstance instance, final EndEvent event) throws ProcessEngineException {
-        final long pending = this.steps.countPending(instance.id());
-        if (pending > 0) {
-            LoggerFactory.getLogger(this.getClass()).debug(
-                    "Reached end event {} of process instance {}, which still has {} pending steps",
-                    event.getId(), instance.id(), pending);
-            return;
-        }
         try {
+            final long pending = this.steps.countPending(instance.id());
+            if (pending > 0) {
+                LoggerFactory.getLogger(this.getClass()).debug(
+                        "Reached end event {} of process instance {}, which still has {} pending steps",
+                        event.getId(), instance.id(), pending);
+                return;
+            }
             this.instances.updateEndDate(instance.id(), new Date());
+            LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
+            final ProcessStep parentStep = instance.parentStep();
+            if (parentStep != null) {
+                this.taskService.trigger(BpmnNodeTask.BEAN_NAME, parentStep.id());
+            }
         } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot end process instance " + instance.id() + ".", e);
-        }
-        LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
-        final ProcessStep parentStep = instance.parentStep();
-        if (parentStep != null) {
-            this.taskService.trigger(BpmnNodeTask.BEAN_NAME, parentStep.id());
         }
     }
 }
