@@ -28,7 +28,7 @@ Do not invent Camunda-like APIs to fill a gap.
 - `inclusiveGateway`: not supported (#57).
 - `intermediateCatchEvent`, `intermediateThrowEvent`: not supported (#61).
 - `manualTask`: not supported (#65).
-- `multiInstanceLoopCharacteristics`: supported on `task`, `serviceTask` and `scriptTask` (`task.MultiInstanceLoop`).
+- `multiInstanceLoopCharacteristics`: supported on `task`, `serviceTask` and `scriptTask` (`loop.MultiInstanceLoop`).
   One step per instance, below the pending step of the activity; parallel loops create all instance steps at once, sequential loops one after the other.
   The number of instances is `loopCardinality` (SpEL) or the size of the collection variable named by `loopDataInputRef`.
   `inputDataItem` and `outputDataItem` are local to an instance; the outputs become the list variable named by `loopDataOutputRef`.

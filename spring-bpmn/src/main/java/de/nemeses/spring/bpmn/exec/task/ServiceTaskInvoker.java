@@ -20,8 +20,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
  * {@link BpmnNodeExecutor#BEAN_ATTRIBUTE} (once, or per iteration of its standard loop, through the
  * {@link TaskRunner}), stores the variables it changed through its {@link BpmnNodeContext}, completes the step and
  * takes the outgoing flows like for every activity ({@link FlowSelector#activity}), evaluating their conditions
- * against the changed variables. A multi-instance loop runs through the {@link MultiInstanceLoop}, with one step per
- * instance.
+ * against the changed variables.
  */
 @Component
 class ServiceTaskInvoker implements Invoker<ServiceTask> {
@@ -29,14 +28,12 @@ class ServiceTaskInvoker implements Invoker<ServiceTask> {
     private final TaskRunner runner;
     private final FlowSelector flows;
     private final Map<String, BpmnNodeImplementation> implementations;
-    private final MultiInstanceLoop multiInstances;
 
     ServiceTaskInvoker(final TaskRunner runner, final FlowSelector flows,
-            final Map<String, BpmnNodeImplementation> implementations, final MultiInstanceLoop multiInstances) {
+            final Map<String, BpmnNodeImplementation> implementations) {
         this.runner = runner;
         this.flows = flows;
         this.implementations = implementations;
-        this.multiInstances = multiInstances;
     }
 
     @Override
@@ -48,9 +45,6 @@ class ServiceTaskInvoker implements Invoker<ServiceTask> {
     public List<SequenceFlow> invoke(final ServiceTask node, final NodeExecution execution)
             throws ProcessEngineException {
         final BpmnNodeImplementation implementation = this.implementation(node);
-        if (MultiInstanceLoop.isMultiInstance(node)) {
-            return this.multiInstances.execute(node, execution, implementation::execute);
-        }
         final Map<String, Object> variables = this.runner.run(node, execution, implementation::execute);
         final List<SequenceFlow> taken = this.flows.activity(node, execution.outgoing(), execution.language(),
                 variables);

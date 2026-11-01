@@ -56,7 +56,9 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
 - `Invoker`: executes the flow nodes of one type (`nodeType()`, exact class); all `Invoker` beans are injected into `BpmnNodeExecutor`, at most one per type. The implementations live in the sub-packages below.
-- `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language); completes steps.
+- `InvokerDecorator`: an `Invoker` wrapping another one of the same node type, e.g. a loop around an activity.
+- `InvokerDecoratorFactory`: decorates invokers; all factory beans are injected into `BpmnNodeExecutor`, which passes every invoker through each of them.
+- `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language, flow scope, loop instance); completes steps.
 - `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances.
@@ -70,9 +72,9 @@ Package-private helpers are listed when they hold engine behaviour.
 - `event.StartEventInvoker`: takes all outgoing flows of a `startEvent`.
 - `gateway.ExclusiveGatewayInvoker`: takes one outgoing flow of an `exclusiveGateway`.
 - `gateway.ParallelGatewayInvoker`: forks and joins at a `parallelGateway`.
+- `loop.MultiInstanceLoop`, `loop.MultiInstanceLoopFactory`: decorate the invoker of every activity type and run `multiInstanceLoopCharacteristics` with one step per instance below the pending activity step.
 - `subprocess.SubProcessInvoker`: enters an embedded `subProcess`.
 - `task.ActivityLoop`: runs the `standardLoopCharacteristics` of an activity within one step.
-- `task.MultiInstanceLoop`: runs the `multiInstanceLoopCharacteristics` of a task, one step per instance below the pending activity step; the task invokers delegate to it.
 - `task.ScriptTaskInvoker`, `task.ServiceTaskInvoker`, `task.TaskInvoker`: execute `scriptTask`, `serviceTask` and plain `task`.
 - `task.SpelScriptRunner`: runs the SpEL script of a `scriptTask`.
 - `task.TaskRunner`: runs the work of a task (with its loop) and stores the variables it changed.

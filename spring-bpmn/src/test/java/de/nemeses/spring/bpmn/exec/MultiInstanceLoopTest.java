@@ -31,7 +31,7 @@ import de.nemeses.spring.tasks.TaskException;
 import de.nemeses.spring.tasks.TaskPersistence;
 
 /**
- * Executes multi-instance activities ({@code task.MultiInstanceLoop}) step by step through the {@link BpmnNodeTask} with
+ * Executes multi-instance activities ({@code loop.MultiInstanceLoop}) step by step through the {@link BpmnNodeTask} with
  * in-memory repositories and recorded tasks.
  */
 class MultiInstanceLoopTest {
@@ -437,9 +437,15 @@ class MultiInstanceLoopTest {
                 this.assertFails(context, instance, id);
             }
             this.assertFails(context, instance, "behavior");
-            this.assertFails(context, instance, "sp");
             this.assertFails(context, instance, "u");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
+
+            // the decorator is generic: an activity that cannot run an instance in one step fails at its instance
+            this.execute(context, instance, "sp");
+            final List<ProcessStep> subProcessInstances = this.triggered(context, "sp");
+            Assertions.assertEquals(1, subProcessInstances.size());
+            Assertions.assertThrows(TaskException.class,
+                    () -> MultiInstanceLoopTest.execute(context, subProcessInstances.get(0)));
 
             // the completion condition is evaluated after the instance
             this.execute(context, instance, "nonBooleanCompletion");
