@@ -57,6 +57,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `CallActivityInvoker`: starts and resumes `callActivity` steps and maps variables to and from the child instance.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
+- `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
