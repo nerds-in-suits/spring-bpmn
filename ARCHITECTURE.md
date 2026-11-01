@@ -124,7 +124,7 @@ Package-private helpers are listed when they hold engine behaviour.
 ### `de.nemeses.spring.tasks.jpa` (module `spring-tasks-jpa`)
 
 - `JpaTaskPersistence`: stores tasks in table `spring_tasks` and claims due ones in batches.
-- `JpaTaskPersistenceAutoConfiguration`: registers it if there is an `EntityManager` bean (runs after `HibernateJpaAutoConfiguration`).
+- `JpaTaskPersistenceAutoConfiguration`: registers it if there is an `EntityManagerFactory` (runs after `HibernateJpaAutoConfiguration`) and adds the package of `TaskEntity` to the entity scan.
 - `JpaTaskProperties`: `spring.tasks.jpa.*`.
 - `TaskEntity`: table `spring_tasks`.
 
