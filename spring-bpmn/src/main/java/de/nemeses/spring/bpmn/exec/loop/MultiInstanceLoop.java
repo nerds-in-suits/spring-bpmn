@@ -11,7 +11,7 @@ import java.util.UUID;
 
 import org.slf4j.LoggerFactory;
 
-import de.nemeses.spring.bpmn.exec.BpmnNodeTask;
+import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
 import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
@@ -227,7 +227,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
             final List<Object> items) throws NoSuchProcessInstanceException {
         final ProcessStep step = this.steps.create(loop.instance().id(), activityStep.nodeId(),
                 activityStep.incomingFlowId(), activityStep.id(), index, items == null ? null : items.get(index));
-        this.taskService.trigger(BpmnNodeTask.BEAN_NAME, step.id());
+        this.taskService.trigger(BpmnNodeExecutor.BEAN_NAME, step.id());
     }
 
     /**

@@ -31,8 +31,8 @@ import de.nemeses.spring.tasks.TaskException;
 import de.nemeses.spring.tasks.TaskPersistence;
 
 /**
- * Executes multi-instance activities ({@code loop.MultiInstanceLoop}) step by step through the {@link BpmnNodeTask} with
- * in-memory repositories and recorded tasks.
+ * Executes multi-instance activities ({@code loop.MultiInstanceLoop}) step by step through the {@link BpmnNodeExecutor}
+ * with in-memory repositories and recorded tasks.
  */
 class MultiInstanceLoopTest {
 
@@ -102,7 +102,7 @@ class MultiInstanceLoopTest {
 
     private static void execute(final AssertableApplicationContext context, final ProcessStep step)
             throws TaskException {
-        context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class).execute(step.id());
+        context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class).execute(step.id());
     }
 
     private void assertFails(final AssertableApplicationContext context, final ProcessInstance instance,
@@ -119,7 +119,7 @@ class MultiInstanceLoopTest {
      */
     private List<ProcessStep> triggered(final AssertableApplicationContext context) {
         try {
-            final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
+            final BpmnNodeExecutor nodeTask = context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class);
             final List<ProcessStep> result = new ArrayList<>();
             for (final RecordingTaskPersistence.Recorded task : this.tasks.persisted()) {
                 result.add(this.steps.retrieve(nodeTask.deserializePayload(task.payload())));

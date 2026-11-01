@@ -50,9 +50,8 @@ Package-private helpers are listed when they hold engine behaviour.
 ### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
 
 - `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `task.NodeContext`).
-- `BpmnNodeExecutor`: executes one `ProcessStep` per `bpmnNodeTask` under a lock on the instance with the `Invoker` for the node type and schedules the steps of the flows taken.
+- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with the `Invoker` for the node type and schedules the steps of the flows taken.
 - `BpmnNodeImplementation`: application code bound to a `serviceTask` by bean name.
-- `BpmnNodeTask`: the `bpmnNodeTask` task bean; its payload is the id of the step to execute.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
 - `Invoker`: executes the flow nodes of one type (`nodeType()`, exact class); all `Invoker` beans are injected into `BpmnNodeExecutor`, at most one per type. The implementations live in the sub-packages below.
@@ -113,7 +112,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `TaskImplementation`: a task type, as a Spring bean referenced by its bean name.
 - `TaskPersistence`: stores tasks and hands due ones to the workers (`next()`, `TaskInfo.complete()`, `TaskInfo.fail()`).
 - `TaskProperties`: the `spring.tasks.*` settings.
-- `TaskService`: public entry (`trigger`, `schedule`); a `SmartLifecycle` running the worker pool.
+- `TaskService`: public entry (`trigger`, `schedule`); a `SmartLifecycle` running the worker pool; looks up the `TaskImplementation` beans by name in the bean factory when needed, so task beans may depend on it.
 
 ### `de.nemeses.spring.tasks.jms` (module `spring-tasks-jms`)
 
@@ -138,7 +137,7 @@ Package-private helpers are listed when they hold engine behaviour.
 ## Flow of a process instance
 
 1. `ProcessEngineService.startProcess` creates the instance and, per start event, a `ProcessStep` and a `bpmnNodeTask` with the step id.
-2. `BpmnNodeTask` calls `BpmnNodeExecutor.executeNode`, which locks the instance, runs the node and completes the step.
+2. The `bpmnNodeTask` bean `BpmnNodeExecutor` locks the instance, runs the node and completes the step.
 3. For each sequence flow taken, the executor creates a step for the target node and triggers a `bpmnNodeTask`, all in the same transaction.
 4. A failing step rolls back and its task fails; `JmsTaskPersistence` redelivers it, `JpaTaskPersistence` marks it `FAILED` without retry.
 

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -75,10 +76,26 @@ public class TaskServiceTest {
     }
 
     @Test
+    public void testTriggerUnknownTaskFails() {
+        final IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+            () -> this.taskService.trigger("unknownTask", TestPayload.generate()), "unknown bean rejected");
+        Assertions.assertTrue(e.getMessage().contains("unknownTask"), e.getMessage());
+        Assertions.assertTrue(this.persistence.persisted().isEmpty(), "nothing persisted");
+    }
+
+    @Test
+    public void testTriggerNoTaskImplementationFails() {
+        final IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+            () -> this.taskService.trigger("taskPersistence", TestPayload.generate()), "other bean rejected");
+        Assertions.assertTrue(e.getMessage().contains("taskPersistence"), e.getMessage());
+        Assertions.assertTrue(this.persistence.persisted().isEmpty(), "nothing persisted");
+    }
+
+    @Test
     public void testStopInterruptsWorkers() throws InterruptedException {
         final RecordingTaskPersistence standalone = new RecordingTaskPersistence();
         final TaskService service = new TaskService(standalone,
-            Map.of("testTaskImplementation", new TestTaskImplementation()), TaskServiceTest.properties(2));
+            TaskServiceTest.tasks(), TaskServiceTest.properties(2));
         service.start();
         service.trigger("testTaskImplementation", TestPayload.generate());
         Assertions.assertTrue(standalone.awaitFinished().completed(), "task completed");
@@ -100,7 +117,7 @@ public class TaskServiceTest {
     public void testPoolSizeZeroStartsNoWorker() throws InterruptedException {
         final RecordingTaskPersistence standalone = new RecordingTaskPersistence();
         final TaskService service = new TaskService(standalone,
-            Map.of("testTaskImplementation", new TestTaskImplementation()), TaskServiceTest.properties(0));
+            TaskServiceTest.tasks(), TaskServiceTest.properties(0));
         service.start();
         Assertions.assertTrue(service.isRunning(), "service running without workers");
         service.trigger("testTaskImplementation", TestPayload.generate());
@@ -116,6 +133,10 @@ public class TaskServiceTest {
     public void testNegativePoolSizeRejected() {
         Assertions.assertThrows(IllegalArgumentException.class, () -> TaskServiceTest.properties(-1),
             "negative pool size rejected");
+    }
+
+    private static StaticListableBeanFactory tasks() {
+        return new StaticListableBeanFactory(Map.of("testTaskImplementation", new TestTaskImplementation()));
     }
 
     private static TaskProperties properties(final int poolSize) {

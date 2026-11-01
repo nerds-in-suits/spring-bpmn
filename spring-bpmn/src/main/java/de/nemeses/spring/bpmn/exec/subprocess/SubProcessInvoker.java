@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
-import de.nemeses.spring.bpmn.exec.BpmnNodeTask;
 import de.nemeses.spring.bpmn.exec.Invoker;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
@@ -24,7 +23,7 @@ import jakarta.xml.bind.JAXBElement;
 
 /**
  * Enters an embedded {@code subProcess}: creates a step (with the sub-process step as parent) and triggers a
- * {@link BpmnNodeTask} for each start event directly inside it. The sub-process step stays pending and no flow is
+ * {@code bpmnNodeTask} for each start event directly inside it. The sub-process step stays pending and no flow is
  * taken; the {@link BpmnNodeExecutor} completes it and takes its outgoing flows when none of its child steps is pending
  * any more. If the sub-process step already has child steps (a task delivered again), nothing is done. Event
  * sub-processes and loop characteristics are not supported (transactions and ad-hoc sub-processes are other node

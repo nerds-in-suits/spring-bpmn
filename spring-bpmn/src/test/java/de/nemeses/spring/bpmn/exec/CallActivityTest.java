@@ -103,7 +103,7 @@ class CallActivityTest {
      */
     private ProcessStep runNext(final AssertableApplicationContext context)
             throws TaskException, NoSuchProcessStepException {
-        final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
+        final BpmnNodeExecutor nodeTask = context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class);
         final UUID stepId = nodeTask.deserializePayload(this.tasks.persisted().get(this.executed).payload());
         this.executed++;
         nodeTask.execute(stepId);
@@ -219,7 +219,7 @@ class CallActivityTest {
             final ProcessStep callStep = this.runNext(context);
             final int triggered = this.tasks.persisted().size();
 
-            context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class).execute(callStep.id());
+            context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class).execute(callStep.id());
             Assertions.assertEquals(2, this.instances.created().size());
             Assertions.assertEquals(triggered, this.tasks.persisted().size());
             Assertions.assertNull(this.steps.retrieve(callStep.id()).endDate());
