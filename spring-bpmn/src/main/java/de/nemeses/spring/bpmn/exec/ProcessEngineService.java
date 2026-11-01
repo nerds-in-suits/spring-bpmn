@@ -1,7 +1,5 @@
 package de.nemeses.spring.bpmn.exec;
 
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -9,8 +7,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import de.nemeses.spring.bpmn.BpmnParseException;
-import de.nemeses.spring.bpmn.BpmnParser;
 import de.nemeses.spring.bpmn.ProcessDefinitionRegistrar;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
@@ -41,15 +37,15 @@ public class ProcessEngineService {
     private final ProcessDefinitionService definitions;
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
-    private final BpmnParser parser;
+    private final ProcessDefinitionModelCache models;
     private final TaskService taskService;
 
     ProcessEngineService(final ProcessDefinitionService definitions, final ProcessInstanceRepository instances,
-            final ProcessStepRepository steps, final BpmnParser parser, final TaskService taskService) {
+            final ProcessStepRepository steps, final ProcessDefinitionModelCache models, final TaskService taskService) {
         this.definitions = definitions;
         this.instances = instances;
         this.steps = steps;
-        this.parser = parser;
+        this.models = models;
         this.taskService = taskService;
     }
 
@@ -98,7 +94,7 @@ public class ProcessEngineService {
      * @throws ProcessEngineException if the BPMN document cannot be parsed, does not contain the process or the
      *             process has no start event
      */
-    ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables,
+    public ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables,
             final ProcessStep parentStep) throws ProcessEngineException {
         final List<String> startNodes = this.startNodes(definition);
         final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables,
@@ -116,7 +112,7 @@ public class ProcessEngineService {
     }
 
     private List<String> startNodes(final ProcessDefinition definition) throws ProcessEngineException {
-        final Process process = ProcessEngineService.process(this.parser, definition);
+        final Process process = ProcessEngineService.process(this.models.document(definition), definition);
         final List<String> startNodes = process.getFlowElement().stream()
                 .map(JAXBElement::getValue)
                 .filter(StartEvent.class::isInstance)
@@ -126,36 +122,6 @@ public class ProcessEngineService {
             throw new ProcessEngineException("Process definition '" + definition.name() + "' has no start event.");
         }
         return startNodes;
-    }
-
-    /**
-     * Parses the BPMN document of a definition and selects the process whose name (or id, if it has no name) equals
-     * the definition name.
-     *
-     * @param parser the parser
-     * @param definition the definition
-     * @return the process
-     * @throws ProcessEngineException if the document cannot be parsed or does not contain the process
-     */
-    static Process process(final BpmnParser parser, final ProcessDefinition definition) throws ProcessEngineException {
-        return ProcessEngineService.process(ProcessEngineService.parse(parser, definition), definition);
-    }
-
-    /**
-     * Parses the BPMN document of a definition.
-     *
-     * @param parser the parser
-     * @param definition the definition
-     * @return the {@code definitions} element of the document
-     * @throws ProcessEngineException if the document cannot be parsed
-     */
-    static Definitions parse(final BpmnParser parser, final ProcessDefinition definition)
-            throws ProcessEngineException {
-        try {
-            return parser.parse(new ByteArrayInputStream(definition.bpmnXml().getBytes(StandardCharsets.UTF_8)));
-        } catch (final BpmnParseException e) {
-            throw new ProcessEngineException("Cannot parse process definition '" + definition.name() + "'.", e);
-        }
     }
 
     /**

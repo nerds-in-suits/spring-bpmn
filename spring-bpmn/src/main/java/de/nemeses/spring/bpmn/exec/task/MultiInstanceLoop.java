@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn.exec;
+package de.nemeses.spring.bpmn.exec.task;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -12,17 +12,18 @@ import java.util.UUID;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import de.nemeses.spring.bpmn.exec.BpmnNodeTask;
+import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
+import de.nemeses.spring.bpmn.exec.FlowSelector;
+import de.nemeses.spring.bpmn.exec.NodeExecution;
+import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.BaseElement;
 import de.nemeses.spring.bpmn.model.bpmn20.DataInput;
 import de.nemeses.spring.bpmn.model.bpmn20.DataOutput;
-import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.MultiInstanceFlowCondition;
 import de.nemeses.spring.bpmn.model.bpmn20.MultiInstanceLoopCharacteristics;
-import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
-import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
-import de.nemeses.spring.bpmn.model.bpmn20.Task;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessStepException;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
@@ -33,7 +34,7 @@ import de.nemeses.spring.tasks.TaskService;
 
 /**
  * Runs the {@code multiInstanceLoopCharacteristics} of a {@code task}, {@code serviceTask} or {@code scriptTask} for
- * the {@link BpmnNodeExecutor}, with one {@link ProcessStep} per instance.
+ * its task invoker, with one {@link ProcessStep} per instance.
  * <p>
  * The step that reaches the activity is the <em>activity step</em>. Its first execution determines the number of
  * instances, either by evaluating {@code loopCardinality} (SpEL, must yield a non-negative integer) or as the size of
@@ -45,8 +46,9 @@ import de.nemeses.spring.tasks.TaskService;
  * The activity step stays pending, so the instance does not end while the activity runs. Without instances, the
  * activity step completes at once and takes the outgoing flows.
  * <p>
- * Each instance step runs the work of the activity once ({@link TaskInvoker#execute}), with
- * {@link BpmnNodeContext#loopCounter()} and {@link BpmnNodeContext#loopItem()} set. The element is also visible as
+ * Each instance step runs the work of the activity once (the {@link TaskRunner.Body} of its invoker), with the
+ * {@link NodeContext#loopCounter() loopCounter()} and {@link NodeContext#loopItem() loopItem()} of its
+ * {@code BpmnNodeContext} set. The element is also visible as
  * the variable named by the {@code inputDataItem} (its {@code name}, else its {@code id}); this variable and the one
  * named by the {@code outputDataItem} are local to the instance and not stored as process variables (a process
  * variable of the same name is hidden and kept). All other variable changes are stored at once. The value of the
@@ -60,8 +62,8 @@ import de.nemeses.spring.tasks.TaskService;
  * pending instance steps), {@code numberOfCompletedInstances} and {@code numberOfTerminatedInstances} (always
  * {@code 0} when evaluated). If it is true, or all instances are completed, the pending instance steps are completed
  * without running (their tasks are skipped later), the activity step is completed and the outgoing flows of the
- * activity are taken once, in the scope of the activity step. Otherwise a sequential loop creates the step of the next
- * instance, a parallel loop waits for its other instances.
+ * activity are taken once, in the scope of the activity step ({@link NodeExecution#scope(UUID)}). Otherwise a
+ * sequential loop creates the step of the next instance, a parallel loop waits for its other instances.
  * <p>
  * All of this happens in the transaction of one step, under the lock of the process instance, and the instance steps
  * are read after locking. So the instance steps of a parallel loop complete one after the other, exactly one of them
@@ -77,59 +79,57 @@ class MultiInstanceLoop {
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
     private final TaskService taskService;
-    private final TaskInvoker tasks;
     private final ConditionEvaluator conditions;
     private final FlowSelector flows;
 
     MultiInstanceLoop(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final TaskService taskService, final TaskInvoker tasks, final ConditionEvaluator conditions,
-            final FlowSelector flows) {
+            final TaskService taskService, final ConditionEvaluator conditions, final FlowSelector flows) {
         this.instances = instances;
         this.steps = steps;
         this.taskService = taskService;
-        this.tasks = tasks;
         this.conditions = conditions;
         this.flows = flows;
     }
 
     /**
-     * @param node a flow node
-     * @return whether the node is a {@code task}, {@code serviceTask} or {@code scriptTask} with
-     *         {@code multiInstanceLoopCharacteristics}
+     * @param activity a {@code task}, {@code serviceTask} or {@code scriptTask}
+     * @return whether the activity has {@code multiInstanceLoopCharacteristics}
      */
-    static boolean isMultiInstance(final FlowNode node) {
-        return (node instanceof ServiceTask || node instanceof ScriptTask || node.getClass() == Task.class)
-                && ((Activity) node).getLoopCharacteristics() != null
-                && ((Activity) node).getLoopCharacteristics().getValue() instanceof MultiInstanceLoopCharacteristics;
+    static boolean isMultiInstance(final Activity activity) {
+        return activity.getLoopCharacteristics() != null
+                && activity.getLoopCharacteristics().getValue() instanceof MultiInstanceLoopCharacteristics;
     }
 
     /**
-     * Executes the activity step or an instance step of a multi-instance activity.
+     * Executes the activity step or an instance step of a multi-instance activity. For an instance step the flows
+     * are taken in the scope of the activity step.
      *
-     * @param instance the (locked) process instance
-     * @param step the pending step
-     * @param node the activity ({@link #isMultiInstance})
-     * @param outgoing the outgoing flows of the activity
-     * @param language the default expression language of the document
-     * @return the flows to take (none while the loop runs) and the scope to take them in
+     * @param activity the activity ({@link #isMultiInstance})
+     * @param execution the step being executed
+     * @param body one execution of the work of the activity
+     * @return the flows to take; none while the loop runs
      * @throws ProcessEngineException if the loop characteristics are not supported or invalid, an expression cannot be
-     *             evaluated or the work of the activity failed
-     * @throws NoSuchProcessStepException if a step does not exist
-     * @throws NoSuchProcessInstanceException if the instance does not exist
+     *             evaluated, the work of the activity failed or a step or the instance does not exist
      */
-    Result execute(final ProcessInstance instance, final ProcessStep step, final FlowNode node,
-            final List<SequenceFlow> outgoing, final String language)
-            throws ProcessEngineException, NoSuchProcessStepException, NoSuchProcessInstanceException {
-        final Activity activity = (Activity) node;
+    List<SequenceFlow> execute(final Activity activity, final NodeExecution execution, final TaskRunner.Body body)
+            throws ProcessEngineException {
         final MultiInstanceLoopCharacteristics loop = MultiInstanceLoop.validate(activity);
-        final Loop context = new Loop(instance, activity, loop, outgoing, language);
-        if (step.parentStepId() != null) {
-            final ProcessStep parent = this.steps.retrieve(step.parentStepId());
-            if (parent.nodeId().equals(step.nodeId())) {
-                return new Result(this.runInstance(context, parent, step), parent.parentStepId());
+        final ProcessStep step = execution.step();
+        final Loop context = new Loop(execution.instance(), activity, loop, body, execution.outgoing(),
+                execution.language());
+        try {
+            if (step.parentStepId() != null) {
+                final ProcessStep parent = this.steps.retrieve(step.parentStepId());
+                if (parent.nodeId().equals(step.nodeId())) {
+                    execution.scope(parent.parentStepId());
+                    return this.runInstance(context, parent, step);
+                }
             }
+            return this.start(context, step);
+        } catch (final NoSuchProcessStepException | NoSuchProcessInstanceException e) {
+            throw new ProcessEngineException("Cannot execute multi-instance activity '" + activity.getId()
+                    + "' of process instance " + execution.instance().id() + ".", e);
         }
-        return new Result(this.start(context, step), step.parentStepId());
     }
 
     private static MultiInstanceLoopCharacteristics validate(final Activity activity) throws ProcessEngineException {
@@ -272,7 +272,7 @@ class MultiInstanceLoop {
         }
         final NodeContext context = new NodeContext(loop.instance().id(), loop.activity().getId(), visible,
                 step.loopCounter(), step.loopItem());
-        this.tasks.execute(loop.activity(), context);
+        loop.body().execute(context);
         final Map<String, Object> variables = context.changedVariables();
         final Object output = outputName == null ? null : variables.get(outputName);
         MultiInstanceLoop.restore(variables, before, inputName);
@@ -369,24 +369,16 @@ class MultiInstanceLoop {
     }
 
     /**
-     * The flows taken by a step of a multi-instance activity and the scope to create their steps in.
-     *
-     * @param taken the sequence flows to take; none while the loop runs
-     * @param scope the parent step of the activity step (an embedded sub-process step), {@code null} at the top level
-     */
-    record Result(List<SequenceFlow> taken, UUID scope) {
-    }
-
-    /**
      * What one execution needs to know about the loop.
      *
      * @param instance the (locked) process instance
      * @param activity the activity
      * @param characteristics its loop characteristics
+     * @param body one execution of the work of the activity
      * @param outgoing its outgoing flows
      * @param language the default expression language of the document
      */
     private record Loop(ProcessInstance instance, Activity activity, MultiInstanceLoopCharacteristics characteristics,
-            List<SequenceFlow> outgoing, String language) {
+            TaskRunner.Body body, List<SequenceFlow> outgoing, String language) {
     }
 }

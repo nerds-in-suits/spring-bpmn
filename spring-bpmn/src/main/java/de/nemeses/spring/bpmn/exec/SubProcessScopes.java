@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
-import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 import de.nemeses.spring.bpmn.model.bpmn20.SubProcess;
@@ -23,8 +22,9 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.TaskService;
 
 /**
- * Creates the steps for the flows taken in their scope and enters and leaves embedded sub-processes for the
- * {@link BpmnNodeExecutor}. The scope of a step is the step of the
+ * Creates the steps for the flows taken in their scope and leaves embedded sub-processes for the
+ * {@link BpmnNodeExecutor} (they are entered by the {@link Invoker} of {@code subProcess}). The scope of a step is the
+ * step of the
  * sub-process it runs in ({@link ProcessStep#parentStepId()}, {@code null} at the top level of the process). The
  * step of a sub-process stays pending while the sub-process runs and is completed when none of its child steps is
  * pending any more.
@@ -74,49 +74,6 @@ class SubProcessScopes {
             BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(),
                     ((FlowElement) flow.getTargetRef()).getId(), flow.getId(), parentStepId);
         }
-    }
-
-    /**
-     * Enters an embedded sub-process: creates a step (with the sub-process step as parent) and triggers a
-     * {@link BpmnNodeTask} for each start event directly inside it. The sub-process step stays pending. If the
-     * sub-process step already has child steps (a task delivered again), nothing is done.
-     *
-     * @param instance the process instance
-     * @param step the step of the node
-     * @param node the node
-     * @return {@code false} if the node is no sub-process (and nothing was done)
-     * @throws ProcessEngineException if the sub-process is not supported (event sub-process, transaction, ad-hoc
-     *             sub-process, loop characteristics) or has no start event
-     * @throws NoSuchProcessInstanceException if the instance does not exist
-     */
-    boolean enter(final ProcessInstance instance, final ProcessStep step, final FlowNode node)
-            throws ProcessEngineException, NoSuchProcessInstanceException {
-        if (!(node instanceof final SubProcess subProcess)) {
-            return false;
-        }
-        if (subProcess.getClass() != SubProcess.class || subProcess.isTriggeredByEvent()) {
-            throw new ProcessEngineException("Node '" + subProcess.getId() + "' is a "
-                    + (subProcess.isTriggeredByEvent() ? "event sub-process" : subProcess.getClass().getSimpleName())
-                    + ", which is not supported yet.");
-        }
-        if (subProcess.getLoopCharacteristics() != null) {
-            throw new ProcessEngineException("Activity '" + subProcess.getId()
-                    + "' has loop characteristics, which are not supported yet.");
-        }
-        if (!this.steps.children(step.id()).isEmpty()) {
-            LoggerFactory.getLogger(this.getClass()).info(
-                    "Skipping step {} (sub-process {}) of process instance {}, which has already been entered.",
-                    step.id(), subProcess.getId(), instance.id());
-            return true;
-        }
-        final List<String> startEvents = ProcessNavigator.startEvents(subProcess);
-        if (startEvents.isEmpty()) {
-            throw new ProcessEngineException("Sub-process '" + subProcess.getId() + "' has no start event.");
-        }
-        for (final String startEvent : startEvents) {
-            BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), startEvent, null, step.id());
-        }
-        return true;
     }
 
     /**

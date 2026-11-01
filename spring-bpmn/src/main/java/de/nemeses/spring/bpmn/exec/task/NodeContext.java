@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn.exec;
+package de.nemeses.spring.bpmn.exec.task;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -6,8 +6,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import de.nemeses.spring.bpmn.exec.BpmnNodeContext;
+import de.nemeses.spring.bpmn.exec.BpmnNodeImplementation;
+
 /**
- * The {@link BpmnNodeContext} passed by the {@link TaskInvoker} to a {@link BpmnNodeImplementation} or a script;
+ * The {@link BpmnNodeContext} passed by the {@link TaskRunner} to a {@link BpmnNodeImplementation} or a script;
  * collects the variable changes.
  */
 final class NodeContext implements BpmnNodeContext {

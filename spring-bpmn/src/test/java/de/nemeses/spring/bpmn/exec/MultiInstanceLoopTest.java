@@ -31,7 +31,7 @@ import de.nemeses.spring.tasks.TaskException;
 import de.nemeses.spring.tasks.TaskPersistence;
 
 /**
- * Executes multi-instance activities ({@link MultiInstanceLoop}) step by step through the {@link BpmnNodeTask} with
+ * Executes multi-instance activities ({@code task.MultiInstanceLoop}) step by step through the {@link BpmnNodeTask} with
  * in-memory repositories and recorded tasks.
  */
 class MultiInstanceLoopTest {
@@ -294,7 +294,7 @@ class MultiInstanceLoopTest {
             Assertions.assertEquals(List.of("a", "b", "c"), created.stream().map(ProcessStep::loopItem).toList());
 
             MultiInstanceLoopTest.execute(context, created.get(2));
-            Assertions.assertEquals(Map.of("2", "c!"), this.variables(instance).get("mi" + MultiInstanceLoop.OUTPUTS_SUFFIX));
+            Assertions.assertEquals(Map.of("2", "c!"), this.variables(instance).get("mi.loopOutputs"));
             MultiInstanceLoopTest.execute(context, created.get(0));
             MultiInstanceLoopTest.execute(context, created.get(1));
 
