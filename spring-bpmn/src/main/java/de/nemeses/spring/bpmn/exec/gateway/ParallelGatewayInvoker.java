@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.exec.gateway;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,15 +32,15 @@ class ParallelGatewayInvoker implements Invoker<ParallelGateway> {
     }
 
     @Override
-    public List<SequenceFlow> invoke(final ParallelGateway node, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final ParallelGateway node, final NodeExecution execution)
             throws ProcessEngineException {
-        final List<SequenceFlow> incoming = execution.incoming();
+        final Collection<SequenceFlow> incoming = execution.incoming();
         if (incoming.size() <= 1) {
-            final List<SequenceFlow> taken = FlowSelector.unconditional(execution.outgoing());
+            final Collection<SequenceFlow> taken = FlowSelector.unconditional(execution.outgoing());
             execution.complete();
             return taken;
         }
-        final List<UUID> joined = new ArrayList<>();
+        final Collection<UUID> joined = new ArrayList<>();
         for (final SequenceFlow flow : incoming) {
             final UUID oldest = execution.pendingInScope().stream()
                     .filter(pending -> flow.getId().equals(pending.incomingFlowId()))
@@ -54,7 +55,7 @@ class ParallelGatewayInvoker implements Invoker<ParallelGateway> {
             }
             joined.add(oldest);
         }
-        final List<SequenceFlow> taken = FlowSelector.unconditional(execution.outgoing());
+        final Collection<SequenceFlow> taken = FlowSelector.unconditional(execution.outgoing());
         execution.complete(joined);
         return taken;
     }

@@ -1,6 +1,6 @@
 package de.nemeses.spring.bpmn.exec;
 
-import java.util.List;
+import java.util.Collection;
 
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
@@ -31,5 +31,5 @@ public interface Invoker<T extends FlowNode> {
      * @return the outgoing sequence flows to take; none if the step stays pending or the path ends here
      * @throws ProcessEngineException if the node is not supported or its execution failed; rolls back the step
      */
-    List<SequenceFlow> invoke(T node, NodeExecution execution) throws ProcessEngineException;
+    Collection<SequenceFlow> invoke(T node, NodeExecution execution) throws ProcessEngineException;
 }

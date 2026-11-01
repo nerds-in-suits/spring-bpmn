@@ -64,6 +64,7 @@ CI (`.github/workflows/`): `build.yml` runs `mvn clean install` on Java 25 for e
 - Code style is defined by the rulesets and Eclipse settings in `conventions/`.
 - Checkstyle also runs on tests. Files must use **LF**; no tabs, no trailing whitespace, no `@author` Javadoc, no `System.out`/`System.exit`. Each Java package needs `package-info.java`.
 - Match existing Java: constructor injection, package-private constructors for Spring beans, `final` parameters and locals, `this.` for member access, and an empty `/** * */` Javadoc header on classes without further description.
+- Declare `Collection` unless order or index access matters; use `List` only then, and say in the Javadoc why order matters if it is not obvious.
 - Logging: SLF4J via `LoggerFactory`, **no `Logger` fields or constants** (not even `private static final Logger LOG`); always call `LoggerFactory.getLogger(this.getClass())` at the call site.
 - Configuration: one `@ConfigurationProperties` record per module (`TaskProperties`, `JmsTaskProperties`, `JpaTaskProperties`) with `@DefaultValue` defaults, no hard-coded tuning constants.
 - Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded).

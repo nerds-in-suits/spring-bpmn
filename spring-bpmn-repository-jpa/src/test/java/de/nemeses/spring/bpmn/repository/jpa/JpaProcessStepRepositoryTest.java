@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.repository.jpa;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -190,7 +191,7 @@ class JpaProcessStepRepositoryTest {
         Assertions.assertNull(this.instances.retrieve(this.instance.id()).parentInstance());
     }
 
-    private static List<UUID> ids(final List<ProcessStep> steps) {
+    private static List<UUID> ids(final Collection<ProcessStep> steps) {
         return steps.stream().map(ProcessStep::id).toList();
     }
 

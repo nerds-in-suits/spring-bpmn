@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec.gateway;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -31,7 +32,7 @@ class ExclusiveGatewayInvoker implements Invoker<ExclusiveGateway> {
     }
 
     @Override
-    public List<SequenceFlow> invoke(final ExclusiveGateway node, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final ExclusiveGateway node, final NodeExecution execution)
             throws ProcessEngineException {
         final SequenceFlow taken = this.flows.exclusive(node.getId(), node.getDefault(), execution.outgoing(),
                 execution.language(), execution.instance().variables());

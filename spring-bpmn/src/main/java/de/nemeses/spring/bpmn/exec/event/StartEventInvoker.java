@@ -1,6 +1,6 @@
 package de.nemeses.spring.bpmn.exec.event;
 
-import java.util.List;
+import java.util.Collection;
 
 import org.springframework.stereotype.Component;
 
@@ -24,9 +24,9 @@ class StartEventInvoker implements Invoker<StartEvent> {
     }
 
     @Override
-    public List<SequenceFlow> invoke(final StartEvent node, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final StartEvent node, final NodeExecution execution)
             throws ProcessEngineException {
-        final List<SequenceFlow> taken = FlowSelector.unconditional(execution.outgoing());
+        final Collection<SequenceFlow> taken = FlowSelector.unconditional(execution.outgoing());
         execution.complete();
         return taken;
     }

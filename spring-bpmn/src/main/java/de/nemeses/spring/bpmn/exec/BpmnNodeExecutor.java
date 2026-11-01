@@ -190,7 +190,7 @@ public class BpmnNodeExecutor {
                     document.getExpressionLanguage(), pendingAtNode.stream()
                             .filter(pending -> SubProcessScopes.inSameScope(pending, step))
                             .toList());
-            final List<SequenceFlow> taken = BpmnNodeExecutor.invoke(invoker, node, execution);
+            final Collection<SequenceFlow> taken = BpmnNodeExecutor.invoke(invoker, node, execution);
             this.subProcesses.take(instance, taken, execution.scope());
             this.subProcesses.leaveCompleted(instance, document.getExpressionLanguage(), process,
                     execution.scope());
@@ -202,7 +202,7 @@ public class BpmnNodeExecutor {
         }
     }
 
-    private static <T extends FlowNode> List<SequenceFlow> invoke(final Invoker<T> invoker, final FlowNode node,
+    private static <T extends FlowNode> Collection<SequenceFlow> invoke(final Invoker<T> invoker, final FlowNode node,
             final NodeExecution execution) throws ProcessEngineException {
         return invoker.invoke(invoker.nodeType().cast(node), execution);
     }

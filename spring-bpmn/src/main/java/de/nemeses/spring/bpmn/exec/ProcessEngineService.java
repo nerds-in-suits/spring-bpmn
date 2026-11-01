@@ -1,6 +1,6 @@
 package de.nemeses.spring.bpmn.exec;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 import org.slf4j.LoggerFactory;
@@ -96,7 +96,7 @@ public class ProcessEngineService {
      */
     public ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables,
             final ProcessStep parentStep) throws ProcessEngineException {
-        final List<String> startNodes = this.startNodes(definition);
+        final Collection<String> startNodes = this.startNodes(definition);
         final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables,
                 parentStep);
         try {
@@ -111,9 +111,9 @@ public class ProcessEngineService {
         return instance;
     }
 
-    private List<String> startNodes(final ProcessDefinition definition) throws ProcessEngineException {
+    private Collection<String> startNodes(final ProcessDefinition definition) throws ProcessEngineException {
         final Process process = ProcessEngineService.process(this.models.document(definition), definition);
-        final List<String> startNodes = process.getFlowElement().stream()
+        final Collection<String> startNodes = process.getFlowElement().stream()
                 .map(JAXBElement::getValue)
                 .filter(StartEvent.class::isInstance)
                 .map(FlowElement::getId)
