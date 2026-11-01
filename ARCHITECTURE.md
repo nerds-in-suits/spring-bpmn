@@ -43,26 +43,37 @@ Package-private helpers are listed when they hold engine behaviour.
 
 - `BpmnParser`: unmarshals and schema-validates BPMN documents into the generated JAXB model (`BpmnParseException`).
 - `ConfiguredLocationsProcessDefinitionSource`: the default `ProcessDefinitionSource`, reading `spring.bpmn.process-definition-locations`.
-- `ProcessDefinitionAutoConfiguration`: component-scans the package and its sub-packages (`exec`); needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
+- `ProcessDefinitionAutoConfiguration`: component-scans the package and its sub-packages (`exec` and its invoker sub-packages); needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
 - `ProcessDefinitionRegistrar`: registers every `process` of every `ProcessDefinitionSource` document on startup, skipping unchanged ones.
 - `ProcessDefinitionSource`: contributes BPMN documents to register.
 
 ### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
 
-- `ActivityLoop`: runs the `standardLoopCharacteristics` of an activity within one step.
-- `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `NodeContext`).
-- `BpmnNodeExecutor`: executes one `ProcessStep` per `bpmnNodeTask` under a lock on the instance and schedules the steps of the flows taken.
+- `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `task.NodeContext`).
+- `BpmnNodeExecutor`: executes one `ProcessStep` per `bpmnNodeTask` under a lock on the instance with the `Invoker` for the node type and schedules the steps of the flows taken.
 - `BpmnNodeImplementation`: application code bound to a `serviceTask` by bean name.
 - `BpmnNodeTask`: the `bpmnNodeTask` task bean; its payload is the id of the step to execute.
-- `CallActivityInvoker`: starts and resumes `callActivity` steps and maps variables to and from the child instance.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
+- `Invoker`: executes the flow nodes of one type (`nodeType()`, exact class); all `Invoker` beans are injected into `BpmnNodeExecutor`, at most one per type. The implementations live in the sub-packages below.
+- `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language); completes steps.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
-- `ScriptTaskInvoker`: runs the SpEL script of a `scriptTask`.
-- `SubProcessScopes`: creates follow-up steps in their scope and enters and leaves embedded sub-processes.
-- `TaskInvoker`: runs service and script tasks (with their loops) and stores the variables they changed.
+- `SubProcessScopes`: creates follow-up steps in their scope and leaves embedded sub-processes.
+
+### `de.nemeses.spring.bpmn.exec.*` invokers (module `spring-bpmn`)
+
+- `call.CallActivityInvoker`: starts and resumes `callActivity` steps and maps variables to and from the child instance.
+- `event.EndEventInvoker`: completes an `endEvent`, ends the instance and resumes a waiting call activity step.
+- `event.StartEventInvoker`: takes all outgoing flows of a `startEvent`.
+- `gateway.ExclusiveGatewayInvoker`: takes one outgoing flow of an `exclusiveGateway`.
+- `gateway.ParallelGatewayInvoker`: forks and joins at a `parallelGateway`.
+- `subprocess.SubProcessInvoker`: enters an embedded `subProcess`.
+- `task.ActivityLoop`: runs the `standardLoopCharacteristics` of an activity within one step.
+- `task.ScriptTaskInvoker`, `task.ServiceTaskInvoker`, `task.TaskInvoker`: execute `scriptTask`, `serviceTask` and plain `task`.
+- `task.SpelScriptRunner`: runs the SpEL script of a `scriptTask`.
+- `task.TaskRunner`: runs the work of a task (with its loop) and stores the variables it changed.
 
 ### `de.nemeses.spring.bpmn.model.*` (module `spring-bpmn`, generated)
 
@@ -129,7 +140,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 ## Extension points
 
-- New BPMN element: a case in `BpmnNodeExecutor` or a package-private helper next to it, plus its line in `docs/bpmn-support.md`.
+- New BPMN element: an `Invoker` bean for its node type in a sub-package of `de.nemeses.spring.bpmn.exec`, plus its line in `docs/bpmn-support.md`.
 - New repository backend: new module `spring-bpmn-repository-<name>` implementing the repository interfaces, registered by auto-configuration.
 - New task backend: new module `spring-tasks-<name>` providing a `TaskPersistence` bean via auto-configuration (`@ConditionalOnMissingBean(TaskPersistence.class)`).
 - New task type: a Spring bean implementing `TaskImplementation`, referenced by bean name.

@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn.exec;
+package de.nemeses.spring.bpmn.exec.task;
 
 import java.util.List;
 import java.util.Map;
@@ -7,18 +7,20 @@ import java.util.UUID;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
+import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.Script;
 import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 
 /**
- * Runs scripts of script tasks with {@link ScriptTaskInvoker}.
+ * Runs scripts of script tasks with {@link SpelScriptRunner}.
  */
-class ScriptTaskInvokerTest {
+class SpelScriptRunnerTest {
 
     private static final Map<String, Object> VARIABLES = Map.of("amount", 3, "order",
             Map.of("customer", "ACME", "items", 2), "approved", Boolean.TRUE);
 
-    private final ScriptTaskInvoker invoker = new ScriptTaskInvoker();
+    private final SpelScriptRunner runner = new SpelScriptRunner();
 
     private static ScriptTask task(final String format, final String text) {
         final ScriptTask task = new ScriptTask();
@@ -34,7 +36,7 @@ class ScriptTaskInvokerTest {
 
     private NodeContext run(final String format, final String text) throws ProcessEngineException {
         final NodeContext context = new NodeContext(UUID.randomUUID(), "st", VARIABLES, 0);
-        this.invoker.execute(ScriptTaskInvokerTest.task(format, text), context);
+        this.runner.execute(SpelScriptRunnerTest.task(format, text), context);
         return context;
     }
 
@@ -73,8 +75,8 @@ class ScriptTaskInvokerTest {
     @Test
     void splitsStatementsOutsideStringLiterals() {
         Assertions.assertEquals(List.of("a = 'x;y'", "b = \"it\"\";\"", "c = 'it''s;'"),
-                ScriptTaskInvoker.statements(" a = 'x;y'; b = \"it\"\";\";\n c = 'it''s;' ;"));
-        Assertions.assertEquals(List.of(), ScriptTaskInvoker.statements(" ; \n;"));
+                SpelScriptRunner.statements(" a = 'x;y'; b = \"it\"\";\";\n c = 'it''s;' ;"));
+        Assertions.assertEquals(List.of(), SpelScriptRunner.statements(" ; \n;"));
     }
 
     @Test
