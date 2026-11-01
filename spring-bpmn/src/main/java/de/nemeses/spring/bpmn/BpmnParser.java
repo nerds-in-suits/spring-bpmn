@@ -37,25 +37,25 @@ public class BpmnParser {
     public BpmnParser() throws BpmnParseException {
         try {
             this.context = JAXBContext.newInstance(CONTEXT_PATH, BpmnParser.class.getClassLoader());
+            this.schema = BpmnParser.loadSchema();
         } catch (final JAXBException e) {
             throw new BpmnParseException("Cannot create JAXB context", e);
         }
-        this.schema = BpmnParser.loadSchema();
     }
 
     private static Schema loadSchema() throws BpmnParseException {
-        final URL location = BpmnParser.class.getResource(SCHEMA_LOCATION);
-        if (location == null) {
-            throw new BpmnParseException("BPMN schema " + SCHEMA_LOCATION + " not found on classpath", null);
-        }
         try {
+            final URL location = BpmnParser.class.getResource(SCHEMA_LOCATION);
+            if (location == null) {
+                throw new BpmnParseException("BPMN schema " + SCHEMA_LOCATION + " not found on classpath", null);
+            }
             final SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file,jar,jrt");
             return factory.newSchema(location);
         } catch (final SAXException e) {
-            throw new BpmnParseException("Cannot load BPMN schema " + location, e);
+            throw new BpmnParseException("Cannot load BPMN schema " + SCHEMA_LOCATION, e);
         }
     }
 

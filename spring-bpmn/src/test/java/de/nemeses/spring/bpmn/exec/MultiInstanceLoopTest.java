@@ -118,16 +118,16 @@ class MultiInstanceLoopTest {
      * @return the steps of all triggered tasks, in trigger order, as stored now
      */
     private List<ProcessStep> triggered(final AssertableApplicationContext context) {
-        final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
-        final List<ProcessStep> result = new ArrayList<>();
-        for (final RecordingTaskPersistence.Recorded task : this.tasks.persisted()) {
-            try {
+        try {
+            final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
+            final List<ProcessStep> result = new ArrayList<>();
+            for (final RecordingTaskPersistence.Recorded task : this.tasks.persisted()) {
                 result.add(this.steps.retrieve(nodeTask.deserializePayload(task.payload())));
-            } catch (final NoSuchProcessStepException e) {
-                throw new AssertionError(e);
             }
+            return result;
+        } catch (final NoSuchProcessStepException e) {
+            throw new AssertionError(e);
         }
-        return result;
     }
 
     private List<ProcessStep> triggered(final AssertableApplicationContext context, final String nodeId) {
