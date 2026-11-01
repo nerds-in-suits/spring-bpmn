@@ -90,55 +90,55 @@ class CallActivityInvoker implements Invoker<CallActivity> {
     @Override
     public Collection<SequenceFlow> invoke(final CallActivity call, final NodeExecution execution)
             throws ProcessEngineException {
-        final ProcessInstance instance = execution.instance();
-        final ProcessStep step = execution.step();
-        if (call.getLoopCharacteristics() != null) {
-            throw new ProcessEngineException("Activity '" + call.getId()
-                    + "' has loop characteristics, which are not supported yet.");
-        }
-        final List<Mapping> mappings = CallActivityInvoker.mappings(call);
-        final Optional<ProcessInstance> child = this.instances.retrieveChild(step.id());
-        if (child.isEmpty()) {
-            final ProcessInstance started = this.engine.startProcess(this.calledDefinition(call),
-                    CallActivityInvoker.input(mappings, instance.variables()), step);
-            LoggerFactory.getLogger(this.getClass()).debug(
-                    "Call activity {} of process instance {} waits for process instance {}",
-                    call.getId(), instance.id(), started.id());
-            return List.of();
-        }
-        if (child.get().endDate() == null) {
-            LoggerFactory.getLogger(this.getClass()).info(
-                    "Skipping step {} (call activity {}) of process instance {}, process instance {} is still running.",
-                    step.id(), call.getId(), instance.id(), child.get().id());
-            return List.of();
-        }
-        final Map<String, Object> variables = CallActivityInvoker.output(mappings, instance.variables(),
-                child.get().variables());
         try {
+            final ProcessInstance instance = execution.instance();
+            final ProcessStep step = execution.step();
+            if (call.getLoopCharacteristics() != null) {
+                throw new ProcessEngineException("Activity '" + call.getId()
+                        + "' has loop characteristics, which are not supported yet.");
+            }
+            final List<Mapping> mappings = CallActivityInvoker.mappings(call);
+            final Optional<ProcessInstance> child = this.instances.retrieveChild(step.id());
+            if (child.isEmpty()) {
+                final ProcessInstance started = this.engine.startProcess(this.calledDefinition(call),
+                        CallActivityInvoker.input(mappings, instance.variables()), step);
+                LoggerFactory.getLogger(this.getClass()).debug(
+                        "Call activity {} of process instance {} waits for process instance {}",
+                        call.getId(), instance.id(), started.id());
+                return List.of();
+            }
+            if (child.get().endDate() == null) {
+                LoggerFactory.getLogger(this.getClass()).info(
+                        "Skipping step {} (call activity {}) of process instance {}, process instance {} is still running.",
+                        step.id(), call.getId(), instance.id(), child.get().id());
+                return List.of();
+            }
+            final Map<String, Object> variables = CallActivityInvoker.output(mappings, instance.variables(),
+                    child.get().variables());
             if (!variables.equals(instance.variables())) {
                 this.instances.updateVariables(instance.id(), variables);
             }
+            execution.complete();
+            return this.flows.activity(call, execution.outgoing(), execution.language(), variables);
         } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot complete call activity '" + call.getId()
-                    + "' of process instance " + instance.id() + ".", e);
+                    + "' of process instance " + execution.instance().id() + ".", e);
         }
-        execution.complete();
-        return this.flows.activity(call, execution.outgoing(), execution.language(), variables);
     }
 
     /**
      * Resolves {@code calledElement} by its local part to the latest version of the process definition of that name.
      */
     private ProcessDefinition calledDefinition(final CallActivity call) throws ProcessEngineException {
-        final QName calledElement = call.getCalledElement();
-        if (calledElement == null || calledElement.getLocalPart().isEmpty()) {
-            throw new ProcessEngineException("Call activity '" + call.getId() + "' has no calledElement.");
-        }
         try {
+            final QName calledElement = call.getCalledElement();
+            if (calledElement == null || calledElement.getLocalPart().isEmpty()) {
+                throw new ProcessEngineException("Call activity '" + call.getId() + "' has no calledElement.");
+            }
             return this.definitions.retrieveLatest(calledElement.getLocalPart());
         } catch (final NoSuchProcessDefinitionException e) {
             throw new ProcessEngineException("Call activity '" + call.getId() + "' calls process '"
-                    + calledElement.getLocalPart() + "', which is not defined.", e);
+                    + call.getCalledElement().getLocalPart() + "', which is not defined.", e);
         }
     }
 

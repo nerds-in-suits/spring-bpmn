@@ -49,35 +49,35 @@ class SubProcessInvoker implements Invoker<SubProcess> {
     @Override
     public Collection<SequenceFlow> invoke(final SubProcess node, final NodeExecution execution)
             throws ProcessEngineException {
-        if (node.isTriggeredByEvent()) {
-            throw new ProcessEngineException("Node '" + node.getId()
-                    + "' is a event sub-process, which is not supported yet.");
-        }
-        if (node.getLoopCharacteristics() != null) {
-            throw new ProcessEngineException("Activity '" + node.getId()
-                    + "' has loop characteristics, which are not supported yet.");
-        }
-        final ProcessInstance instance = execution.instance();
-        final ProcessStep step = execution.step();
-        if (!this.steps.children(step.id()).isEmpty()) {
-            LoggerFactory.getLogger(this.getClass()).info(
-                    "Skipping step {} (sub-process {}) of process instance {}, which has already been entered.",
-                    step.id(), node.getId(), instance.id());
-            return List.of();
-        }
-        final Collection<String> startEvents = SubProcessInvoker.startEvents(node);
-        if (startEvents.isEmpty()) {
-            throw new ProcessEngineException("Sub-process '" + node.getId() + "' has no start event.");
-        }
         try {
+            if (node.isTriggeredByEvent()) {
+                throw new ProcessEngineException("Node '" + node.getId()
+                        + "' is a event sub-process, which is not supported yet.");
+            }
+            if (node.getLoopCharacteristics() != null) {
+                throw new ProcessEngineException("Activity '" + node.getId()
+                        + "' has loop characteristics, which are not supported yet.");
+            }
+            final ProcessInstance instance = execution.instance();
+            final ProcessStep step = execution.step();
+            if (!this.steps.children(step.id()).isEmpty()) {
+                LoggerFactory.getLogger(this.getClass()).info(
+                        "Skipping step {} (sub-process {}) of process instance {}, which has already been entered.",
+                        step.id(), node.getId(), instance.id());
+                return List.of();
+            }
+            final Collection<String> startEvents = SubProcessInvoker.startEvents(node);
+            if (startEvents.isEmpty()) {
+                throw new ProcessEngineException("Sub-process '" + node.getId() + "' has no start event.");
+            }
             for (final String startEvent : startEvents) {
                 BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), startEvent, null, step.id());
             }
+            return List.of();
         } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot enter sub-process '" + node.getId() + "' of process instance "
-                    + instance.id() + ".", e);
+                    + execution.instance().id() + ".", e);
         }
-        return List.of();
     }
 
     /**
