@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import de.nemeses.spring.bpmn.BpmnParser;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
@@ -46,15 +46,16 @@ public class BpmnNodeExecutor {
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
-    private final BpmnParser parser;
+    private final ProcessDefinitionModelCache models;
     private final SubProcessScopes subProcesses;
     private final Map<Class<? extends FlowNode>, Invoker<?>> invokers;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final BpmnParser parser, final SubProcessScopes subProcesses, final List<Invoker<?>> invokers) {
+            final ProcessDefinitionModelCache models, final SubProcessScopes subProcesses,
+            final Collection<Invoker<?>> invokers) {
         this.instances = instances;
         this.steps = steps;
-        this.parser = parser;
+        this.models = models;
         this.subProcesses = subProcesses;
         this.invokers = BpmnNodeExecutor.byNodeType(invokers);
     }
@@ -63,7 +64,7 @@ public class BpmnNodeExecutor {
      * @return the invokers by their node type
      * @throws IllegalStateException if two invokers execute the same node type
      */
-    private static Map<Class<? extends FlowNode>, Invoker<?>> byNodeType(final List<Invoker<?>> invokers) {
+    private static Map<Class<? extends FlowNode>, Invoker<?>> byNodeType(final Collection<Invoker<?>> invokers) {
         final Map<Class<? extends FlowNode>, Invoker<?>> byType = new HashMap<>();
         for (final Invoker<?> invoker : invokers) {
             final Invoker<?> other = byType.putIfAbsent(invoker.nodeType(), invoker);
@@ -162,7 +163,7 @@ public class BpmnNodeExecutor {
                         stepId, step.nodeId(), instance.id());
                 return;
             }
-            final Definitions document = ProcessEngineService.parse(this.parser, instance.processDefinition());
+            final Definitions document = this.models.document(instance.processDefinition());
             final Process process = ProcessEngineService.process(document, instance.processDefinition());
             final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
             final Invoker<?> invoker = this.invokers.get(node.getClass());

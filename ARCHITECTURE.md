@@ -57,6 +57,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
 - `Invoker`: executes the flow nodes of one type (`nodeType()`, exact class); all `Invoker` beans are injected into `BpmnNodeExecutor`, at most one per type. The implementations live in the sub-packages below.
 - `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language); completes steps.
+- `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
