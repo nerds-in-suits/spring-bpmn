@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
@@ -22,6 +23,9 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
  * <p>
  * An invoker added by an {@link InvokerEnhancer} that runs the enhanced invoker for one instance of a loop passes it
  * a view of this execution ({@link #forLoopInstance}).
+ * <p>
+ * An execution that completes a waiting step from outside ({@link BpmnNodeExecutor#completeUserTask}) carries the
+ * variables passed by the caller ({@link #completion()}).
  */
 public final class NodeExecution {
 
@@ -34,6 +38,7 @@ public final class NodeExecution {
     private final List<ProcessStep> pending;
     private final LoopInstance loop;
     private final boolean hasOutgoing;
+    private Map<String, Object> completionVariables;
     private UUID flowScope;
     private boolean completed;
 
@@ -66,6 +71,7 @@ public final class NodeExecution {
         this.pending = original.pending;
         this.loop = loop;
         this.hasOutgoing = false;
+        this.completionVariables = original.completionVariables;
         this.flowScope = original.processStep.parentStepId();
     }
 
@@ -134,6 +140,23 @@ public final class NodeExecution {
      */
     public LoopInstance loopInstance() {
         return this.loop;
+    }
+
+    /**
+     * @return the variables passed from outside to complete the waiting step ({@link BpmnNodeExecutor#completeUserTask}),
+     *         unmodifiable; empty for an execution by its {@link BpmnNodeTask}
+     */
+    public Optional<Map<String, Object>> completion() {
+        return Optional.ofNullable(this.completionVariables);
+    }
+
+    /**
+     * Makes this execution complete the waiting step from outside, for the executor.
+     *
+     * @param variables the variables passed by the caller, without {@code null} keys or values
+     */
+    void completion(final Map<String, Object> variables) {
+        this.completionVariables = Map.copyOf(variables);
     }
 
     /**

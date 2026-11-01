@@ -61,7 +61,11 @@ Do not invent Camunda-like APIs to fill a gap.
   Event sub-processes (`triggeredByEvent`, #90), a sub-process without start event and loop characteristics (#59) fail.
 - `task`: supported (`TaskInvoker`), does nothing and takes its outgoing flows like any activity.
 - `transaction`: not supported (#77).
-- `userTask`: not supported (#64).
+- `userTask`: supported (`UserTaskInvoker`, `ProcessEngineService`).
+  A wait state: its pending step is the open user task and keeps the instance running; `ProcessEngineService.openUserTasks` lists them per instance.
+  `ProcessEngineService.completeUserTask(stepId, variables)` adds or replaces the given variables, completes the step and takes its outgoing flows like any activity.
+  Completing an unknown or completed step, a step that is no user task or one of an ended instance fails with `ProcessEngineException`.
+  Loop characteristics fail (#100).
 
 ## Engine features
 

@@ -767,7 +767,7 @@ class BpmnNodeTaskTest {
 
     @Test
     void unsupportedNodeTypeFails() {
-        final ProcessInstance instance = this.instance("<userTask id=\"u\"/>");
+        final ProcessInstance instance = this.instance("<receiveTask id=\"u\"/>");
         this.withEngine(context -> this.assertFails(context, instance, "u"));
     }
 
