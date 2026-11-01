@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn.exec;
+package de.nemeses.spring.bpmn.exec.task;
 
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
@@ -7,6 +7,8 @@ import java.util.Map;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
+import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.LoopCharacteristics;
 import de.nemeses.spring.bpmn.model.bpmn20.MultiInstanceLoopCharacteristics;
@@ -14,7 +16,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.StandardLoopCharacteristics;
 
 /**
  * Runs the body of an activity once, or repeatedly according to its {@code standardLoopCharacteristics}, for the
- * {@link BpmnNodeExecutor}.
+ * task invokers ({@link TaskRunner}).
  * <p>
  * All iterations of a standard loop run in the execution of one step (one transaction); the loop counter is not
  * stored. An iteration runs only while the number of iterations run so far ({@code loopCounter}) is less than

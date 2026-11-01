@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn.exec;
+package de.nemeses.spring.bpmn.exec.task;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -24,6 +24,9 @@ import org.springframework.expression.spel.support.MapAccessor;
 import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.stereotype.Component;
 
+import de.nemeses.spring.bpmn.exec.BpmnNodeContext;
+import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
+import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.Script;
 import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
 
@@ -45,7 +48,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
  * a {@link SimpleEvaluationContext}: no type references, constructors, bean references or method calls.
  */
 @Component
-class ScriptTaskInvoker {
+class SpelScriptRunner {
 
     private static final char SEPARATOR = ';';
 
@@ -65,7 +68,7 @@ class ScriptTaskInvoker {
             throw new ProcessEngineException("Script task '" + task.getId() + "' uses script format '" + format
                     + "', which is not supported; use " + ConditionEvaluator.SPEL_LANGUAGE + ".");
         }
-        final List<String> statements = ScriptTaskInvoker.statements(ScriptTaskInvoker.text(task.getScript()));
+        final List<String> statements = SpelScriptRunner.statements(SpelScriptRunner.text(task.getScript()));
         final List<SpelExpression> expressions = new ArrayList<>();
         for (final String statement : statements) {
             expressions.add(this.parse(task, statement));
@@ -95,7 +98,7 @@ class ScriptTaskInvoker {
             throw new ProcessEngineException("Cannot parse statement '" + statement + "' of script task '"
                     + task.getId() + "'.", e);
         }
-        ScriptTaskInvoker.checkAssignments(task, statement, expression.getAST());
+        SpelScriptRunner.checkAssignments(task, statement, expression.getAST());
         return expression;
     }
 
@@ -111,7 +114,7 @@ class ScriptTaskInvoker {
                     + "'; only plain variable names can be assigned.");
         }
         for (int i = 0; i < node.getChildCount(); i++) {
-            ScriptTaskInvoker.checkAssignments(task, statement, node.getChild(i));
+            SpelScriptRunner.checkAssignments(task, statement, node.getChild(i));
         }
     }
 
@@ -138,7 +141,7 @@ class ScriptTaskInvoker {
         for (int i = 0; i < script.length(); i++) {
             final char c = script.charAt(i);
             if (quote == 0 && c == SEPARATOR) {
-                ScriptTaskInvoker.addStatement(statements, current);
+                SpelScriptRunner.addStatement(statements, current);
                 continue;
             }
             if (quote == 0 && (c == '\'' || c == '"')) {
@@ -148,7 +151,7 @@ class ScriptTaskInvoker {
             }
             current.append(c);
         }
-        ScriptTaskInvoker.addStatement(statements, current);
+        SpelScriptRunner.addStatement(statements, current);
         return statements;
     }
 

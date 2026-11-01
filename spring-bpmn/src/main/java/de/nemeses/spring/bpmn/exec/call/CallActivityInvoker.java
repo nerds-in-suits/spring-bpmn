@@ -1,7 +1,6 @@
-package de.nemeses.spring.bpmn.exec;
+package de.nemeses.spring.bpmn.exec.call;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,18 +12,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Element;
 
+import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
+import de.nemeses.spring.bpmn.exec.FlowSelector;
+import de.nemeses.spring.bpmn.exec.Invoker;
+import de.nemeses.spring.bpmn.exec.NodeExecution;
+import de.nemeses.spring.bpmn.exec.ProcessEngineException;
+import de.nemeses.spring.bpmn.exec.ProcessEngineService;
 import de.nemeses.spring.bpmn.model.bpmn20.CallActivity;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
-import de.nemeses.spring.bpmn.repository.NoSuchProcessStepException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
-import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
-import de.nemeses.spring.tasks.TaskService;
 
 /**
  * Executes a {@code callActivity} step for the {@link BpmnNodeExecutor}. A call activity is a wait state: its first
@@ -40,7 +42,7 @@ import de.nemeses.spring.tasks.TaskService;
  * <p>
  * {@code calledElement} is resolved by its local part (namespace and prefix are ignored) to the latest
  * {@link ProcessDefinition} of that name, i.e. the process {@code name}, else its {@code id}, as registered. When the
- * child ends, {@link #resumeCaller} triggers the call step in the child's transaction, without locking the parent; the
+ * child ends, its end event triggers the call step in the child's transaction, without locking the parent; the
  * step then runs under the parent's lock and finds the child through
  * {@link ProcessInstanceRepository#retrieveChild}. A task delivered again starts no second child, and the step is
  * skipped while the child is still running.
@@ -49,7 +51,7 @@ import de.nemeses.spring.tasks.TaskService;
  * children.
  */
 @Component
-class CallActivityInvoker {
+class CallActivityInvoker implements Invoker<CallActivity> {
 
     /** Extension element mapping a parent variable to a variable of the called instance. */
     static final QName IN = new QName(BpmnNodeExecutor.NAMESPACE, "in");
@@ -59,49 +61,36 @@ class CallActivityInvoker {
 
     private final ProcessDefinitionService definitions;
     private final ProcessInstanceRepository instances;
-    private final ProcessStepRepository steps;
     private final ProcessEngineService engine;
     private final FlowSelector flows;
-    private final TaskService taskService;
 
     CallActivityInvoker(final ProcessDefinitionService definitions, final ProcessInstanceRepository instances,
-            final ProcessStepRepository steps, final ProcessEngineService engine, final FlowSelector flows,
-            final TaskService taskService) {
+            final ProcessEngineService engine, final FlowSelector flows) {
         this.definitions = definitions;
         this.instances = instances;
-        this.steps = steps;
         this.engine = engine;
         this.flows = flows;
-        this.taskService = taskService;
     }
 
-    /**
-     * Triggers a {@link BpmnNodeTask} for the call activity step waiting for the ended instance, if it was started by
-     * one; the step runs in its own task, which locks the parent instance.
-     *
-     * @param ended the instance that has just ended
-     */
-    void resumeCaller(final ProcessInstance ended) {
-        final ProcessStep parentStep = ended.parentStep();
-        if (parentStep != null) {
-            this.taskService.trigger(BpmnNodeTask.BEAN_NAME, parentStep.id());
-        }
+    @Override
+    public Class<CallActivity> nodeType() {
+        return CallActivity.class;
     }
 
     /**
      * Starts the called process if the step has no child instance yet; continues if the child has ended.
      *
-     * @param instance the (locked) parent instance
-     * @param step the pending call activity step
      * @param call the call activity
-     * @param outgoing the outgoing sequence flows of the call activity
-     * @param language the default expression language of the document
+     * @param execution the pending call activity step and its (locked) parent instance
      * @return the sequence flows to take; none while the child instance is running
      * @throws ProcessEngineException if {@code calledElement} is missing or unknown, a mapping is invalid, the child
      *             cannot be started or a flow condition fails
      */
-    List<SequenceFlow> execute(final ProcessInstance instance, final ProcessStep step, final CallActivity call,
-            final List<SequenceFlow> outgoing, final String language) throws ProcessEngineException {
+    @Override
+    public List<SequenceFlow> invoke(final CallActivity call, final NodeExecution execution)
+            throws ProcessEngineException {
+        final ProcessInstance instance = execution.instance();
+        final ProcessStep step = execution.step();
         if (call.getLoopCharacteristics() != null) {
             throw new ProcessEngineException("Activity '" + call.getId()
                     + "' has loop characteristics, which are not supported yet.");
@@ -128,12 +117,12 @@ class CallActivityInvoker {
             if (!variables.equals(instance.variables())) {
                 this.instances.updateVariables(instance.id(), variables);
             }
-            this.steps.complete(List.of(step.id()), new Date());
-        } catch (final NoSuchProcessInstanceException | NoSuchProcessStepException e) {
+        } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot complete call activity '" + call.getId()
                     + "' of process instance " + instance.id() + ".", e);
         }
-        return this.flows.activity(call, outgoing, language, variables);
+        execution.complete();
+        return this.flows.activity(call, execution.outgoing(), execution.language(), variables);
     }
 
     /**

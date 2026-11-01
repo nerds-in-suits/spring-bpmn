@@ -15,7 +15,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
  * {@link ConditionEvaluator}.
  */
 @Component
-class FlowSelector {
+public class FlowSelector {
 
     private final ConditionEvaluator conditions;
 
@@ -32,7 +32,7 @@ class FlowSelector {
      * @return the first non-default flow without condition or whose condition is true, else the default flow
      * @throws ProcessEngineException if there is no such flow or a condition cannot be evaluated
      */
-    SequenceFlow exclusive(final String gatewayId, final Object defaultFlow, final List<SequenceFlow> outgoing,
+    public SequenceFlow exclusive(final String gatewayId, final Object defaultFlow, final List<SequenceFlow> outgoing,
             final String language, final Map<String, Object> variables) throws ProcessEngineException {
         for (final SequenceFlow flow : outgoing) {
             if (!flow.equals(defaultFlow) && this.isTrue(flow, language, variables)) {
@@ -55,7 +55,7 @@ class FlowSelector {
      *         default flow instead of the latter if no condition is true
      * @throws ProcessEngineException if a condition cannot be evaluated
      */
-    List<SequenceFlow> activity(final Activity activity, final List<SequenceFlow> outgoing, final String language,
+    public List<SequenceFlow> activity(final Activity activity, final List<SequenceFlow> outgoing, final String language,
             final Map<String, Object> variables) throws ProcessEngineException {
         final List<SequenceFlow> taken = new ArrayList<>();
         boolean conditionTrue = false;
@@ -82,7 +82,7 @@ class FlowSelector {
      * @return all flows
      * @throws ProcessEngineException if a flow has a condition
      */
-    static List<SequenceFlow> unconditional(final List<SequenceFlow> flows) throws ProcessEngineException {
+    public static List<SequenceFlow> unconditional(final List<SequenceFlow> flows) throws ProcessEngineException {
         for (final SequenceFlow flow : flows) {
             if (flow.getConditionExpression() != null) {
                 throw new ProcessEngineException("Sequence flow '" + flow.getId()

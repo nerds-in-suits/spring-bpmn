@@ -94,7 +94,7 @@ public class ProcessEngineService {
      * @throws ProcessEngineException if the BPMN document cannot be parsed, does not contain the process or the
      *             process has no start event
      */
-    ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables,
+    public ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables,
             final ProcessStep parentStep) throws ProcessEngineException {
         final List<String> startNodes = this.startNodes(definition);
         final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables,
