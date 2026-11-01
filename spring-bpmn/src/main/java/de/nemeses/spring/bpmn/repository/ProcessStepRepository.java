@@ -75,9 +75,9 @@ public interface ProcessStepRepository {
      * Reads the steps that ran or run inside an embedded sub-process from the store, like {@link #pending}.
      *
      * @param parentStepId the id of the step of the sub-process
-     * @return the steps whose {@link ProcessStep#parentStepId()} is that id (pending and completed), oldest first
+     * @return the steps whose {@link ProcessStep#parentStepId()} is that id (pending and completed)
      */
-    List<ProcessStep> children(UUID parentStepId);
+    Collection<ProcessStep> children(UUID parentStepId);
 
     /**
      * @param instanceId the id of the process instance

@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.exec;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -55,9 +56,9 @@ public class FlowSelector {
      *         default flow instead of the latter if no condition is true
      * @throws ProcessEngineException if a condition cannot be evaluated
      */
-    public List<SequenceFlow> activity(final Activity activity, final List<SequenceFlow> outgoing, final String language,
-            final Map<String, Object> variables) throws ProcessEngineException {
-        final List<SequenceFlow> taken = new ArrayList<>();
+    public Collection<SequenceFlow> activity(final Activity activity, final Collection<SequenceFlow> outgoing,
+            final String language, final Map<String, Object> variables) throws ProcessEngineException {
+        final Collection<SequenceFlow> taken = new ArrayList<>();
         boolean conditionTrue = false;
         for (final SequenceFlow flow : outgoing) {
             if (flow.equals(activity.getDefault())) {
@@ -82,7 +83,8 @@ public class FlowSelector {
      * @return all flows
      * @throws ProcessEngineException if a flow has a condition
      */
-    public static List<SequenceFlow> unconditional(final List<SequenceFlow> flows) throws ProcessEngineException {
+    public static Collection<SequenceFlow> unconditional(final Collection<SequenceFlow> flows)
+            throws ProcessEngineException {
         for (final SequenceFlow flow : flows) {
             if (flow.getConditionExpression() != null) {
                 throw new ProcessEngineException("Sequence flow '" + flow.getId()

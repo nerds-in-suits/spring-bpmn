@@ -74,6 +74,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `loop.MultiInstanceLoop`, `loop.MultiInstanceLoopEnhancer`: wrap the invoker of every activity type and run `multiInstanceLoopCharacteristics` with one step per instance below the pending activity step.
 - `subprocess.SubProcessInvoker`: enters an embedded `subProcess`.
 - `task.ActivityLoop`: runs the `standardLoopCharacteristics` of an activity within one step.
+- `task.ManualTaskInvoker`: passes a `manualTask` through like a plain `task`.
 - `task.ScriptTaskInvoker`, `task.ServiceTaskInvoker`, `task.TaskInvoker`: execute `scriptTask`, `serviceTask` and plain `task`.
 - `task.SpelScriptRunner`: runs the SpEL script of a `scriptTask`.
 - `task.TaskRunner`: runs the work of a task (with its loop) and stores the variables it changed.
@@ -124,7 +125,7 @@ Package-private helpers are listed when they hold engine behaviour.
 ### `de.nemeses.spring.tasks.jpa` (module `spring-tasks-jpa`)
 
 - `JpaTaskPersistence`: stores tasks in table `spring_tasks` and claims due ones in batches.
-- `JpaTaskPersistenceAutoConfiguration`: registers it if there is an `EntityManager` bean (runs after `HibernateJpaAutoConfiguration`).
+- `JpaTaskPersistenceAutoConfiguration`: registers it if there is an `EntityManagerFactory` (runs after `HibernateJpaAutoConfiguration`) and adds the package of `TaskEntity` to the entity scan.
 - `JpaTaskProperties`: `spring.tasks.jpa.*`.
 - `TaskEntity`: table `spring_tasks`.
 

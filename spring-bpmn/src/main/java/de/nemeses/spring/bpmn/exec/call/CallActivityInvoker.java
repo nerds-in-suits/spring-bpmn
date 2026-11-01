@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.exec.call;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +88,7 @@ class CallActivityInvoker implements Invoker<CallActivity> {
      *             cannot be started or a flow condition fails
      */
     @Override
-    public List<SequenceFlow> invoke(final CallActivity call, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final CallActivity call, final NodeExecution execution)
             throws ProcessEngineException {
         final ProcessInstance instance = execution.instance();
         final ProcessStep step = execution.step();

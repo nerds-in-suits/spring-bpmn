@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.exec;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
@@ -68,7 +69,8 @@ class BpmnNodeExecutorTest {
         }
 
         @Override
-        public List<SequenceFlow> invoke(final T node, final NodeExecution execution) throws ProcessEngineException {
+        public Collection<SequenceFlow> invoke(final T node, final NodeExecution execution)
+                throws ProcessEngineException {
             return this.delegate.invoke(node, execution);
         }
     }
@@ -84,7 +86,7 @@ class BpmnNodeExecutorTest {
         }
 
         @Override
-        public List<SequenceFlow> invoke(final Task node, final NodeExecution execution) {
+        public Collection<SequenceFlow> invoke(final Task node, final NodeExecution execution) {
             return List.of();
         }
     }

@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.exec;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -107,19 +108,19 @@ public class ProcessEngineService {
      */
     public ProcessInstance startProcess(final ProcessDefinition definition, final Map<String, Object> variables,
             final ProcessStep parentStep) throws ProcessEngineException {
-        final List<String> startNodes = this.startNodes(definition);
-        final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables,
-                parentStep);
         try {
+            final Collection<String> startNodes = this.startNodes(definition);
+            final ProcessInstance instance = this.instances.create(definition, variables == null ? Map.of() : variables,
+                    parentStep);
             for (final String nodeId : startNodes) {
                 BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), nodeId, null, null);
             }
+            LoggerFactory.getLogger(this.getClass()).info("Started process instance {} of {} at start nodes {}",
+                    instance.id(), definition.name(), startNodes);
+            return instance;
         } catch (final NoSuchProcessInstanceException e) {
-            throw new ProcessEngineException("Cannot start process instance " + instance.id() + ".", e);
+            throw new IllegalStateException("Created process instance not found for start nodes.", e);
         }
-        LoggerFactory.getLogger(this.getClass()).info("Started process instance {} of {} at start nodes {}",
-                instance.id(), definition.name(), startNodes);
-        return instance;
     }
 
     /**
@@ -172,9 +173,9 @@ public class ProcessEngineService {
         this.executor.getObject().completeUserTask(stepId, variables);
     }
 
-    private List<String> startNodes(final ProcessDefinition definition) throws ProcessEngineException {
+    private Collection<String> startNodes(final ProcessDefinition definition) throws ProcessEngineException {
         final Process process = ProcessEngineService.process(this.models.document(definition), definition);
-        final List<String> startNodes = process.getFlowElement().stream()
+        final Collection<String> startNodes = process.getFlowElement().stream()
                 .map(JAXBElement::getValue)
                 .filter(StartEvent.class::isInstance)
                 .map(FlowElement::getId)

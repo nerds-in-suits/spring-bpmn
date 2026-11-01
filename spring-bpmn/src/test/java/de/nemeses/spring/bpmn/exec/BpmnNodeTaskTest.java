@@ -188,6 +188,45 @@ class BpmnNodeTaskTest {
     }
 
     @Test
+    void manualTaskPassesThrough() {
+        final ProcessInstance instance = this.instance("<startEvent id=\"s\"/><manualTask id=\"m\"/>"
+                + "<endEvent id=\"e\"/><sequenceFlow id=\"f1\" sourceRef=\"s\" targetRef=\"m\"/>"
+                + "<sequenceFlow id=\"f2\" sourceRef=\"m\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "s");
+            final ProcessStep manual = this.triggered(context, "m");
+            this.execute(context, manual);
+            Assertions.assertNotNull(this.stored(manual).endDate());
+            Assertions.assertEquals(List.of("m", "e"), this.triggeredNodes(context));
+            Assertions.assertEquals(Map.of("amount", 3), this.instances.retrieve(instance.id()).variables());
+
+            this.execute(context, this.triggered(context, "e"));
+            Assertions.assertNotNull(this.endDate(instance));
+        });
+    }
+
+    @Test
+    void manualTaskTakesFlowsLikeAnActivity() {
+        final ProcessInstance instance = this.instance("<manualTask id=\"m\" default=\"fd\"/>"
+                + "<task id=\"a\"/><task id=\"b\"/><task id=\"c\"/><task id=\"d\"/>"
+                + "<sequenceFlow id=\"fa\" sourceRef=\"m\" targetRef=\"a\"/>"
+                + BpmnNodeTaskTest.flow("fb", "m", "b", "amount == 3")
+                + BpmnNodeTaskTest.flow("fc", "m", "c", "amount == 4")
+                + "<sequenceFlow id=\"fd\" sourceRef=\"m\" targetRef=\"d\"/>");
+        final ProcessInstance onlyDefault = this.instance("<manualTask id=\"m\" default=\"fd\"/>"
+                + "<task id=\"c\"/><task id=\"d\"/>"
+                + BpmnNodeTaskTest.flow("fc", "m", "c", "amount == 4")
+                + "<sequenceFlow id=\"fd\" sourceRef=\"m\" targetRef=\"d\"/>");
+        this.withEngine(context -> {
+            this.execute(context, instance, "m");
+            Assertions.assertEquals(List.of("a", "b"), this.triggeredNodes(context));
+
+            this.execute(context, onlyDefault, "m");
+            Assertions.assertEquals(List.of("a", "b", "d"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
     void completedStepIsSkipped() {
         final ProcessInstance instance = this.instance("<task id=\"t\"/><task id=\"a\"/>"
                 + "<sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"a\"/>");
@@ -876,6 +915,28 @@ class BpmnNodeTaskTest {
         this.withEngine(context -> {
             this.execute(context, instance, "t");
             Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void manualTaskLoopTakesOutgoingFlowsOnce() {
+        final ProcessInstance instance = this.instance("<manualTask id=\"m\"><standardLoopCharacteristics "
+                + "loopMaximum=\"5\"><loopCondition>loopCounter &lt; 3</loopCondition></standardLoopCharacteristics>"
+                + "</manualTask><endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"m\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            final ProcessStep step = this.execute(context, instance, "m");
+            Assertions.assertNotNull(this.stored(step).endDate());
+            Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void invalidManualTaskLoopFails() {
+        final ProcessInstance instance = this.instance("<manualTask id=\"m\"><standardLoopCharacteristics/>"
+                + "</manualTask>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "m");
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
         });
     }
 

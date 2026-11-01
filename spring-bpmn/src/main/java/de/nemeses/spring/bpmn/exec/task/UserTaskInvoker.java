@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec.task;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +52,7 @@ class UserTaskInvoker implements Invoker<UserTask> {
     }
 
     @Override
-    public List<SequenceFlow> invoke(final UserTask node, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final UserTask node, final NodeExecution execution)
             throws ProcessEngineException {
         if (node.getLoopCharacteristics() != null) {
             throw new ProcessEngineException("User task '" + node.getId()
@@ -74,7 +75,7 @@ class UserTaskInvoker implements Invoker<UserTask> {
             throw new ProcessEngineException("Cannot complete user task '" + node.getId() + "' of process instance "
                     + instance.id() + ".", e);
         }
-        final List<SequenceFlow> taken = this.flows.activity(node, execution.outgoing(), execution.language(),
+        final Collection<SequenceFlow> taken = this.flows.activity(node, execution.outgoing(), execution.language(),
                 variables);
         execution.complete();
         LoggerFactory.getLogger(this.getClass()).info("Completed user task {} (step {}) of process instance {}",
