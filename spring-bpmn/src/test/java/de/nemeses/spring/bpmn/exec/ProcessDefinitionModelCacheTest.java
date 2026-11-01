@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn;
+package de.nemeses.spring.bpmn.exec;
 
 import java.io.InputStream;
 import java.sql.Timestamp;
@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import de.nemeses.spring.bpmn.BpmnParseException;
+import de.nemeses.spring.bpmn.BpmnParser;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 

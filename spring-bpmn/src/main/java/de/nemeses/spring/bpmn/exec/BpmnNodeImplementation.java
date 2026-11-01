@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn;
+package de.nemeses.spring.bpmn.exec;
 
 /**
  * Code bound to a BPMN {@code serviceTask}. Implementations are Spring beans; a service task refers to one by its

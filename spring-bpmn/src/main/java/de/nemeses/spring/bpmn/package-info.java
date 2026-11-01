@@ -1,5 +1,5 @@
 /**
- * BPMN engine: parsing of BPMN 2.0 documents, registration of process definitions, starting of process instances and
- * execution of their nodes.
+ * BPMN engine: parsing of BPMN 2.0 documents and registration of process definitions; the execution lives in the
+ * {@code exec} sub-package.
  */
 package de.nemeses.spring.bpmn;

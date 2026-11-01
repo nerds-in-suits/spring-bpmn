@@ -15,6 +15,8 @@ import de.nemeses.spring.bpmn.model.bpmn20.Process;
 
 class BpmnParserTest {
 
+    private static final String SPRING_NAMESPACE = "https://nemeses.de/spring-bpmn";
+
     private static final String DEFINITIONS =
             "<definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"d\" targetNamespace=\"urn:t\"";
 
@@ -72,7 +74,7 @@ class BpmnParserTest {
 
     @Test
     void acceptsExtensionAttributesInOtherNamespace() throws Exception {
-        final Definitions definitions = this.parseString(DEFINITIONS + " xmlns:spring=\"" + BpmnNodeExecutor.NAMESPACE
+        final Definitions definitions = this.parseString(DEFINITIONS + " xmlns:spring=\"" + SPRING_NAMESPACE
                 + "\"><process id=\"p\"><serviceTask id=\"s\" spring:bean=\"myBean\"/></process></definitions>");
         Assertions.assertEquals(1, definitions.getRootElement().size());
     }

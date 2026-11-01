@@ -16,7 +16,7 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
 /**
  * Keeps created process instances in memory, in creation order.
  */
-class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
+public class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
 
     private final List<ProcessInstance> created = new ArrayList<>();
 
@@ -79,7 +79,7 @@ class InMemoryProcessInstanceRepository implements ProcessInstanceRepository {
         throw new NoSuchProcessInstanceException(id);
     }
 
-    List<ProcessInstance> created() {
+    public List<ProcessInstance> created() {
         return this.created;
     }
 

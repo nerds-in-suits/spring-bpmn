@@ -1,4 +1,4 @@
-package de.nemeses.spring.bpmn;
+package de.nemeses.spring.bpmn.exec;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -13,6 +13,10 @@ import org.springframework.boot.test.context.assertj.AssertableApplicationContex
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.ContextConsumer;
 
+import de.nemeses.spring.bpmn.InMemoryProcessInstanceRepository;
+import de.nemeses.spring.bpmn.InMemoryProcessStepRepository;
+import de.nemeses.spring.bpmn.ProcessDefinitionAutoConfiguration;
+import de.nemeses.spring.bpmn.RecordingTaskPersistence;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessStepException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
