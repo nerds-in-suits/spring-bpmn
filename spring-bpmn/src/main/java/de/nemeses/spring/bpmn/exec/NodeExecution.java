@@ -20,8 +20,8 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
  * One execution of a step by the {@link BpmnNodeExecutor}, passed to the {@link Invoker} of its node: the (locked)
  * process instance, the step, the flows around the node and the default expression language of the document.
  * <p>
- * An {@link InvokerDecorator} that runs its delegate for one instance of a loop passes it a view of this execution
- * ({@link #forLoopInstance}).
+ * An invoker added by an {@link InvokerEnhancer} that runs the enhanced invoker for one instance of a loop passes it
+ * a view of this execution ({@link #forLoopInstance}).
  */
 public final class NodeExecution {
 
@@ -71,8 +71,8 @@ public final class NodeExecution {
 
     /**
      * Creates the view of this execution for one instance of a loop: the instance sees the given variables, has the
-     * given {@link #loopInstance()} and no {@link #outgoing()} flows (the decorator takes the flows of the activity
-     * once, when the loop is finished).
+     * given {@link #loopInstance()} and no {@link #outgoing()} flows (the wrapping invoker takes the flows of the
+     * activity once, when the loop is finished).
      *
      * @param variables the process variables the loop instance sees, including its local data items
      * @param loopCounter the 0-based index of the loop instance

@@ -30,37 +30,42 @@ class BpmnNodeExecutorTest {
     }
 
     @Test
-    void testDecoratorFactoriesDecorateEveryInvokerInTurn() {
+    void testEnhancersEnhanceEveryInvokerInTurn() {
         final TaskStub invoker = new TaskStub();
         final List<String> calls = new ArrayList<>();
         new BpmnNodeExecutor(null, null, null, null, List.of(invoker), List.of(
-                new RecordingFactory("first", calls), new RecordingFactory("second", calls)));
+                new RecordingEnhancer("first", calls), new RecordingEnhancer("second", calls)));
         Assertions.assertEquals(List.of("first:" + TaskStub.class.getSimpleName(),
-                "second:" + Decorator.class.getSimpleName()), calls);
+                "second:" + Wrapper.class.getSimpleName()), calls);
     }
 
     /**
-     * Wraps every invoker in a {@link Decorator} and records which invoker it got.
+     * Wraps every invoker in a {@link Wrapper} and records which invoker it got.
      *
-     * @param name the name of the factory
+     * @param name the name of the enhancer
      * @param calls receives {@code <name>:<class of the invoker>} per call
      */
-    private record RecordingFactory(String name, List<String> calls) implements InvokerDecoratorFactory {
+    private record RecordingEnhancer(String name, List<String> calls) implements InvokerEnhancer {
 
         @Override
-        public <T extends FlowNode> Invoker<T> decorate(final Invoker<T> invoker) {
+        public <T extends FlowNode> Invoker<T> enhance(final Invoker<T> invoker) {
             this.calls.add(this.name + ":" + invoker.getClass().getSimpleName());
-            return new Decorator<>(invoker);
+            return new Wrapper<>(invoker);
         }
     }
 
     /**
-     * Passes every node on to its delegate.
+     * Passes every node on to the wrapped invoker.
      *
      * @param <T> the type of flow node
-     * @param delegate the decorated invoker
+     * @param delegate the wrapped invoker
      */
-    private record Decorator<T extends FlowNode>(Invoker<T> delegate) implements InvokerDecorator<T> {
+    private record Wrapper<T extends FlowNode>(Invoker<T> delegate) implements Invoker<T> {
+
+        @Override
+        public Class<T> nodeType() {
+            return this.delegate.nodeType();
+        }
 
         @Override
         public List<SequenceFlow> invoke(final T node, final NodeExecution execution) throws ProcessEngineException {

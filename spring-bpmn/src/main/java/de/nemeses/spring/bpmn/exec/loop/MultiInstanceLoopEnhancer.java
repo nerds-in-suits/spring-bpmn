@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
-import de.nemeses.spring.bpmn.exec.InvokerDecoratorFactory;
+import de.nemeses.spring.bpmn.exec.InvokerEnhancer;
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
@@ -13,11 +13,11 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.TaskService;
 
 /**
- * Decorates the invoker of every activity type with a {@link MultiInstanceLoop}, which runs the activities with
+ * Enhances the invoker of every activity type with a {@link MultiInstanceLoop}, which runs the activities with
  * {@code multiInstanceLoopCharacteristics} once per instance and passes all other activities on unchanged.
  */
 @Component
-class MultiInstanceLoopFactory implements InvokerDecoratorFactory {
+class MultiInstanceLoopEnhancer implements InvokerEnhancer {
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
@@ -25,7 +25,7 @@ class MultiInstanceLoopFactory implements InvokerDecoratorFactory {
     private final ConditionEvaluator conditions;
     private final FlowSelector flows;
 
-    MultiInstanceLoopFactory(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
+    MultiInstanceLoopEnhancer(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final TaskService taskService, final ConditionEvaluator conditions, final FlowSelector flows) {
         this.instances = instances;
         this.steps = steps;
@@ -35,7 +35,7 @@ class MultiInstanceLoopFactory implements InvokerDecoratorFactory {
     }
 
     @Override
-    public <T extends FlowNode> Invoker<T> decorate(final Invoker<T> invoker) {
+    public <T extends FlowNode> Invoker<T> enhance(final Invoker<T> invoker) {
         if (!Activity.class.isAssignableFrom(invoker.nodeType())) {
             return invoker;
         }

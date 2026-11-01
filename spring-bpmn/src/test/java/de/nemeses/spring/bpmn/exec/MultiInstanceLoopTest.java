@@ -440,7 +440,7 @@ class MultiInstanceLoopTest {
             this.assertFails(context, instance, "u");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
 
-            // the decorator is generic: an activity that cannot run an instance in one step fails at its instance
+            // the loop is generic: an activity that cannot run an instance in one step fails at its instance
             this.execute(context, instance, "sp");
             final List<ProcessStep> subProcessInstances = this.triggered(context, "sp");
             Assertions.assertEquals(1, subProcessInstances.size());

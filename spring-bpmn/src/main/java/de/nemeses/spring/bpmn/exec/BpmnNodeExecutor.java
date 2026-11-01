@@ -36,7 +36,7 @@ import de.nemeses.spring.tasks.TaskService;
  * {@code docs/bpmn-support.md}.
  */
 @Component
-@SuppressWarnings("PMD.CouplingBetweenObjects") // repositories, BPMN model, invokers and their decorators
+@SuppressWarnings("PMD.CouplingBetweenObjects") // repositories, BPMN model, invokers and their enhancers
 public class BpmnNodeExecutor {
 
     /** Namespace of the BPMN extension attributes understood by the engine. */
@@ -53,20 +53,20 @@ public class BpmnNodeExecutor {
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final ProcessDefinitionModelCache models, final SubProcessScopes subProcesses,
-            final Collection<Invoker<?>> invokers, final Collection<InvokerDecoratorFactory> decorators) {
+            final Collection<Invoker<?>> invokers, final Collection<InvokerEnhancer> enhancers) {
         this.instances = instances;
         this.steps = steps;
         this.models = models;
         this.subProcesses = subProcesses;
-        this.invokers = BpmnNodeExecutor.byNodeType(invokers, decorators);
+        this.invokers = BpmnNodeExecutor.byNodeType(invokers, enhancers);
     }
 
     /**
-     * @return the invokers by their node type, each decorated by all decorator factories in turn
+     * @return the invokers by their node type, each enhanced by all enhancers in turn
      * @throws IllegalStateException if two invokers execute the same node type
      */
     private static Map<Class<? extends FlowNode>, Invoker<?>> byNodeType(final Collection<Invoker<?>> invokers,
-            final Collection<InvokerDecoratorFactory> decorators) {
+            final Collection<InvokerEnhancer> enhancers) {
         final Map<Class<? extends FlowNode>, Invoker<?>> byType = new HashMap<>();
         for (final Invoker<?> invoker : invokers) {
             final Invoker<?> other = byType.putIfAbsent(invoker.nodeType(), invoker);
@@ -76,17 +76,17 @@ public class BpmnNodeExecutor {
                         + ".");
             }
         }
-        byType.replaceAll((_, invoker) -> BpmnNodeExecutor.decorate(invoker, decorators));
+        byType.replaceAll((_, invoker) -> BpmnNodeExecutor.enhance(invoker, enhancers));
         return Map.copyOf(byType);
     }
 
-    private static <T extends FlowNode> Invoker<T> decorate(final Invoker<T> invoker,
-            final Collection<InvokerDecoratorFactory> decorators) {
-        Invoker<T> decorated = invoker;
-        for (final InvokerDecoratorFactory decorator : decorators) {
-            decorated = decorator.decorate(decorated);
+    private static <T extends FlowNode> Invoker<T> enhance(final Invoker<T> invoker,
+            final Collection<InvokerEnhancer> enhancers) {
+        Invoker<T> enhanced = invoker;
+        for (final InvokerEnhancer enhancer : enhancers) {
+            enhanced = enhancer.enhance(enhanced);
         }
-        return decorated;
+        return enhanced;
     }
 
     /**
@@ -111,8 +111,8 @@ public class BpmnNodeExecutor {
     }
 
     /**
-     * Executes one step (a node of a process instance) with the {@link Invoker} for the node's type (as decorated by
-     * the {@link InvokerDecoratorFactory} beans) and creates a step and triggers a {@link BpmnNodeTask} for the target
+     * Executes one step (a node of a process instance) with the {@link Invoker} for the node's type (as enhanced by
+     * the {@link InvokerEnhancer} beans) and creates a step and triggers a {@link BpmnNodeTask} for the target
      * of each sequence flow taken, all in one transaction. The
      * process instance is locked first ({@link ProcessInstanceRepository#lock}), so the steps of one instance are
      * executed one after the other. Supported node types (one {@link Invoker} each, in the sub-packages):
@@ -151,7 +151,7 @@ public class BpmnNodeExecutor {
      * iterations run in this step and the outgoing flows are taken once after the last iteration. They may have
      * {@code multiInstanceLoopCharacteristics} instead: each instance runs in a step of its own, whose parent is the
      * pending step of the activity, and the outgoing flows are taken once, in the scope of the activity step, when the
-     * loop is finished (see {@code loop.MultiInstanceLoop}, an {@link InvokerDecorator}).
+     * loop is finished (see {@code loop.MultiInstanceLoop}, added by an {@link InvokerEnhancer}).
      * A step that is no longer pending (a task delivered again, or a join step completed by another step) and the steps
      * of an instance that has already ended are skipped.
      *

@@ -15,7 +15,6 @@ import de.nemeses.spring.bpmn.exec.BpmnNodeTask;
 import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
-import de.nemeses.spring.bpmn.exec.InvokerDecorator;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
@@ -35,7 +34,7 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.TaskService;
 
 /**
- * Decorates the {@link Invoker} of an activity type ({@link MultiInstanceLoopFactory}) and runs the activities with
+ * Wraps the {@link Invoker} of an activity type ({@link MultiInstanceLoopEnhancer}) and runs the activities with
  * {@code multiInstanceLoopCharacteristics} with one {@link ProcessStep} per instance; other activities are passed on
  * to the delegate unchanged.
  * <p>
@@ -75,7 +74,7 @@ import de.nemeses.spring.tasks.TaskService;
  * @param <T> the type of activity
  */
 @SuppressWarnings({"PMD.CouplingBetweenObjects", "PMD.ExcessiveImports"}) // BPMN loop model, repositories, tasks
-class MultiInstanceLoop<T extends FlowNode> implements InvokerDecorator<T> {
+class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
 
     /** Suffix of the internal process variable collecting the outputs of the instances. */
     static final String OUTPUTS_SUFFIX = ".loopOutputs";
@@ -83,7 +82,7 @@ class MultiInstanceLoop<T extends FlowNode> implements InvokerDecorator<T> {
     /** Name of the variable holding the index of the instance in a {@code completionCondition}. */
     private static final String LOOP_COUNTER = "loopCounter";
 
-    private final Invoker<T> decorated;
+    private final Invoker<T> delegate;
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
     private final TaskService taskService;
@@ -93,7 +92,7 @@ class MultiInstanceLoop<T extends FlowNode> implements InvokerDecorator<T> {
     MultiInstanceLoop(final Invoker<T> delegate, final ProcessInstanceRepository instances,
             final ProcessStepRepository steps, final TaskService taskService, final ConditionEvaluator conditions,
             final FlowSelector flows) {
-        this.decorated = delegate;
+        this.delegate = delegate;
         this.instances = instances;
         this.steps = steps;
         this.taskService = taskService;
@@ -102,8 +101,8 @@ class MultiInstanceLoop<T extends FlowNode> implements InvokerDecorator<T> {
     }
 
     @Override
-    public Invoker<T> delegate() {
-        return this.decorated;
+    public Class<T> nodeType() {
+        return this.delegate.nodeType();
     }
 
     /**
@@ -122,7 +121,7 @@ class MultiInstanceLoop<T extends FlowNode> implements InvokerDecorator<T> {
         if (activity.getLoopCharacteristics() == null
                 || !(activity.getLoopCharacteristics().getValue()
                         instanceof final MultiInstanceLoopCharacteristics characteristics)) {
-            return this.decorated.invoke(node, execution);
+            return this.delegate.invoke(node, execution);
         }
         MultiInstanceLoop.validate(activity, characteristics);
         final ProcessStep step = execution.step();
@@ -284,7 +283,7 @@ class MultiInstanceLoop<T extends FlowNode> implements InvokerDecorator<T> {
         }
         final NodeExecution instanceExecution = execution.forLoopInstance(visible, step.loopCounter(),
                 step.loopItem());
-        this.decorated.invoke(node, instanceExecution);
+        this.delegate.invoke(node, instanceExecution);
         if (!instanceExecution.isCompleted()) {
             throw new ProcessEngineException("Multi-instance activity '" + loop.activity().getId()
                     + "' does not complete its instance in one step, which is not supported yet.");

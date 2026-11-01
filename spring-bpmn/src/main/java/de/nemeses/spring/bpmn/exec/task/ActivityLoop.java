@@ -25,7 +25,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.StandardLoopCharacteristics;
  * the activity runs {@code loopMaximum} times; without both the loop is rejected. The {@code loopCondition} is evaluated
  * by the {@link ConditionEvaluator} against the variables as changed by the iterations so far plus the variable
  * {@value #LOOP_COUNTER} (which hides a process variable of the same name in the condition).
- * An activity with {@code multiInstanceLoopCharacteristics} runs once per call: the multi-instance loop decorates the
+ * An activity with {@code multiInstanceLoopCharacteristics} runs once per call: the multi-instance loop wraps the
  * invoker ({@code exec.loop.MultiInstanceLoop}) and executes it once per instance, each in a step of its own.
  */
 @Component
@@ -53,7 +53,7 @@ class ActivityLoop {
      */
     Map<String, Object> run(final Activity activity, final String language, final Map<String, Object> variables,
             final Iteration body) throws ProcessEngineException {
-        // a multi-instance activity runs once per call, the decorating loop calls it once per instance
+        // a multi-instance activity runs once per call, the wrapping loop calls it once per instance
         final LoopCharacteristics loop = activity.getLoopCharacteristics() == null
                 || activity.getLoopCharacteristics().getValue() instanceof MultiInstanceLoopCharacteristics
                         ? null
