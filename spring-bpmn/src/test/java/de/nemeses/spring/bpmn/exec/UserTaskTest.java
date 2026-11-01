@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -111,9 +112,9 @@ class UserTaskTest {
             final ProcessInstance instance = engine.startProcess("p", Map.of("amount", 3));
             this.runAll(context);
 
-            final List<ProcessStep> open = engine.openUserTasks(instance.id());
+            final Collection<ProcessStep> open = engine.openUserTasks(instance.id());
             Assertions.assertEquals(1, open.size());
-            final ProcessStep userTask = open.getFirst();
+            final ProcessStep userTask = open.iterator().next();
             Assertions.assertEquals("approve", userTask.nodeId());
             Assertions.assertEquals(instance.id(), userTask.processInstanceId());
             Assertions.assertNotNull(userTask.startDate());
@@ -129,12 +130,12 @@ class UserTaskTest {
             engine.completeUserTask(userTask.id(), Map.of("approved", true, "amount", 4));
             Assertions.assertNotNull(this.steps.retrieve(userTask.id()).endDate());
             Assertions.assertEquals(Map.of("approved", true, "amount", 4), this.current(instance).variables());
-            Assertions.assertEquals(List.of(), engine.openUserTasks(instance.id()));
+            Assertions.assertTrue(engine.openUserTasks(instance.id()).isEmpty());
 
             this.runAll(context);
             Assertions.assertEquals(List.of("s", "approve", "yes"), this.nodes(instance));
             Assertions.assertNotNull(this.current(instance).endDate());
-            Assertions.assertEquals(List.of(), engine.openUserTasks(instance.id()));
+            Assertions.assertTrue(engine.openUserTasks(instance.id()).isEmpty());
         });
     }
 
@@ -148,7 +149,7 @@ class UserTaskTest {
             final UUID startStep = this.payload(context, 0);
             context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class).execute(startStep);
             this.executed++;
-            engine.completeUserTask(engine.openUserTasks(instance.id()).getFirst().id(), null);
+            engine.completeUserTask(engine.openUserTasks(instance.id()).iterator().next().id(), null);
 
             this.runAll(context);
             Assertions.assertEquals(List.of("s", "approve", "no"), this.nodes(instance));
@@ -171,7 +172,7 @@ class UserTaskTest {
             final ProcessEngineService engine = context.getBean(ProcessEngineService.class);
             final ProcessInstance instance = engine.startProcess("p", Map.of());
             this.runAll(context);
-            final List<ProcessStep> open = engine.openUserTasks(instance.id());
+            final List<ProcessStep> open = List.copyOf(engine.openUserTasks(instance.id()));
             Assertions.assertEquals(List.of("a", "b"), open.stream().map(ProcessStep::nodeId).sorted().toList());
 
             engine.completeUserTask(open.get(0).id(), Map.of(open.get(0).nodeId(), "done"));
@@ -194,7 +195,7 @@ class UserTaskTest {
             final ProcessEngineService engine = context.getBean(ProcessEngineService.class);
             final ProcessInstance instance = engine.startProcess("p", Map.of());
             this.runAll(context);
-            final ProcessStep userTask = engine.openUserTasks(instance.id()).getFirst();
+            final ProcessStep userTask = engine.openUserTasks(instance.id()).iterator().next();
             final UUID startStep = this.payload(context, 0);
 
             final ProcessEngineException unknown = Assertions.assertThrows(ProcessEngineException.class,

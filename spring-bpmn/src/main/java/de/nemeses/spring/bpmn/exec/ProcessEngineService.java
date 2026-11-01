@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.slf4j.LoggerFactory;
@@ -128,12 +129,11 @@ public class ProcessEngineService {
      * inside embedded sub-processes.
      *
      * @param processInstanceId the id of the process instance
-     * @return the pending user task steps, ordered by start date (creation of the user task); empty if the instance
-     *         has ended
+     * @return the pending user task steps, in no particular order; empty if the instance has ended
      * @throws ProcessEngineException if the instance does not exist or its definition cannot be read
      */
     @Transactional(readOnly = true, rollbackFor = ProcessEngineException.class)
-    public List<ProcessStep> openUserTasks(final UUID processInstanceId) throws ProcessEngineException {
+    public Collection<ProcessStep> openUserTasks(final UUID processInstanceId) throws ProcessEngineException {
         final ProcessInstance instance;
         try {
             instance = this.instances.retrieve(processInstanceId);
@@ -146,10 +146,10 @@ public class ProcessEngineService {
         }
         final Process process = ProcessEngineService.process(this.models.document(instance.processDefinition()),
                 instance.processDefinition());
-        final List<ProcessStep> open = new ArrayList<>();
+        final Set<String> userTasks = ProcessNavigator.flowNodeIds(process, UserTask.class);
+        final Collection<ProcessStep> open = new ArrayList<>();
         for (final ProcessStep step : this.steps.steps(processInstanceId)) {
-            if (step.endDate() == null
-                    && ProcessNavigator.flowNode(process, step.nodeId()).getClass() == UserTask.class) {
+            if (step.endDate() == null && userTasks.contains(step.nodeId())) {
                 open.add(step);
             }
         }
