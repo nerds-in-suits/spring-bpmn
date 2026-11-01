@@ -28,7 +28,12 @@ Do not invent Camunda-like APIs to fill a gap.
 - `inclusiveGateway`: not supported (#57).
 - `intermediateCatchEvent`, `intermediateThrowEvent`: not supported (#61).
 - `manualTask`: not supported (#65).
-- `multiInstanceLoopCharacteristics`: not supported, fails (#59).
+- `multiInstanceLoopCharacteristics`: supported on `task`, `serviceTask` and `scriptTask` (`loop.MultiInstanceLoop`).
+  One step per instance, below the pending step of the activity; parallel loops create all instance steps at once, sequential loops one after the other.
+  The number of instances is `loopCardinality` (SpEL) or the size of the collection variable named by `loopDataInputRef`.
+  `inputDataItem` and `outputDataItem` are local to an instance; the outputs become the list variable named by `loopDataOutputRef`.
+  `completionCondition` (SpEL) sees the BPMN names `loopCounter`, `numberOfInstances`, `numberOfActiveInstances`, `numberOfCompletedInstances` and `numberOfTerminatedInstances`.
+  `behavior` other than `All` and `complexBehaviorDefinition` fail.
 - `parallelGateway`: supported (`ParallelGatewayInvoker`).
   With at most one incoming flow it is a fork and takes all outgoing flows.
   With more incoming flows it is a join: it continues once a step is pending at the gateway for every incoming flow of the same scope, and parks the step otherwise.

@@ -18,7 +18,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.FormalExpression;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 
 /**
- * Evaluates the {@code conditionExpression} of sequence flows (and the {@code loopCondition} of standard loops) as Spring
+ * Evaluates the {@code conditionExpression} of sequence flows (and the expressions of loops) as Spring
  * Expression Language (SpEL) expressions against the process variables.
  * <p>
  * The language of a condition is the {@code language} attribute of its {@code formalExpression}, else the
@@ -77,14 +77,36 @@ public class ConditionEvaluator {
      */
     public boolean evaluate(final String description, final Expression condition, final String defaultLanguage,
             final Map<String, Object> variables) throws ProcessEngineException {
-        final String language = condition instanceof final FormalExpression formal && formal.getLanguage() != null
+        final Object result = this.value(description, condition, defaultLanguage, variables);
+        if (result instanceof final Boolean value) {
+            return value;
+        }
+        throw new ProcessEngineException("The " + description + " '" + ConditionEvaluator.text(condition)
+                + "' did not yield a boolean but " + result + ".");
+    }
+
+    /**
+     * Evaluates a BPMN expression the same way as {@link #evaluate(String, Expression, String, Map)}, but accepts any
+     * result, e.g. for the {@code loopCardinality} of a {@code multiInstanceLoopCharacteristics}.
+     *
+     * @param description what the expression is, for error messages
+     * @param expression the expression
+     * @param defaultLanguage the {@code expressionLanguage} of the {@code definitions} element
+     * @param variables the variables visible to the expression
+     * @return the value of the expression, may be {@code null}
+     * @throws ProcessEngineException if the language is not supported, the expression is empty or invalid or cannot be
+     *             evaluated (e.g. unknown variable)
+     */
+    public Object value(final String description, final Expression expression, final String defaultLanguage,
+            final Map<String, Object> variables) throws ProcessEngineException {
+        final String language = expression instanceof final FormalExpression formal && formal.getLanguage() != null
                 ? formal.getLanguage()
                 : defaultLanguage;
         if (!SPEL_LANGUAGE.equals(language) && !BPMN_DEFAULT_LANGUAGE.equals(language)) {
             throw new ProcessEngineException("The " + description + " uses expression language '" + language
                     + "', which is not supported; use " + SPEL_LANGUAGE + ".");
         }
-        final String text = ConditionEvaluator.text(condition);
+        final String text = ConditionEvaluator.text(expression);
         if (text.isEmpty()) {
             throw new ProcessEngineException("The " + description + " is empty.");
         }
@@ -95,17 +117,11 @@ public class ConditionEvaluator {
                 .withRootObject(root);
         final EvaluationContext context = builder.build();
         root.forEach(context::setVariable);
-        final Object result;
         try {
-            result = this.parser.parseExpression(text).getValue(context);
+            return this.parser.parseExpression(text).getValue(context);
         } catch (final ExpressionException e) {
             throw new ProcessEngineException("Cannot evaluate the " + description + " '" + text + "'.", e);
         }
-        if (result instanceof final Boolean value) {
-            return value;
-        }
-        throw new ProcessEngineException("The " + description + " '" + text + "' did not yield a boolean but " + result
-                + ".");
     }
 
     private static String text(final Expression condition) {

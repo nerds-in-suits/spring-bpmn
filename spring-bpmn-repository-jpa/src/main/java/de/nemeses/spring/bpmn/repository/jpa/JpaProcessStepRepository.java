@@ -30,16 +30,28 @@ public class JpaProcessStepRepository implements ProcessStepRepository {
         this.entityManager = entityManager;
     }
 
+    /**
+     * Overridden only to be transactional (the inherited default method is not proxied).
+     */
     @Override
     @Transactional
     public ProcessStep create(final UUID instanceId, final String nodeId, final String incomingFlowId,
             final UUID parentStepId) throws NoSuchProcessInstanceException {
+        return this.create(instanceId, nodeId, incomingFlowId, parentStepId, null, null);
+    }
+
+    @Override
+    @Transactional
+    public ProcessStep create(final UUID instanceId, final String nodeId, final String incomingFlowId,
+            final UUID parentStepId, final Integer loopCounter, final Object loopItem)
+            throws NoSuchProcessInstanceException {
         final ProcessInstanceEntity instance = this.entityManager.find(ProcessInstanceEntity.class, instanceId);
         if (instance == null) {
             throw new NoSuchProcessInstanceException(instanceId);
         }
         final ProcessStepEntity entity = new ProcessStepEntity(UUID.randomUUID(), instance, nodeId, incomingFlowId,
                 parentStepId, new Date());
+        entity.loop(loopCounter, loopItem);
         this.entityManager.persist(entity);
         return entity;
     }
@@ -85,6 +97,13 @@ public class JpaProcessStepRepository implements ProcessStepRepository {
         for (final UUID id : ids) {
             this.entity(id).endDate(endDate);
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = NoSuchProcessStepException.class)
+    public void updateLoop(final UUID id, final Integer loopCounter, final Object loopItem)
+            throws NoSuchProcessStepException {
+        this.entity(id).loop(loopCounter, loopItem);
     }
 
     @Override

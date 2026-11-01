@@ -26,9 +26,17 @@ public interface BpmnNodeContext {
 
     /**
      * @return the number of iterations of the node's standard loop ({@code standardLoopCharacteristics}) completed
-     *         before this execution; {@code 0} for the first iteration and for nodes without loop
+     *         before this execution, or the 0-based index of this instance of a multi-instance activity
+     *         ({@code multiInstanceLoopCharacteristics}); {@code 0} for the first iteration and for nodes without
+     *         loop
      */
     int loopCounter();
+
+    /**
+     * @return the element of the input collection ({@code loopDataInputRef}) this instance of a multi-instance
+     *         activity runs for; {@code null} with {@code loopCardinality} and for nodes without multi-instance loop
+     */
+    Object loopItem();
 
     /**
      * @return the current process variables including the changes made through this context, unmodifiable

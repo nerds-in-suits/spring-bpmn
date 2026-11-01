@@ -919,18 +919,6 @@ class BpmnNodeTaskTest {
     }
 
     @Test
-    void multiInstanceActivityFails() {
-        final ProcessInstance instance = this.instance("<task id=\"t\"><multiInstanceLoopCharacteristics/></task>"
-                + "<serviceTask id=\"st\" spring:bean=\"recording\"><multiInstanceLoopCharacteristics "
-                + "isSequential=\"true\"/></serviceTask>");
-        this.withEngine(context -> {
-            this.assertFails(context, instance, "t");
-            this.assertFails(context, instance, "st");
-            Assertions.assertTrue(this.calls.isEmpty());
-        });
-    }
-
-    @Test
     void unknownNodeOrStepFails() {
         final ProcessInstance instance = this.instance("<task id=\"t\"/><sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"t\"/>");
         this.withEngine(context -> {

@@ -25,10 +25,11 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
 
     @Override
     public ProcessStep create(final UUID instanceId, final String nodeId, final String incomingFlowId,
-            final UUID parentStepId) throws NoSuchProcessInstanceException {
+            final UUID parentStepId, final Integer loopCounter, final Object loopItem)
+            throws NoSuchProcessInstanceException {
         this.instances.retrieve(instanceId);
         final ProcessStep step = new Step(UUID.randomUUID(), instanceId, nodeId, incomingFlowId, parentStepId,
-                new Date(), null);
+                loopCounter, loopItem, new Date(), null);
         this.created.add(step);
         return step;
     }
@@ -64,8 +65,17 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
             final int index = this.index(id);
             final ProcessStep old = this.created.get(index);
             this.created.set(index, new Step(id, old.processInstanceId(), old.nodeId(), old.incomingFlowId(),
-                    old.parentStepId(), old.startDate(), endDate));
+                    old.parentStepId(), old.loopCounter(), old.loopItem(), old.startDate(), endDate));
         }
+    }
+
+    @Override
+    public void updateLoop(final UUID id, final Integer loopCounter, final Object loopItem)
+            throws NoSuchProcessStepException {
+        final int index = this.index(id);
+        final ProcessStep old = this.created.get(index);
+        this.created.set(index, new Step(id, old.processInstanceId(), old.nodeId(), old.incomingFlowId(),
+                old.parentStepId(), loopCounter, loopItem, old.startDate(), old.endDate()));
     }
 
     @Override
@@ -90,10 +100,12 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
      * @param nodeId the node id
      * @param incomingFlowId the incoming flow id
      * @param parentStepId the parent step id
+     * @param loopCounter the loop counter
+     * @param loopItem the loop item
      * @param startDate the start date
      * @param endDate the end date
      */
     record Step(UUID id, UUID processInstanceId, String nodeId, String incomingFlowId, UUID parentStepId,
-            Date startDate, Date endDate) implements ProcessStep {
+            Integer loopCounter, Object loopItem, Date startDate, Date endDate) implements ProcessStep {
     }
 }
