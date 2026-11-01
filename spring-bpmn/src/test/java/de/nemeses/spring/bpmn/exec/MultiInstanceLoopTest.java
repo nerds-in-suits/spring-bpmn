@@ -370,6 +370,31 @@ class MultiInstanceLoopTest {
     }
 
     @Test
+    void manualTaskLoopPassesThroughEveryInstance() {
+        final ProcessInstance instance = this.instance(Map.of("items", List.of("a", "b")),
+                "<manualTask id=\"mi\"><multiInstanceLoopCharacteristics isSequential=\"true\">"
+                        + "<loopDataInputRef>items</loopDataInputRef><inputDataItem id=\"i\" name=\"item\"/>"
+                        + "</multiInstanceLoopCharacteristics></manualTask><endEvent id=\"e\"/>"
+                        + "<sequenceFlow id=\"f\" sourceRef=\"mi\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            final ProcessStep activity = this.execute(context, instance, "mi");
+            final ProcessStep first = this.triggered(context, "mi").get(0);
+            Assertions.assertEquals(activity.id(), first.parentStepId());
+            Assertions.assertEquals(0, first.loopCounter());
+            MultiInstanceLoopTest.execute(context, first);
+            Assertions.assertNotNull(this.stored(first).endDate());
+            Assertions.assertTrue(this.triggered(context, "e").isEmpty());
+
+            final ProcessStep second = this.triggered(context, "mi").get(1);
+            Assertions.assertEquals(1, second.loopCounter());
+            MultiInstanceLoopTest.execute(context, second);
+            Assertions.assertNotNull(this.stored(activity).endDate());
+            Assertions.assertEquals(1, this.triggered(context, "e").size());
+            Assertions.assertEquals(Map.of("items", List.of("a", "b")), this.variables(instance));
+        });
+    }
+
+    @Test
     void pendingLoopKeepsInstanceRunning() {
         final ProcessInstance instance = this.instance(Map.of(), "<parallelGateway id=\"fork\"/>"
                 + "<task id=\"mi\"><multiInstanceLoopCharacteristics><loopCardinality>1</loopCardinality>"

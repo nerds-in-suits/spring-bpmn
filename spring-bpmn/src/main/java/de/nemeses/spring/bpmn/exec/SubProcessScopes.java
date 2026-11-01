@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +69,7 @@ class SubProcessScopes {
      *            {@code null} at the top level
      * @throws NoSuchProcessInstanceException if the instance does not exist
      */
-    void take(final ProcessInstance instance, final List<SequenceFlow> taken, final UUID parentStepId)
+    void take(final ProcessInstance instance, final Collection<SequenceFlow> taken, final UUID parentStepId)
             throws NoSuchProcessInstanceException {
         for (final SequenceFlow flow : taken) {
             BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(),
@@ -101,7 +102,7 @@ class SubProcessScopes {
             final SubProcess subProcess = (SubProcess) ProcessNavigator.flowNode(process, subProcessStep.nodeId());
             // the variables as changed by the step just executed
             final Map<String, Object> variables = this.instances.retrieve(instance.id()).variables();
-            final List<SequenceFlow> taken = this.flows.activity(subProcess,
+            final Collection<SequenceFlow> taken = this.flows.activity(subProcess,
                     ProcessNavigator.outgoing(process, subProcess), language, variables);
             this.steps.complete(List.of(scope), new Date());
             this.take(instance, taken, subProcessStep.parentStepId());

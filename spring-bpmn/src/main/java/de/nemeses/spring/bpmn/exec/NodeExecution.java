@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -107,7 +108,8 @@ public final class NodeExecution {
     }
 
     /**
-     * @return the sequence flows leaving the node
+     * @return the sequence flows leaving the node, in document order
+     *         (an exclusive gateway takes the first matching one)
      */
     public List<SequenceFlow> outgoing() {
         return this.hasOutgoing ? ProcessNavigator.outgoing(this.process, this.node) : List.of();
@@ -116,7 +118,7 @@ public final class NodeExecution {
     /**
      * @return the sequence flows arriving at the node
      */
-    public List<SequenceFlow> incoming() {
+    public Collection<SequenceFlow> incoming() {
         return ProcessNavigator.incoming(this.process, this.node);
     }
 
@@ -138,7 +140,7 @@ public final class NodeExecution {
 
     /**
      * @return whether the step being executed was completed through this execution ({@link #complete()} or
-     *         {@link #complete(List)})
+     *         {@link #complete(Collection)})
      */
     public boolean isCompleted() {
         return this.completed;
@@ -177,7 +179,7 @@ public final class NodeExecution {
      * @param stepIds the ids of the steps to complete
      * @throws ProcessEngineException if a step does not exist
      */
-    public void complete(final List<UUID> stepIds) throws ProcessEngineException {
+    public void complete(final Collection<UUID> stepIds) throws ProcessEngineException {
         try {
             this.steps.complete(stepIds, new Date());
             this.completed |= stepIds.contains(this.processStep.id());

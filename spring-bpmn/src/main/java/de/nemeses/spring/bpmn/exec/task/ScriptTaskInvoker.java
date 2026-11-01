@@ -1,6 +1,6 @@
 package de.nemeses.spring.bpmn.exec.task;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 import org.springframework.stereotype.Component;
@@ -37,11 +37,11 @@ class ScriptTaskInvoker implements Invoker<ScriptTask> {
     }
 
     @Override
-    public List<SequenceFlow> invoke(final ScriptTask node, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final ScriptTask node, final NodeExecution execution)
             throws ProcessEngineException {
         final Map<String, Object> variables = this.runner.run(node, execution,
                 context -> this.scripts.execute(node, context));
-        final List<SequenceFlow> taken = this.flows.activity(node, execution.outgoing(), execution.language(),
+        final Collection<SequenceFlow> taken = this.flows.activity(node, execution.outgoing(), execution.language(),
                 variables);
         execution.complete();
         return taken;

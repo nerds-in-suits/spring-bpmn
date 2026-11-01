@@ -75,7 +75,7 @@ public class JpaProcessStepRepository implements ProcessStepRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProcessStep> children(final UUID parentStepId) {
+    public Collection<ProcessStep> children(final UUID parentStepId) {
         return List.copyOf(this.entityManager.createQuery("select s from ProcessStepEntity s"
                 + " where s.parentStep = :parentStepId order by s.start", ProcessStepEntity.class)
                 .setParameter("parentStepId", parentStepId)

@@ -27,7 +27,8 @@ Do not invent Camunda-like APIs to fill a gap.
   Takes the first non-default outgoing flow in document order without condition or with a true condition, else the `default` flow, and fails if there is none.
 - `inclusiveGateway`: not supported (#57).
 - `intermediateCatchEvent`, `intermediateThrowEvent`: not supported (#61).
-- `manualTask`: not supported (#65).
+- `manualTask`: supported (`ManualTaskInvoker`).
+  Passed through like a plain `task`, without waiting; its standard and multi-instance loops run like those of a plain `task`.
 - `multiInstanceLoopCharacteristics`: supported on `task`, `serviceTask` and `scriptTask` (`loop.MultiInstanceLoop`).
   One step per instance, below the pending step of the activity; parallel loops create all instance steps at once, sequential loops one after the other.
   The number of instances is `loopCardinality` (SpEL) or the size of the collection variable named by `loopDataInputRef`.

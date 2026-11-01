@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec.event;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 
@@ -46,7 +47,7 @@ class EndEventInvoker implements Invoker<EndEvent> {
     }
 
     @Override
-    public List<SequenceFlow> invoke(final EndEvent node, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final EndEvent node, final NodeExecution execution)
             throws ProcessEngineException {
         if (!node.getEventDefinition().isEmpty() || !node.getEventDefinitionRef().isEmpty()) {
             throw new ProcessEngineException("End event '" + node.getId()

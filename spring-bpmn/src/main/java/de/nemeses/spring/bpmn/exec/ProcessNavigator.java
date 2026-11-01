@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -42,7 +43,8 @@ final class ProcessNavigator {
     /**
      * @param process the process
      * @param node the flow node
-     * @return the sequence flows leaving the node
+     * @return the sequence flows leaving the node, in document order
+     *         (an exclusive gateway takes the first matching one)
      */
     static List<SequenceFlow> outgoing(final Process process, final FlowNode node) {
         return ProcessNavigator.flows(process, node, SequenceFlow::getSourceRef);
@@ -53,7 +55,7 @@ final class ProcessNavigator {
      * @param node the flow node
      * @return the sequence flows arriving at the node
      */
-    static List<SequenceFlow> incoming(final Process process, final FlowNode node) {
+    static Collection<SequenceFlow> incoming(final Process process, final FlowNode node) {
         return ProcessNavigator.flows(process, node, SequenceFlow::getTargetRef);
     }
 
