@@ -1,5 +1,6 @@
 package de.nemeses.spring.bpmn.exec.subprocess;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.slf4j.LoggerFactory;
@@ -46,7 +47,7 @@ class SubProcessInvoker implements Invoker<SubProcess> {
     }
 
     @Override
-    public List<SequenceFlow> invoke(final SubProcess node, final NodeExecution execution)
+    public Collection<SequenceFlow> invoke(final SubProcess node, final NodeExecution execution)
             throws ProcessEngineException {
         if (node.isTriggeredByEvent()) {
             throw new ProcessEngineException("Node '" + node.getId()
@@ -64,7 +65,7 @@ class SubProcessInvoker implements Invoker<SubProcess> {
                     step.id(), node.getId(), instance.id());
             return List.of();
         }
-        final List<String> startEvents = SubProcessInvoker.startEvents(node);
+        final Collection<String> startEvents = SubProcessInvoker.startEvents(node);
         if (startEvents.isEmpty()) {
             throw new ProcessEngineException("Sub-process '" + node.getId() + "' has no start event.");
         }
@@ -80,9 +81,9 @@ class SubProcessInvoker implements Invoker<SubProcess> {
     }
 
     /**
-     * @return the ids of the start events directly inside the sub-process (not in nested ones), in document order
+     * @return the ids of the start events directly inside the sub-process (not in nested ones)
      */
-    private static List<String> startEvents(final SubProcess subProcess) {
+    private static Collection<String> startEvents(final SubProcess subProcess) {
         return subProcess.getFlowElement().stream()
                 .map(JAXBElement::getValue)
                 .filter(StartEvent.class::isInstance)

@@ -116,7 +116,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
      *             evaluated, the delegate failed or a step or the instance does not exist
      */
     @Override
-    public List<SequenceFlow> invoke(final T node, final NodeExecution execution) throws ProcessEngineException {
+    public Collection<SequenceFlow> invoke(final T node, final NodeExecution execution) throws ProcessEngineException {
         final Activity activity = (Activity) node;
         if (activity.getLoopCharacteristics() == null
                 || !(activity.getLoopCharacteristics().getValue()
@@ -163,7 +163,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
     /**
      * First execution of the activity step: creates the instance steps.
      */
-    private List<SequenceFlow> start(final Loop loop, final ProcessStep step)
+    private Collection<SequenceFlow> start(final Loop loop, final ProcessStep step)
             throws ProcessEngineException, NoSuchProcessStepException, NoSuchProcessInstanceException {
         if (!this.steps.children(step.id()).isEmpty()) {
             LoggerFactory.getLogger(this.getClass()).info(
@@ -233,7 +233,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
     /**
      * Runs one instance step and completes the loop if it is finished.
      */
-    private List<SequenceFlow> runInstance(final Loop loop, final T node, final NodeExecution execution,
+    private Collection<SequenceFlow> runInstance(final Loop loop, final T node, final NodeExecution execution,
             final ProcessStep activityStep)
             throws ProcessEngineException, NoSuchProcessStepException, NoSuchProcessInstanceException {
         final ProcessStep step = execution.step();
@@ -243,8 +243,8 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
 
         final int count = activityStep.loopCounter();
         // read after locking: the instance steps completed by other executions of this loop are seen
-        final List<ProcessStep> children = this.steps.children(activityStep.id());
-        final List<UUID> pending = children.stream()
+        final Collection<ProcessStep> children = this.steps.children(activityStep.id());
+        final Collection<UUID> pending = children.stream()
                 .filter(child -> child.endDate() == null && !child.id().equals(step.id()))
                 .map(ProcessStep::id)
                 .toList();
@@ -347,7 +347,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
     /**
      * Collects the outputs, stores the variables, completes the activity step and selects the outgoing flows.
      */
-    private List<SequenceFlow> finish(final Loop loop, final ProcessStep activityStep,
+    private Collection<SequenceFlow> finish(final Loop loop, final ProcessStep activityStep,
             final Map<String, Object> variables, final Map<String, Object> stored)
             throws ProcessEngineException, NoSuchProcessStepException, NoSuchProcessInstanceException {
         if (loop.characteristics().getLoopDataOutputRef() != null) {
@@ -362,7 +362,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
             variables.put(loop.characteristics().getLoopDataOutputRef().getLocalPart(), new ArrayList<>(list));
         }
         this.store(loop.instance(), variables, stored);
-        final List<SequenceFlow> taken = this.flows.activity(loop.activity(), loop.outgoing(), loop.language(),
+        final Collection<SequenceFlow> taken = this.flows.activity(loop.activity(), loop.outgoing(), loop.language(),
                 variables);
         this.steps.complete(List.of(activityStep.id()), new Date());
         return taken;
@@ -407,6 +407,6 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
      * @param language the default expression language of the document
      */
     private record Loop(ProcessInstance instance, Activity activity, MultiInstanceLoopCharacteristics characteristics,
-            List<SequenceFlow> outgoing, String language) {
+            Collection<SequenceFlow> outgoing, String language) {
     }
 }

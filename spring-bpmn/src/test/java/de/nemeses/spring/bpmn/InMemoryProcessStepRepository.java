@@ -48,7 +48,7 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
     }
 
     @Override
-    public List<ProcessStep> children(final UUID parentStepId) {
+    public Collection<ProcessStep> children(final UUID parentStepId) {
         return this.created.stream().filter(step -> parentStepId.equals(step.parentStepId())).toList();
     }
 
