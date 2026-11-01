@@ -57,12 +57,13 @@ Package-private helpers are listed when they hold engine behaviour.
 - `CallActivityInvoker`: starts and resumes `callActivity` steps and maps variables to and from the child instance.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
+- `MultiInstanceLoop`: runs the `multiInstanceLoopCharacteristics` of an activity, one step per instance below the pending activity step.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
 - `ScriptTaskInvoker`: runs the SpEL script of a `scriptTask`.
 - `SubProcessScopes`: creates follow-up steps in their scope and enters and leaves embedded sub-processes.
-- `TaskInvoker`: runs service and script tasks (with their loops) and stores the variables they changed.
+- `TaskInvoker`: runs service and script tasks (with their standard loops) and stores the variables they changed; runs single multi-instance instances for `MultiInstanceLoop`.
 
 ### `de.nemeses.spring.bpmn.model.*` (module `spring-bpmn`, generated)
 
@@ -77,7 +78,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessDefinitionService`: registers and retrieves process definition versions.
 - `ProcessInstance`: a running or ended instance with its variables; `parentStep()` is the waiting call activity step, if any.
 - `ProcessInstanceRepository`: stores instances; `lock` serializes the steps of one instance.
-- `ProcessStep`: one execution of a flow node; pending while `endDate` is null; `parentStepId()` is the enclosing sub-process step.
+- `ProcessStep`: one execution of a flow node; pending while `endDate` is null; `parentStepId()` is the enclosing sub-process or multi-instance activity step; `loopCounter()`/`loopItem()` hold loop data.
 - `ProcessStepRepository`: stores steps, which are never deleted and form the trail of an instance.
 
 ### `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`)

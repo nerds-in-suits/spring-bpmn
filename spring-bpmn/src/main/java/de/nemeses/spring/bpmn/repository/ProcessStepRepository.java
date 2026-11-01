@@ -21,8 +21,38 @@ public interface ProcessStepRepository {
      * @return the persisted step
      * @throws NoSuchProcessInstanceException if no instance with that id exists
      */
-    ProcessStep create(UUID instanceId, String nodeId, String incomingFlowId, UUID parentStepId)
-            throws NoSuchProcessInstanceException;
+    default ProcessStep create(final UUID instanceId, final String nodeId, final String incomingFlowId,
+            final UUID parentStepId) throws NoSuchProcessInstanceException {
+        return this.create(instanceId, nodeId, incomingFlowId, parentStepId, null, null);
+    }
+
+    /**
+     * Persists a new pending step with loop data ({@link ProcessStep#loopCounter()}, {@link ProcessStep#loopItem()}).
+     * The repository assigns its id and start date (now).
+     *
+     * @param instanceId the id of the owning process instance
+     * @param nodeId the id of the flow node to execute
+     * @param incomingFlowId the id of the sequence flow the step arrived on, {@code null} for a start event
+     * @param parentStepId the id of the parent step (embedded sub-process or multi-instance activity), {@code null}
+     *            at the top level of the process
+     * @param loopCounter the loop counter, may be {@code null}
+     * @param loopItem the loop item, may be {@code null}; must be serializable by the repository (the JPA repository
+     *            stores it as JSON)
+     * @return the persisted step
+     * @throws NoSuchProcessInstanceException if no instance with that id exists
+     */
+    ProcessStep create(UUID instanceId, String nodeId, String incomingFlowId, UUID parentStepId, Integer loopCounter,
+            Object loopItem) throws NoSuchProcessInstanceException;
+
+    /**
+     * Sets the loop data of a step, e.g. of a multi-instance activity once its instances are created.
+     *
+     * @param id the id of the step
+     * @param loopCounter the new {@link ProcessStep#loopCounter()}
+     * @param loopItem the new {@link ProcessStep#loopItem()}
+     * @throws NoSuchProcessStepException if no step with that id exists
+     */
+    void updateLoop(UUID id, Integer loopCounter, Object loopItem) throws NoSuchProcessStepException;
 
     /**
      * @param id the id of the step

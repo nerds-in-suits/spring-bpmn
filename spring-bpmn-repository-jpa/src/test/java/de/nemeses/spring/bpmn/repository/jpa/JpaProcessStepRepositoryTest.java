@@ -87,6 +87,29 @@ class JpaProcessStepRepositoryTest {
     }
 
     @Test
+    void testLoopDataOfMultiInstanceSteps() throws NoSuchProcessInstanceException, NoSuchProcessStepException {
+        final ProcessStep activity = this.repository.create(this.instance.id(), "mi", "f", null);
+        Assertions.assertNull(this.repository.retrieve(activity.id()).loopCounter());
+        Assertions.assertNull(this.repository.retrieve(activity.id()).loopItem());
+
+        this.repository.updateLoop(activity.id(), 2, List.of(Map.of("name", "a"), "b"));
+        final ProcessStep first = this.repository.create(this.instance.id(), "mi", "f", activity.id(), 0,
+                Map.of("name", "a"));
+        final ProcessStep second = this.repository.create(this.instance.id(), "mi", "f", activity.id(), 1, null);
+
+        Assertions.assertEquals(2, this.repository.retrieve(activity.id()).loopCounter());
+        Assertions.assertEquals(List.of(Map.of("name", "a"), "b"), this.repository.retrieve(activity.id()).loopItem());
+        Assertions.assertEquals(0, this.repository.retrieve(first.id()).loopCounter());
+        Assertions.assertEquals(Map.of("name", "a"), this.repository.retrieve(first.id()).loopItem());
+        Assertions.assertEquals(1, this.repository.retrieve(second.id()).loopCounter());
+        Assertions.assertNull(this.repository.retrieve(second.id()).loopItem());
+        Assertions.assertEquals(Set.of(first.id(), second.id()),
+                Set.copyOf(JpaProcessStepRepositoryTest.ids(this.repository.children(activity.id()))));
+        Assertions.assertThrows(NoSuchProcessStepException.class,
+                () -> this.repository.updateLoop(UUID.randomUUID(), 1, null));
+    }
+
+    @Test
     void testCreateForUnknownInstanceFails() {
         Assertions.assertThrows(NoSuchProcessInstanceException.class,
                 () -> this.repository.create(UUID.randomUUID(), "t", null, null));

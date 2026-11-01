@@ -107,6 +107,24 @@ class TaskInvoker {
         return this.loops.run(task, language, instance.variables(), (_, current) -> current);
     }
 
+    /**
+     * Runs the work of a task once with the given context, without loop and without storing variables (used for one
+     * instance of a multi-instance activity by the {@link MultiInstanceLoop}).
+     *
+     * @param activity a {@code serviceTask}, {@code scriptTask} or plain {@code task} (which does nothing)
+     * @param context the context; collects the variable changes
+     * @throws ProcessEngineException if the bean is missing or no {@link BpmnNodeImplementation}, or the work failed
+     */
+    void execute(final Activity activity, final NodeContext context) throws ProcessEngineException {
+        switch (activity) {
+        case final ServiceTask task -> this.implementation(task).execute(context);
+        case final ScriptTask task -> this.scripts.execute(task, context);
+        default -> {
+            // a plain task has no work
+        }
+        }
+    }
+
     private BpmnNodeImplementation implementation(final ServiceTask task) throws ProcessEngineException {
         final String beanName = task.getOtherAttributes().get(BpmnNodeExecutor.BEAN_ATTRIBUTE);
         if (beanName == null) {

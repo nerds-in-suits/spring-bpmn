@@ -23,7 +23,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.StandardLoopCharacteristics;
  * the activity runs {@code loopMaximum} times; without both the loop is rejected. The {@code loopCondition} is evaluated
  * by the {@link ConditionEvaluator} against the variables as changed by the iterations so far plus the variable
  * {@value #LOOP_COUNTER} (which hides a process variable of the same name in the condition).
- * {@code multiInstanceLoopCharacteristics} are not supported yet.
+ * {@code multiInstanceLoopCharacteristics} are run by the {@link MultiInstanceLoop} instead and fail here.
  */
 @Component
 class ActivityLoop {

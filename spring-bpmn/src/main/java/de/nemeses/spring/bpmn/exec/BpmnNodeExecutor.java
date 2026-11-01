@@ -59,11 +59,13 @@ public class BpmnNodeExecutor {
     private final FlowSelector flows;
     private final SubProcessScopes subProcesses;
     private final CallActivityInvoker callActivities;
+    private final MultiInstanceLoop multiInstances;
 
-    @SuppressWarnings("PMD.ExcessiveParameterList") // constructor injection of the collaborators
+    @SuppressWarnings({"PMD.ExcessiveParameterList", "checkstyle:ParameterNumber"}) // constructor injection
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final BpmnParser parser, final TaskInvoker tasks, final FlowSelector flows,
-            final SubProcessScopes subProcesses, final CallActivityInvoker callActivities) {
+            final SubProcessScopes subProcesses, final CallActivityInvoker callActivities,
+            final MultiInstanceLoop multiInstances) {
         this.instances = instances;
         this.steps = steps;
         this.parser = parser;
@@ -71,6 +73,7 @@ public class BpmnNodeExecutor {
         this.flows = flows;
         this.subProcesses = subProcesses;
         this.callActivities = callActivities;
+        this.multiInstances = multiInstances;
     }
 
     /**
@@ -132,8 +135,10 @@ public class BpmnNodeExecutor {
      * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}
      * (through the {@link FlowSelector}). Flows out of start events and parallel gateways must not have a condition.
      * {@code task}, {@code serviceTask} and {@code scriptTask} may have {@code standardLoopCharacteristics}: all iterations run in this
-     * step (see {@link ActivityLoop}) and the outgoing flows are taken once after the last iteration;
-     * {@code multiInstanceLoopCharacteristics} are not supported yet.
+     * step (see {@link ActivityLoop}) and the outgoing flows are taken once after the last iteration. They may have
+     * {@code multiInstanceLoopCharacteristics} instead: each instance runs in a step of its own, whose parent is the
+     * pending step of the activity, and the outgoing flows are taken once when the loop is finished (see
+     * {@link MultiInstanceLoop}); a step whose parent is a step at the same node is such an instance step.
      * A step that is no longer pending (a task delivered again, or a join step completed by another step) and the steps
      * of an instance that has already ended are skipped.
      *
@@ -148,16 +153,7 @@ public class BpmnNodeExecutor {
             final ProcessInstance instance = this.instances.lock(step.processInstanceId());
             // read after locking, so steps completed by a concurrent execution are seen
             final List<ProcessStep> pendingAtNode = this.steps.pending(instance.id(), step.nodeId());
-            if (pendingAtNode.stream().noneMatch(pending -> pending.id().equals(stepId))) {
-                LoggerFactory.getLogger(this.getClass()).info(
-                        "Skipping step {} (node {}) of process instance {}, which is already completed.",
-                        stepId, step.nodeId(), instance.id());
-                return;
-            }
-            if (instance.endDate() != null) {
-                LoggerFactory.getLogger(this.getClass()).warn(
-                        "Skipping step {} (node {}) of process instance {}, which has ended.",
-                        stepId, step.nodeId(), instance.id());
+            if (this.isSkipped(instance, step, pendingAtNode)) {
                 return;
             }
             final Definitions document = ProcessEngineService.parse(this.parser, instance.processDefinition());
@@ -165,10 +161,16 @@ public class BpmnNodeExecutor {
             final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
             final List<SequenceFlow> incoming = ProcessNavigator.incoming(process, node);
             final List<SequenceFlow> taken;
+            UUID scope = step.parentStepId();
             if (node instanceof ParallelGateway && incoming.size() > 1) {
                 taken = this.join(instance, process, node, incoming, pendingAtNode.stream()
                         .filter(pending -> SubProcessScopes.inSameScope(pending, step))
                         .toList());
+            } else if (MultiInstanceLoop.isMultiInstance(node)) {
+                final MultiInstanceLoop.Result result = this.multiInstances.execute(instance, step, node,
+                        ProcessNavigator.outgoing(process, node), document.getExpressionLanguage());
+                taken = result.taken();
+                scope = result.scope();
             } else if (this.subProcesses.enter(instance, step, node)) {
                 taken = List.of();
             } else if (node instanceof final CallActivity call) {
@@ -178,18 +180,37 @@ public class BpmnNodeExecutor {
                 taken = this.run(instance, document.getExpressionLanguage(), process, node);
                 this.steps.complete(List.of(stepId), new Date());
             }
-            this.subProcesses.take(instance, taken, step.parentStepId());
+            this.subProcesses.take(instance, taken, scope);
             if (node instanceof EndEvent && step.parentStepId() == null) {
                 this.end(instance, node);
             }
-            this.subProcesses.leaveCompleted(instance, document.getExpressionLanguage(), process,
-                    step.parentStepId());
+            this.subProcesses.leaveCompleted(instance, document.getExpressionLanguage(), process, scope);
             LoggerFactory.getLogger(this.getClass()).debug(
                     "Executed step {} (node {}) of process instance {}, taken flows {}",
                     stepId, step.nodeId(), instance.id(), taken.stream().map(SequenceFlow::getId).toList());
         } catch (final NoSuchProcessStepException | NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot execute process step " + stepId + ".", e);
         }
+    }
+
+    /**
+     * @return whether the step is no longer pending or its instance has ended (and is to be skipped)
+     */
+    private boolean isSkipped(final ProcessInstance instance, final ProcessStep step,
+            final List<ProcessStep> pendingAtNode) {
+        if (pendingAtNode.stream().noneMatch(pending -> pending.id().equals(step.id()))) {
+            LoggerFactory.getLogger(this.getClass()).info(
+                    "Skipping step {} (node {}) of process instance {}, which is already completed.",
+                    step.id(), step.nodeId(), instance.id());
+            return true;
+        }
+        if (instance.endDate() != null) {
+            LoggerFactory.getLogger(this.getClass()).warn(
+                    "Skipping step {} (node {}) of process instance {}, which has ended.",
+                    step.id(), step.nodeId(), instance.id());
+            return true;
+        }
+        return false;
     }
 
     /**

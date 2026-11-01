@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
@@ -42,9 +43,17 @@ public class ProcessStepEntity implements ProcessStep {
     @Column(name = "incoming_flow_id", updatable = false)
     private String incomingFlow;
 
-    /** The step of the embedded sub-process this step runs in; {@code null} at the top level. */
+    /** The step of the sub-process or multi-instance activity this step runs in; {@code null} at the top level. */
     @Column(name = "parent_step_id", updatable = false)
     private UUID parentStep;
+
+    @Column(name = "loop_counter")
+    private Integer counter;
+
+    /** {@link #loopItem()} as JSON; {@code null} if there is none. */
+    @Lob
+    @Column(name = "loop_item")
+    private String itemJson;
 
     @Column(name = "start_date", nullable = false, updatable = false)
     private Date start;
@@ -65,6 +74,17 @@ public class ProcessStepEntity implements ProcessStep {
         this.incomingFlow = incomingFlowId;
         this.parentStep = parentStepId;
         this.start = startDate;
+    }
+
+    /**
+     * Sets the loop data.
+     *
+     * @param loopCounter the loop counter, may be {@code null}
+     * @param loopItem the loop item, may be {@code null}
+     */
+    void loop(final Integer loopCounter, final Object loopItem) {
+        this.counter = loopCounter;
+        this.itemJson = loopItem == null ? null : ProcessVariableEntity.toJson(loopItem);
     }
 
     @Override
@@ -91,6 +111,18 @@ public class ProcessStepEntity implements ProcessStep {
     @Override
     public UUID parentStepId() {
         return this.parentStep;
+    }
+
+    @Override
+    public Integer loopCounter() {
+        return this.counter;
+    }
+
+    @Override
+    public Object loopItem() {
+        return this.itemJson == null
+                ? null
+                : ProcessVariableEntity.fromJson(this.itemJson, "loop item of process step " + this.uuid);
     }
 
     @Override

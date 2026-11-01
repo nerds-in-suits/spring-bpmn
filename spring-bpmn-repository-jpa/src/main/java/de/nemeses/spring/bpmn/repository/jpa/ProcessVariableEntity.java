@@ -55,11 +55,7 @@ public class ProcessVariableEntity {
      * @return the deserialized value
      */
     Object value() {
-        try {
-            return ProcessVariableEntity.MAPPER.readValue(this.json, Object.class);
-        } catch (final JacksonException e) {
-            throw new IllegalArgumentException("Cannot deserialize process variable '" + this.name + "'.", e);
-        }
+        return ProcessVariableEntity.fromJson(this.json, "process variable '" + this.name + "'");
     }
 
     /**
@@ -74,11 +70,30 @@ public class ProcessVariableEntity {
         }
     }
 
-    private static String toJson(final Object value) {
+    /**
+     * @param value a value
+     * @return the value as JSON
+     * @throws IllegalArgumentException if the value cannot be serialized
+     */
+    static String toJson(final Object value) {
         try {
             return ProcessVariableEntity.MAPPER.writeValueAsString(value);
         } catch (final JacksonException e) {
-            throw new IllegalArgumentException("Cannot serialize process variable.", e);
+            throw new IllegalArgumentException("Cannot serialize value " + value + ".", e);
+        }
+    }
+
+    /**
+     * @param json a JSON value
+     * @param description what the value is, for the error message
+     * @return the deserialized value
+     * @throws IllegalArgumentException if the JSON cannot be deserialized
+     */
+    static Object fromJson(final String json, final String description) {
+        try {
+            return ProcessVariableEntity.MAPPER.readValue(json, Object.class);
+        } catch (final JacksonException e) {
+            throw new IllegalArgumentException("Cannot deserialize the " + description + ".", e);
         }
     }
 
