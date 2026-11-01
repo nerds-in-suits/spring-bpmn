@@ -16,6 +16,7 @@ import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
+import de.nemeses.spring.bpmn.model.bpmn20.UserTask;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessStepException;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
@@ -134,6 +135,8 @@ public class BpmnNodeExecutor {
      * <li>{@code callActivity}: a wait state. The first execution starts an instance of the called process and leaves
      * the step pending; when that child instance ends, the step is executed again, passes the variables back,
      * completes and takes the outgoing flows like for every activity.</li>
+     * <li>{@code userTask}: a wait state. Its execution leaves the step pending; {@link #completeUserTask} completes it
+     * from outside, merges the given variables and takes the outgoing flows like for every activity.</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date) if no other step of the
      * instance is pending; if the instance was started by a call activity, triggers a {@link BpmnNodeTask} for the
      * waiting call activity step of the parent instance. Inside a sub-process it only completes its step (see
@@ -161,18 +164,59 @@ public class BpmnNodeExecutor {
      */
     @Transactional(rollbackFor = ProcessEngineException.class)
     public void executeNode(final UUID stepId) throws ProcessEngineException {
+        this.execute(stepId, null);
+    }
+
+    /**
+     * Completes a waiting {@code userTask} step from outside: like {@link #executeNode}, in one transaction under the
+     * lock of the instance, but the {@code userTask} invoker gets the given variables ({@link NodeExecution#completion()}),
+     * merges them into the process variables, completes the step and takes the outgoing flows like for every activity.
+     * Unlike {@link #executeNode}, a step that is no longer pending or whose instance has ended is not skipped but
+     * rejected.
+     *
+     * @param stepId the id of the pending {@code userTask} step
+     * @param variables the variables to set (added or replaced, none removed); {@code null} means none; values must
+     *            not be {@code null}
+     * @throws ProcessEngineException if the step does not exist, is not pending, is not at a {@code userTask}, its
+     *             instance has ended, a value is {@code null}, or the flows cannot be taken
+     */
+    @Transactional(rollbackFor = ProcessEngineException.class)
+    public void completeUserTask(final UUID stepId, final Map<String, Object> variables)
+            throws ProcessEngineException {
+        final Map<String, Object> completion = variables == null ? Map.of() : variables;
+        for (final Map.Entry<String, Object> variable : completion.entrySet()) {
+            if (variable.getKey() == null || variable.getValue() == null) {
+                throw new ProcessEngineException("Cannot complete user task step " + stepId
+                        + " with the null variable or value " + variable.getKey() + ".");
+            }
+        }
+        this.execute(stepId, completion);
+    }
+
+    /**
+     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside.
+     */
+    private void execute(final UUID stepId, final Map<String, Object> completion) throws ProcessEngineException {
         try {
             final ProcessStep step = this.steps.retrieve(stepId);
             final ProcessInstance instance = this.instances.lock(step.processInstanceId());
             // read after locking, so steps completed by a concurrent execution are seen
             final List<ProcessStep> pendingAtNode = this.steps.pending(instance.id(), step.nodeId());
             if (pendingAtNode.stream().noneMatch(pending -> pending.id().equals(stepId))) {
+                if (completion != null) {
+                    throw new ProcessEngineException("Cannot complete user task step " + stepId
+                            + ", which is already completed.");
+                }
                 LoggerFactory.getLogger(this.getClass()).info(
                         "Skipping step {} (node {}) of process instance {}, which is already completed.",
                         stepId, step.nodeId(), instance.id());
                 return;
             }
             if (instance.endDate() != null) {
+                if (completion != null) {
+                    throw new ProcessEngineException("Cannot complete user task step " + stepId
+                            + " of process instance " + instance.id() + ", which has ended.");
+                }
                 LoggerFactory.getLogger(this.getClass()).warn(
                         "Skipping step {} (node {}) of process instance {}, which has ended.",
                         stepId, step.nodeId(), instance.id());
@@ -181,6 +225,10 @@ public class BpmnNodeExecutor {
             final Definitions document = this.models.document(instance.processDefinition());
             final Process process = ProcessEngineService.process(document, instance.processDefinition());
             final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
+            if (completion != null && node.getClass() != UserTask.class) {
+                throw new ProcessEngineException("Cannot complete step " + stepId + ", node '" + node.getId()
+                        + "' is a " + node.getClass().getSimpleName() + ", not a UserTask.");
+            }
             final Invoker<?> invoker = this.invokers.get(node.getClass());
             if (invoker == null) {
                 throw new ProcessEngineException("Node '" + node.getId() + "' is a "
@@ -190,6 +238,9 @@ public class BpmnNodeExecutor {
                     document.getExpressionLanguage(), pendingAtNode.stream()
                             .filter(pending -> SubProcessScopes.inSameScope(pending, step))
                             .toList());
+            if (completion != null) {
+                execution.completion(completion);
+            }
             final Collection<SequenceFlow> taken = BpmnNodeExecutor.invoke(invoker, node, execution);
             this.subProcesses.take(instance, taken, execution.scope());
             this.subProcesses.leaveCompleted(instance, document.getExpressionLanguage(), process,

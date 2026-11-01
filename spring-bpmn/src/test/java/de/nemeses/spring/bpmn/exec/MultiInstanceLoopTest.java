@@ -462,7 +462,6 @@ class MultiInstanceLoopTest {
                 this.assertFails(context, instance, id);
             }
             this.assertFails(context, instance, "behavior");
-            this.assertFails(context, instance, "u");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
 
             // the loop is generic: an activity that cannot run an instance in one step fails at its instance
@@ -471,6 +470,11 @@ class MultiInstanceLoopTest {
             Assertions.assertEquals(1, subProcessInstances.size());
             Assertions.assertThrows(TaskException.class,
                     () -> MultiInstanceLoopTest.execute(context, subProcessInstances.get(0)));
+            this.execute(context, instance, "u");
+            final List<ProcessStep> userTaskInstances = this.triggered(context, "u");
+            Assertions.assertEquals(1, userTaskInstances.size());
+            Assertions.assertThrows(TaskException.class,
+                    () -> MultiInstanceLoopTest.execute(context, userTaskInstances.get(0)));
 
             // the completion condition is evaluated after the instance
             this.execute(context, instance, "nonBooleanCompletion");

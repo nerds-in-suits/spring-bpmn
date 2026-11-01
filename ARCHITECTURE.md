@@ -60,7 +60,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language, flow scope, loop instance); completes steps.
 - `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
-- `ProcessEngineService`: public entry to start process instances.
+- `ProcessEngineService`: public entry to start process instances and to list and complete their open user tasks.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
 - `SubProcessScopes`: creates follow-up steps in their scope and leaves embedded sub-processes.
 
@@ -78,6 +78,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `task.ScriptTaskInvoker`, `task.ServiceTaskInvoker`, `task.TaskInvoker`: execute `scriptTask`, `serviceTask` and plain `task`.
 - `task.SpelScriptRunner`: runs the SpEL script of a `scriptTask`.
 - `task.TaskRunner`: runs the work of a task (with its loop) and stores the variables it changed.
+- `task.UserTaskInvoker`: keeps a `userTask` step pending until `ProcessEngineService.completeUserTask` continues it.
 
 ### `de.nemeses.spring.bpmn.model.*` (module `spring-bpmn`, generated)
 

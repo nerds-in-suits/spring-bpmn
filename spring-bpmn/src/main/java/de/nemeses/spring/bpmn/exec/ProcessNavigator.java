@@ -2,7 +2,9 @@ package de.nemeses.spring.bpmn.exec;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import de.nemeses.spring.bpmn.ProcessDefinitionRegistrar;
@@ -38,6 +40,19 @@ final class ProcessNavigator {
                 .findFirst()
                 .orElseThrow(() -> new ProcessEngineException("Process '"
                         + ProcessDefinitionRegistrar.processName(process) + "' has no flow node '" + nodeId + "'."));
+    }
+
+    /**
+     * @param process the process
+     * @param type the type of the flow nodes
+     * @return the ids of the flow nodes of that type, at the top level of the process or inside a (nested)
+     *         sub-process
+     */
+    static Set<String> flowNodeIds(final Process process, final Class<? extends FlowNode> type) {
+        return ProcessNavigator.elements(process.getFlowElement())
+                .filter(type::isInstance)
+                .map(FlowElement::getId)
+                .collect(Collectors.toSet());
     }
 
     /**
