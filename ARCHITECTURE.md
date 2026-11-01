@@ -74,6 +74,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `loop.MultiInstanceLoop`, `loop.MultiInstanceLoopEnhancer`: wrap the invoker of every activity type and run `multiInstanceLoopCharacteristics` with one step per instance below the pending activity step.
 - `subprocess.SubProcessInvoker`: enters an embedded `subProcess`.
 - `task.ActivityLoop`: runs the `standardLoopCharacteristics` of an activity within one step.
+- `task.ManualTaskInvoker`: passes a `manualTask` through like a plain `task`.
 - `task.ScriptTaskInvoker`, `task.ServiceTaskInvoker`, `task.TaskInvoker`: execute `scriptTask`, `serviceTask` and plain `task`.
 - `task.SpelScriptRunner`: runs the SpEL script of a `scriptTask`.
 - `task.TaskRunner`: runs the work of a task (with its loop) and stores the variables it changed.
