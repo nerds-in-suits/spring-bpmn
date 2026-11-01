@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This file is used just for local development
+ -->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%date{ISO8601} [%-5p][%t][%c][%mdc] %marker %msg %n</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>DEBUG</level>
+        </filter>
+    </appender>
+
+    <root level="DEBUG">
+        <appender-ref ref="STDOUT" />
+    </root>
+    
+    <logger name="de.nemeses" level="DEBUG" />
+    <logger name="org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLogger" level="INFO" />
+    
+</configuration>
