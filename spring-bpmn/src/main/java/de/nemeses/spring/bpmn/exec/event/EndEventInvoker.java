@@ -7,7 +7,7 @@ import java.util.List;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import de.nemeses.spring.bpmn.exec.BpmnNodeTask;
+import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
 import de.nemeses.spring.bpmn.exec.Invoker;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
@@ -23,7 +23,7 @@ import de.nemeses.spring.tasks.TaskService;
 /**
  * Executes an {@code endEvent} without event definition: completes the step and, at the top level of the process,
  * ends the instance (sets its end date) if no other step of it is pending. If the ended instance was started by a
- * {@code callActivity}, triggers a {@link BpmnNodeTask} for the waiting call activity step of the parent instance; the
+ * {@code callActivity}, triggers a {@code bpmnNodeTask} for the waiting call activity step of the parent instance; the
  * step runs in its own task, which locks the parent instance. Inside a sub-process the end event only completes its
  * step.
  */
@@ -76,7 +76,7 @@ class EndEventInvoker implements Invoker<EndEvent> {
             LoggerFactory.getLogger(this.getClass()).info("Process instance {} ended at {}", instance.id(), event.getId());
             final ProcessStep parentStep = instance.parentStep();
             if (parentStep != null) {
-                this.taskService.trigger(BpmnNodeTask.BEAN_NAME, parentStep.id());
+                this.taskService.trigger(BpmnNodeExecutor.BEAN_NAME, parentStep.id());
             }
         } catch (final NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot end process instance " + instance.id() + ".", e);

@@ -22,22 +22,29 @@ import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
+import de.nemeses.spring.tasks.JsonPayloadTaskImplementation;
+import de.nemeses.spring.tasks.TaskException;
 import de.nemeses.spring.tasks.TaskService;
 
 /**
- * Executes single steps (nodes) of process instances; called by the {@link BpmnNodeTask}.
+ * Executes single steps (nodes) of process instances; the task bean {@value #BEAN_NAME}, whose payload is the id of
+ * the {@link ProcessStep} to execute.
  * <p>
  * Each step runs in one transaction. The process instance is locked first ({@link ProcessInstanceRepository#lock}),
  * so the steps of one instance run one after the other, and the pending steps are read after locking. The node is run
  * by the {@link Invoker} for its type (all {@code Invoker} beans are injected and looked up by the exact class of the
  * node, {@link Invoker#nodeType()}). Running the node, completing its step, storing changed variables and creating the
- * steps and {@link BpmnNodeTask}s of the flows taken all happen in that transaction; a {@link ProcessEngineException}
- * rolls all of it back. The supported node types are listed at {@link #executeNode} and in
+ * steps and {@value #BEAN_NAME} tasks of the flows taken all happen in that transaction; a
+ * {@link ProcessEngineException} rolls all of it back and fails the task as a {@link TaskException}; whether it is
+ * retried depends on the task backend. The supported node types are listed at {@link #executeNode} and in
  * {@code docs/bpmn-support.md}.
  */
-@Component
+@Component(BpmnNodeExecutor.BEAN_NAME)
 @SuppressWarnings("PMD.CouplingBetweenObjects") // repositories, BPMN model, invokers and their enhancers
-public class BpmnNodeExecutor {
+public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
+
+    /** Bean name under which the task is scheduled with the {@code TaskService}; persisted tasks refer to it. */
+    public static final String BEAN_NAME = "bpmnNodeTask";
 
     /** Namespace of the BPMN extension attributes understood by the engine. */
     public static final String NAMESPACE = "https://nemeses.de/spring-bpmn";
@@ -54,6 +61,7 @@ public class BpmnNodeExecutor {
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final ProcessDefinitionModelCache models, final SubProcessScopes subProcesses,
             final Collection<Invoker<?>> invokers, final Collection<InvokerEnhancer> enhancers) {
+        super();
         this.instances = instances;
         this.steps = steps;
         this.models = models;
@@ -90,7 +98,7 @@ public class BpmnNodeExecutor {
     }
 
     /**
-     * Creates a pending step for a node and triggers a {@link BpmnNodeTask} with its id.
+     * Creates a pending step for a node and triggers a {@value #BEAN_NAME} task with its id.
      *
      * @param steps the step repository
      * @param taskService the task service
@@ -106,13 +114,49 @@ public class BpmnNodeExecutor {
             final UUID instanceId, final String nodeId, final String incomingFlowId, final UUID parentStepId)
             throws NoSuchProcessInstanceException {
         final ProcessStep step = steps.create(instanceId, nodeId, incomingFlowId, parentStepId);
-        taskService.trigger(BpmnNodeTask.BEAN_NAME, step.id());
+        taskService.trigger(BpmnNodeExecutor.BEAN_NAME, step.id());
         return step;
+    }
+
+    @Override
+    protected Class<UUID> payloadType() {
+        return UUID.class;
+    }
+
+    /**
+     * Entry point of the {@code TaskService}: deserializes the step id and executes the step like
+     * {@link #execute(UUID)}. Overridden only to be transactional, because the inherited default method calls
+     * {@link #execute(UUID)} on this object and so bypasses the transactional proxy.
+     *
+     * @param serializedPayload the step id as JSON
+     * @throws TaskException if the step failed; the transaction is rolled back
+     */
+    @Override
+    @Transactional(rollbackFor = TaskException.class)
+    public void executeSerialized(final String serializedPayload) throws TaskException {
+        this.execute(this.deserializePayload(serializedPayload));
+    }
+
+    /**
+     * Executes the step in one transaction through {@link #executeNode}.
+     *
+     * @param stepId the id of the process step
+     * @throws TaskException with the {@link ProcessEngineException} as cause if the step failed; the transaction is
+     *             rolled back
+     */
+    @Override
+    @Transactional(rollbackFor = TaskException.class)
+    public void execute(final UUID stepId) throws TaskException {
+        try {
+            this.executeNode(stepId);
+        } catch (final ProcessEngineException e) {
+            throw new TaskException("Cannot execute process step " + stepId + ".", e);
+        }
     }
 
     /**
      * Executes one step (a node of a process instance) with the {@link Invoker} for the node's type (as enhanced by
-     * the {@link InvokerEnhancer} beans) and creates a step and triggers a {@link BpmnNodeTask} for the target
+     * the {@link InvokerEnhancer} beans) and creates a step and triggers a {@value #BEAN_NAME} task for the target
      * of each sequence flow taken, all in one transaction. The
      * process instance is locked first ({@link ProcessInstanceRepository#lock}), so the steps of one instance are
      * executed one after the other. Supported node types (one {@link Invoker} each, in the sub-packages):
@@ -135,7 +179,7 @@ public class BpmnNodeExecutor {
      * the step pending; when that child instance ends, the step is executed again, passes the variables back,
      * completes and takes the outgoing flows like for every activity.</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date) if no other step of the
-     * instance is pending; if the instance was started by a call activity, triggers a {@link BpmnNodeTask} for the
+     * instance is pending; if the instance was started by a call activity, triggers a {@value #BEAN_NAME} task for the
      * waiting call activity step of the parent instance. Inside a sub-process it only completes its step (see
      * below).</li>
      * <li>embedded {@code subProcess}: creates a step for each start event inside it, with the sub-process step as

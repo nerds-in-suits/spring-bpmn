@@ -83,8 +83,8 @@ class ProcessEngineServiceTest {
             Assertions.assertSame(this.definitions.get("order"), instance.processDefinition());
             Assertions.assertEquals(Map.of("amount", 3), instance.variables());
 
-            final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
-            Assertions.assertEquals(List.of(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.BEAN_NAME),
+            final BpmnNodeExecutor nodeTask = context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class);
+            Assertions.assertEquals(List.of(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.BEAN_NAME),
                     this.tasks.persisted().stream().map(RecordingTaskPersistence.Recorded::beanName).toList());
             final List<UUID> stepIds = this.tasks.persisted().stream()
                     .map(task -> nodeTask.deserializePayload(task.payload())).toList();

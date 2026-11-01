@@ -61,7 +61,7 @@ class SubProcessScopes {
     }
 
     /**
-     * Creates a step in a scope and triggers a {@link BpmnNodeTask} for the target of each flow.
+     * Creates a step in a scope and triggers a {@code bpmnNodeTask} for the target of each flow.
      *
      * @param instance the process instance
      * @param taken the sequence flows taken
