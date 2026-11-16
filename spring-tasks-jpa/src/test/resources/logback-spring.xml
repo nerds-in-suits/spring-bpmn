@@ -5,7 +5,7 @@ This file is used just for local development
 <configuration>
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%date{ISO8601} [%-5p][%t][%c][%mdc] %marker %msg %n</pattern>
+            <pattern>%date{ISO8601} [%-5p][%t][%c][%mdc] %msg %n</pattern>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>DEBUG</level>
