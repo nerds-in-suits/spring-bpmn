@@ -42,7 +42,7 @@ class ServiceTaskInvoker implements Invoker<ServiceTask> {
     }
 
     @Override
-    public Collection<SequenceFlow> invoke(final ServiceTask node, final NodeExecution execution)
+    public Collection<SequenceFlow> execute(final ServiceTask node, final NodeExecution execution)
             throws ProcessEngineException {
         final BpmnNodeImplementation implementation = this.implementation(node);
         final Map<String, Object> variables = this.runner.run(node, execution, implementation::execute);

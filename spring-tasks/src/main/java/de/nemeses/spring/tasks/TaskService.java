@@ -1,12 +1,15 @@
 package de.nemeses.spring.tasks;
 
+import java.util.Arrays;
 import java.util.Date;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanNotOfRequiredTypeException;
+import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
@@ -19,29 +22,48 @@ import org.springframework.stereotype.Component;
  * {@link TaskPersistence.TaskInfo#complete()} or {@link TaskPersistence.TaskInfo#fail(Exception)}.
  * The workers are interrupted and awaited when the application context stops.
  * All settings are bound from {@link TaskProperties}.
+ * <p>
+ * The {@link TaskImplementation} beans are looked up by name in the bean factory each time a task is scheduled or
+ * executed, not injected, so a task implementation may itself depend on this service.
  */
 @Component
 public class TaskService implements SmartLifecycle {
 
     private final TaskPersistence persistence;
-    private final Map<String, TaskImplementation<?>> tasks;
+    private final ListableBeanFactory beanFactory;
     private final TaskProperties properties;
     private boolean running;
     private ExecutorService workers;
 
-    TaskService(final TaskPersistence persistence, final Map<String, TaskImplementation<?>> tasks,
+    TaskService(final TaskPersistence persistence, final ListableBeanFactory beanFactory,
             final TaskProperties properties) {
         this.persistence = persistence;
         LoggerFactory.getLogger(this.getClass()).info("Using task persistence {}.", persistence);
-        this.tasks = tasks;
-        LoggerFactory.getLogger(this.getClass()).debug("Registered tasks: {}", this.tasks);
+        this.beanFactory = beanFactory;
+        LoggerFactory.getLogger(this.getClass()).debug("Registered tasks: {}",
+            Arrays.asList(beanFactory.getBeanNamesForType(TaskImplementation.class, true, false)));
         this.properties = properties;
     }
 
+    /**
+     * Schedules a task for immediate execution.
+     *
+     * @param beanName the bean name of the {@link TaskImplementation}
+     * @param payload the payload, serialized by that implementation
+     * @throws IllegalArgumentException if there is no bean of that name or it is no {@link TaskImplementation}
+     */
     public void trigger(final String beanName, final Object payload) {
         this.schedule(beanName, payload, null);
     }
 
+    /**
+     * Schedules a task.
+     *
+     * @param beanName the bean name of the {@link TaskImplementation}
+     * @param payload the payload, serialized by that implementation
+     * @param earliestExecution the earliest time to execute the task, <code>null</code> for immediately
+     * @throws IllegalArgumentException if there is no bean of that name or it is no {@link TaskImplementation}
+     */
     public void schedule(final String beanName, final Object payload, final Date earliestExecution) {
         final String serializedPayload = this.taskImplementation(beanName).serializePayloadObj(payload);
         this.persistence.persist(beanName, serializedPayload, earliestExecution);
@@ -164,11 +186,19 @@ public class TaskService implements SmartLifecycle {
         }
     }
 
+    /**
+     * Looks up the task implementation in the bean factory.
+     *
+     * @throws IllegalArgumentException if there is no bean of that name or it is no {@link TaskImplementation}
+     */
     private TaskImplementation<?> taskImplementation(final String beanName) {
-        final TaskImplementation<?> ret = this.tasks.get(beanName);
-        if(ret == null) {
-            throw new IllegalArgumentException("No task implementation registered for bean name '"+beanName+"'.");
+        try {
+            return this.beanFactory.getBean(beanName, TaskImplementation.class);
+        } catch (final NoSuchBeanDefinitionException e) {
+            throw new IllegalArgumentException("No task implementation registered for bean name '" + beanName + "'.",
+                e);
+        } catch (final BeanNotOfRequiredTypeException e) {
+            throw new IllegalArgumentException("Bean '" + beanName + "' is no task implementation.", e);
         }
-        return ret;
     }
 }

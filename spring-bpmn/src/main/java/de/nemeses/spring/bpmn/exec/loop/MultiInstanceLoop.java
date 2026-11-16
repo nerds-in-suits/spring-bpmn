@@ -11,11 +11,11 @@ import java.util.UUID;
 
 import org.slf4j.LoggerFactory;
 
-import de.nemeses.spring.bpmn.exec.BpmnNodeTask;
 import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
+import de.nemeses.spring.bpmn.exec.NodeTrigger;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.BaseElement;
@@ -31,22 +31,23 @@ import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
-import de.nemeses.spring.tasks.TaskService;
 
 /**
  * Wraps the {@link Invoker} of an activity type ({@link MultiInstanceLoopEnhancer}) and runs the activities with
  * {@code multiInstanceLoopCharacteristics} with one {@link ProcessStep} per instance; other activities are passed on
  * to the delegate unchanged.
  * <p>
- * The step that reaches the activity is the <em>activity step</em>. Its first execution determines the number of
+ * Reaching the activity ({@link #trigger}) creates the <em>activity step</em> and determines the number of
  * instances, either by evaluating {@code loopCardinality} (SpEL, must yield a non-negative integer) or as the size of
- * the collection in the process variable named by the local part of {@code loopDataInputRef} (exactly one of both).
- * It stores the number of instances and a copy of the collection in its own loop data
- * ({@link ProcessStepRepository#updateLoop}) and creates the <em>instance steps</em> at the same node, with the
- * activity step as {@link ProcessStep#parentStepId() parent}, their index as {@link ProcessStep#loopCounter()} and
- * their element of the collection as {@link ProcessStep#loopItem()}: all at once if parallel, else only the first one.
- * The activity step stays pending, so the instance does not end while the activity runs. Without instances, the
- * activity step completes at once and takes the outgoing flows.
+ * the collection in the process variable named by the local part of {@code loopDataInputRef} (exactly one of both),
+ * in the transaction of the triggering step. It stores the number of instances and a copy of the collection in the
+ * loop data of the activity step ({@link ProcessStepRepository#updateLoop}) and triggers the <em>instance steps</em>
+ * through the delegate ({@link NodeTrigger#forLoopInstance}), at the same node, with the activity step as
+ * {@link ProcessStep#parentStepId() parent}, their index as {@link ProcessStep#loopCounter()} and their element of the
+ * collection as {@link ProcessStep#loopItem()}: all at once if parallel, else only the first one. The delegate decides
+ * how an instance step is scheduled. The activity step stays pending without task, so the instance does not end while
+ * the activity runs. Without instances, a task is scheduled for the activity step, whose execution completes it and
+ * takes the outgoing flows.
  * <p>
  * Each instance step runs the delegate once, with a view of the execution ({@link NodeExecution#forLoopInstance})
  * that has the index and element of the instance and no outgoing flows; the delegate must complete the instance step
@@ -65,7 +66,7 @@ import de.nemeses.spring.tasks.TaskService;
  * {@code 0} when evaluated). If it is true, or all instances are completed, the pending instance steps are completed
  * without running (their tasks are skipped later), the activity step is completed and the outgoing flows of the
  * activity are taken once, in the scope of the activity step ({@link NodeExecution#scope(UUID)}). Otherwise a
- * sequential loop creates the step of the next instance, a parallel loop waits for its other instances.
+ * sequential loop triggers the next instance through the delegate, a parallel loop waits for its other instances.
  * <p>
  * All of this happens in the transaction of one step, under the lock of the process instance, and the instance steps
  * are read after locking. So the instance steps of a parallel loop complete one after the other, exactly one of them
@@ -85,17 +86,14 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
     private final Invoker<T> delegate;
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
-    private final TaskService taskService;
     private final ConditionEvaluator conditions;
     private final FlowSelector flows;
 
     MultiInstanceLoop(final Invoker<T> delegate, final ProcessInstanceRepository instances,
-            final ProcessStepRepository steps, final TaskService taskService, final ConditionEvaluator conditions,
-            final FlowSelector flows) {
+            final ProcessStepRepository steps, final ConditionEvaluator conditions, final FlowSelector flows) {
         this.delegate = delegate;
         this.instances = instances;
         this.steps = steps;
-        this.taskService = taskService;
         this.conditions = conditions;
         this.flows = flows;
     }
@@ -106,8 +104,59 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
     }
 
     /**
-     * Executes the activity step or an instance step of a multi-instance activity, or passes any other activity on
-     * to the delegate. For an instance step the flows are taken in the scope of the activity step.
+     * @return the multi-instance loop characteristics of the activity, {@code null} if it has none
+     */
+    private static MultiInstanceLoopCharacteristics characteristics(final Activity activity) {
+        return activity.getLoopCharacteristics() != null
+                && activity.getLoopCharacteristics().getValue()
+                        instanceof final MultiInstanceLoopCharacteristics characteristics ? characteristics : null;
+    }
+
+    /**
+     * Creates the activity step of a multi-instance activity and triggers its first instance(s) through the delegate,
+     * or passes any other activity on to the delegate.
+     *
+     * @param node the activity
+     * @param trigger how the activity is reached
+     * @return the activity step
+     * @throws ProcessEngineException if the loop characteristics are not supported or invalid, the number of instances
+     *             cannot be determined or the delegate cannot trigger an instance
+     */
+    @Override
+    public ProcessStep trigger(final T node, final NodeTrigger trigger) throws ProcessEngineException {
+        try {
+            final Activity activity = (Activity) node;
+            final MultiInstanceLoopCharacteristics characteristics = MultiInstanceLoop.characteristics(activity);
+            if (characteristics == null) {
+                return this.delegate.trigger(node, trigger);
+            }
+            MultiInstanceLoop.validate(activity, characteristics);
+            final ProcessInstance instance = trigger.instance();
+            final Loop loop = new Loop(instance, activity, characteristics, List.of(), trigger.language());
+            final List<Object> items = this.items(loop);
+            final int count = items == null ? this.cardinality(loop) : items.size();
+            final ProcessStep step = trigger.createStep();
+            this.steps.updateLoop(step.id(), count, items);
+            LoggerFactory.getLogger(this.getClass()).debug("Multi-instance activity {} of process instance {} runs {} {}"
+                    + " instances", activity.getId(), instance.id(), count,
+                    characteristics.isIsSequential() ? "sequential" : "parallel");
+            if (count == 0) {
+                return trigger.schedule(step);
+            }
+            for (int index = 0; index < (characteristics.isIsSequential() ? 1 : count); index++) {
+                this.delegate.trigger(node,
+                        trigger.forLoopInstance(step.id(), index, items == null ? null : items.get(index)));
+            }
+            return step;
+        } catch (final NoSuchProcessStepException e) {
+            throw new ProcessEngineException("Cannot trigger multi-instance activity '" + node.getId() + "'.", e);
+        }
+    }
+
+    /**
+     * Executes an instance step of a multi-instance activity, or its activity step if it has no instances, or passes
+     * any other activity on to the delegate. For an instance step the flows are taken in the scope of the activity
+     * step.
      *
      * @param node the activity
      * @param execution the step being executed
@@ -116,13 +165,12 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
      *             evaluated, the delegate failed or a step or the instance does not exist
      */
     @Override
-    public Collection<SequenceFlow> invoke(final T node, final NodeExecution execution) throws ProcessEngineException {
+    public Collection<SequenceFlow> execute(final T node, final NodeExecution execution) throws ProcessEngineException {
         try {
             final Activity activity = (Activity) node;
-            if (activity.getLoopCharacteristics() == null
-                    || !(activity.getLoopCharacteristics().getValue()
-                            instanceof final MultiInstanceLoopCharacteristics characteristics)) {
-                return this.delegate.invoke(node, execution);
+            final MultiInstanceLoopCharacteristics characteristics = MultiInstanceLoop.characteristics(activity);
+            if (characteristics == null) {
+                return this.delegate.execute(node, execution);
             }
             MultiInstanceLoop.validate(activity, characteristics);
             final ProcessStep step = execution.step();
@@ -135,7 +183,14 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
                     return this.runInstance(loop, node, execution, parent);
                 }
             }
-            return this.start(loop, step);
+            if (step.loopCounter() == null || step.loopCounter() != 0) {
+                LoggerFactory.getLogger(this.getClass()).info(
+                        "Skipping step {} (multi-instance activity {}) of process instance {}, its instances run.",
+                        step.id(), activity.getId(), loop.instance().id());
+                return List.of();
+            }
+            return this.finish(loop, step, new LinkedHashMap<>(loop.instance().variables()),
+                    loop.instance().variables());
         } catch (final NoSuchProcessStepException | NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot execute multi-instance activity '" + node.getId()
                     + "' of process instance " + execution.instance().id() + ".", e);
@@ -158,33 +213,6 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
         if ((loop.getOutputDataItem() == null) != (loop.getLoopDataOutputRef() == null)) {
             throw new ProcessEngineException(prefix + "needs both or neither of outputDataItem and loopDataOutputRef.");
         }
-    }
-
-    /**
-     * First execution of the activity step: creates the instance steps.
-     */
-    private Collection<SequenceFlow> start(final Loop loop, final ProcessStep step)
-            throws ProcessEngineException, NoSuchProcessStepException, NoSuchProcessInstanceException {
-        if (!this.steps.children(step.id()).isEmpty()) {
-            LoggerFactory.getLogger(this.getClass()).info(
-                    "Skipping step {} (multi-instance activity {}) of process instance {}, which has already started.",
-                    step.id(), loop.activity().getId(), loop.instance().id());
-            return List.of();
-        }
-        final List<Object> items = this.items(loop);
-        final int count = items == null ? this.cardinality(loop) : items.size();
-        this.steps.updateLoop(step.id(), count, items);
-        LoggerFactory.getLogger(this.getClass()).debug("Multi-instance activity {} of process instance {} runs {} {}"
-                + " instances", loop.activity().getId(), loop.instance().id(), count,
-                loop.characteristics().isIsSequential() ? "sequential" : "parallel");
-        if (count == 0) {
-            return this.finish(loop, step, new LinkedHashMap<>(loop.instance().variables()),
-                    loop.instance().variables());
-        }
-        for (int index = 0; index < (loop.characteristics().isIsSequential() ? 1 : count); index++) {
-            this.createInstance(loop, step, index, items);
-        }
-        return List.of();
     }
 
     /**
@@ -223,13 +251,6 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
         return count.intValue();
     }
 
-    private void createInstance(final Loop loop, final ProcessStep activityStep, final int index,
-            final List<Object> items) throws NoSuchProcessInstanceException {
-        final ProcessStep step = this.steps.create(loop.instance().id(), activityStep.nodeId(),
-                activityStep.incomingFlowId(), activityStep.id(), index, items == null ? null : items.get(index));
-        this.taskService.trigger(BpmnNodeTask.BEAN_NAME, step.id());
-    }
-
     /**
      * Runs one instance step and completes the loop if it is finished.
      */
@@ -261,9 +282,9 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
         }
         this.store(loop.instance(), variables, stored);
         if (loop.characteristics().isIsSequential()) {
-            @SuppressWarnings("unchecked")
-            final List<Object> items = (List<Object>) activityStep.loopItem();
-            this.createInstance(loop, activityStep, index + 1, items);
+            final Object items = activityStep.loopItem();
+            this.delegate.trigger(node, execution.trigger().forLoopInstance(activityStep.id(), index + 1,
+                    items instanceof final List<?> list ? list.get(index + 1) : null));
         }
         return List.of();
     }
@@ -283,7 +304,7 @@ class MultiInstanceLoop<T extends FlowNode> implements Invoker<T> {
         }
         final NodeExecution instanceExecution = execution.forLoopInstance(visible, step.loopCounter(),
                 step.loopItem());
-        this.delegate.invoke(node, instanceExecution);
+        this.delegate.execute(node, instanceExecution);
         if (!instanceExecution.isCompleted()) {
             throw new ProcessEngineException("Multi-instance activity '" + loop.activity().getId()
                     + "' does not complete its instance in one step, which is not supported yet.");

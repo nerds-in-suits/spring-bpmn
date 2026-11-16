@@ -9,7 +9,7 @@ public interface BpmnNodeImplementation {
 
     /**
      * Executes the service task. The outgoing sequence flows are only taken if this method returns normally; an
-     * exception rolls back the node execution and fails the {@link BpmnNodeTask}, which the task backend redelivers.
+     * exception rolls back the node execution and fails the {@code bpmnNodeTask}, which the task backend redelivers.
      *
      * @param context the process instance and node being executed
      * @throws ProcessEngineException if the task failed

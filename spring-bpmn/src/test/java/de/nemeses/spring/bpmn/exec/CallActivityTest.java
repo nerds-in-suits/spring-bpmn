@@ -103,7 +103,7 @@ class CallActivityTest {
      */
     private ProcessStep runNext(final AssertableApplicationContext context)
             throws TaskException, NoSuchProcessStepException {
-        final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
+        final BpmnNodeExecutor nodeTask = context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class);
         final UUID stepId = nodeTask.deserializePayload(this.tasks.persisted().get(this.executed).payload());
         this.executed++;
         nodeTask.execute(stepId);
@@ -120,6 +120,14 @@ class CallActivityTest {
         return this.instances.retrieve(instance.id());
     }
 
+    /**
+     * @return the (only) step of the call activity {@code call} of the instance; reaching it schedules no task
+     */
+    private ProcessStep callStep(final ProcessInstance instance) {
+        return this.steps.steps(instance.id()).stream().filter(step -> "call".equals(step.nodeId())).findFirst()
+                .orElseThrow();
+    }
+
     private ProcessInstance child(final ProcessStep callStep) {
         return this.instances.retrieveChild(callStep.id()).orElseThrow();
     }
@@ -133,7 +141,7 @@ class CallActivityTest {
                     .startProcess("parent", Map.of("amount", 3));
             Assertions.assertEquals("ps", this.runNext(context).nodeId());
 
-            final ProcessStep callStep = this.runNext(context);
+            final ProcessStep callStep = this.callStep(parent);
             Assertions.assertEquals("call", callStep.nodeId());
             Assertions.assertNull(callStep.endDate(), "call activity waits");
             final ProcessInstance child = this.child(callStep);
@@ -178,7 +186,7 @@ class CallActivityTest {
             final ProcessInstance parent = context.getBean(ProcessEngineService.class)
                     .startProcess("parent", Map.of("amount", 3, "other", "o"));
             this.runNext(context);
-            final ProcessStep callStep = this.runNext(context);
+            final ProcessStep callStep = this.callStep(parent);
             final ProcessInstance child = this.child(callStep);
             Assertions.assertEquals(Map.of("value", 3), child.variables());
 
@@ -201,7 +209,7 @@ class CallActivityTest {
             final ProcessInstance parent = context.getBean(ProcessEngineService.class)
                     .startProcess("parent", Map.of("amount", 3));
             this.runNext(context);
-            final ProcessStep callStep = this.runNext(context);
+            final ProcessStep callStep = this.callStep(parent);
             Assertions.assertEquals(Map.of(), this.child(callStep).variables());
             this.runAll(context);
             Assertions.assertEquals(Map.of("amount", 3), this.current(parent).variables());
@@ -214,12 +222,13 @@ class CallActivityTest {
         this.define("parent", CallActivityTest.parent("<callActivity id=\"call\" calledElement=\"child\"/>"));
         this.define("child", CallActivityTest.bpmn(CallActivityTest.CHILD));
         this.withEngine(context -> {
-            context.getBean(ProcessEngineService.class).startProcess("parent", Map.of("amount", 3));
+            final ProcessInstance parent = context.getBean(ProcessEngineService.class)
+                    .startProcess("parent", Map.of("amount", 3));
             this.runNext(context);
-            final ProcessStep callStep = this.runNext(context);
+            final ProcessStep callStep = this.callStep(parent);
             final int triggered = this.tasks.persisted().size();
 
-            context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class).execute(callStep.id());
+            context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class).execute(callStep.id());
             Assertions.assertEquals(2, this.instances.created().size());
             Assertions.assertEquals(triggered, this.tasks.persisted().size());
             Assertions.assertNull(this.steps.retrieve(callStep.id()).endDate());
@@ -234,9 +243,9 @@ class CallActivityTest {
         this.define("Shipping", CallActivityTest.bpmn("<process id=\"ship\" name=\"Shipping\"><startEvent id=\"cs\"/>"
                 + "</process>"));
         this.withEngine(context -> {
-            context.getBean(ProcessEngineService.class).startProcess("parent", Map.of());
+            final ProcessInstance parent = context.getBean(ProcessEngineService.class).startProcess("parent", Map.of());
             this.runNext(context);
-            final ProcessStep callStep = this.runNext(context);
+            final ProcessStep callStep = this.callStep(parent);
             Assertions.assertEquals("Shipping", this.child(callStep).processDefinition().name());
         });
     }
@@ -254,7 +263,7 @@ class CallActivityTest {
         this.withEngine(context -> {
             for (final String name : List.of("noElement", "unknown", "invalid")) {
                 context.getBean(ProcessEngineService.class).startProcess(name, Map.of("amount", 3));
-                this.runNext(context);
+                // reaching the call activity fails the start event step that takes the flow to it
                 final TaskException e = Assertions.assertThrows(TaskException.class, () -> this.runNext(context));
                 Assertions.assertInstanceOf(ProcessEngineException.class, e.getCause(), name);
             }

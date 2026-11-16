@@ -1,9 +1,7 @@
 package de.nemeses.spring.bpmn.exec;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import javax.xml.namespace.QName;
@@ -16,29 +14,32 @@ import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
-import de.nemeses.spring.bpmn.model.bpmn20.UserTask;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessStepException;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
-import de.nemeses.spring.tasks.TaskService;
+import de.nemeses.spring.tasks.JsonPayloadTaskImplementation;
+import de.nemeses.spring.tasks.TaskException;
 
 /**
- * Executes single steps (nodes) of process instances; called by the {@link BpmnNodeTask}.
+ * Executes single steps (nodes) of process instances; the task bean {@value #BEAN_NAME}, whose payload is the id of
+ * the {@link ProcessStep} to execute.
  * <p>
  * Each step runs in one transaction. The process instance is locked first ({@link ProcessInstanceRepository#lock}),
  * so the steps of one instance run one after the other, and the pending steps are read after locking. The node is run
- * by the {@link Invoker} for its type (all {@code Invoker} beans are injected and looked up by the exact class of the
- * node, {@link Invoker#nodeType()}). Running the node, completing its step, storing changed variables and creating the
- * steps and {@link BpmnNodeTask}s of the flows taken all happen in that transaction; a {@link ProcessEngineException}
- * rolls all of it back. The supported node types are listed at {@link #executeNode} and in
- * {@code docs/bpmn-support.md}.
+ * by {@link Invoker#execute} of the {@link Invoker} for its type ({@link InvokerRegistry}). Running the node,
+ * completing its step, storing changed variables and triggering the target nodes of the flows taken
+ * ({@link Invoker#trigger}) all happen in that transaction; a {@link ProcessEngineException} rolls all of it back and
+ * fails the task as a {@link TaskException}; whether it is retried depends on the task backend. The supported node
+ * types are listed at {@link #executeNode} and in {@code docs/bpmn-support.md}.
  */
-@Component
-@SuppressWarnings("PMD.CouplingBetweenObjects") // repositories, BPMN model, invokers and their enhancers
-public class BpmnNodeExecutor {
+@Component(BpmnNodeExecutor.BEAN_NAME)
+public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
+
+    /** Bean name under which the task is scheduled with the {@code TaskService}; persisted tasks refer to it. */
+    public static final String BEAN_NAME = "bpmnNodeTask";
 
     /** Namespace of the BPMN extension attributes understood by the engine. */
     public static final String NAMESPACE = "https://nemeses.de/spring-bpmn";
@@ -50,73 +51,61 @@ public class BpmnNodeExecutor {
     private final ProcessStepRepository steps;
     private final ProcessDefinitionModelCache models;
     private final SubProcessScopes subProcesses;
-    private final Map<Class<? extends FlowNode>, Invoker<?>> invokers;
+    private final InvokerRegistry invokers;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final ProcessDefinitionModelCache models, final SubProcessScopes subProcesses,
-            final Collection<Invoker<?>> invokers, final Collection<InvokerEnhancer> enhancers) {
+            final InvokerRegistry invokers) {
+        super();
         this.instances = instances;
         this.steps = steps;
         this.models = models;
         this.subProcesses = subProcesses;
-        this.invokers = BpmnNodeExecutor.byNodeType(invokers, enhancers);
+        this.invokers = invokers;
+    }
+
+    @Override
+    protected Class<UUID> payloadType() {
+        return UUID.class;
     }
 
     /**
-     * @return the invokers by their node type, each enhanced by all enhancers in turn
-     * @throws IllegalStateException if two invokers execute the same node type
-     */
-    private static Map<Class<? extends FlowNode>, Invoker<?>> byNodeType(final Collection<Invoker<?>> invokers,
-            final Collection<InvokerEnhancer> enhancers) {
-        final Map<Class<? extends FlowNode>, Invoker<?>> byType = new HashMap<>();
-        for (final Invoker<?> invoker : invokers) {
-            final Invoker<?> other = byType.putIfAbsent(invoker.nodeType(), invoker);
-            if (other != null) {
-                throw new IllegalStateException("Invokers " + other.getClass().getName() + " and "
-                        + invoker.getClass().getName() + " both execute " + invoker.nodeType().getSimpleName()
-                        + ".");
-            }
-        }
-        byType.replaceAll((_, invoker) -> BpmnNodeExecutor.enhance(invoker, enhancers));
-        return Map.copyOf(byType);
-    }
-
-    private static <T extends FlowNode> Invoker<T> enhance(final Invoker<T> invoker,
-            final Collection<InvokerEnhancer> enhancers) {
-        Invoker<T> enhanced = invoker;
-        for (final InvokerEnhancer enhancer : enhancers) {
-            enhanced = enhancer.enhance(enhanced);
-        }
-        return enhanced;
-    }
-
-    /**
-     * Creates a pending step for a node and triggers a {@link BpmnNodeTask} with its id.
+     * Entry point of the {@code TaskService}: deserializes the step id and executes the step like
+     * {@link #execute(UUID)}. Overridden only to be transactional, because the inherited default method calls
+     * {@link #execute(UUID)} on this object and so bypasses the transactional proxy.
      *
-     * @param steps the step repository
-     * @param taskService the task service
-     * @param instanceId the id of the process instance
-     * @param nodeId the id of the flow node to execute
-     * @param incomingFlowId the id of the sequence flow taken to the node, {@code null} for a start event
-     * @param parentStepId the id of the step of the embedded sub-process the node runs in, {@code null} at the top
-     *            level
-     * @return the created step
-     * @throws NoSuchProcessInstanceException if the instance does not exist
+     * @param serializedPayload the step id as JSON
+     * @throws TaskException if the step failed; the transaction is rolled back
      */
-    public static ProcessStep schedule(final ProcessStepRepository steps, final TaskService taskService,
-            final UUID instanceId, final String nodeId, final String incomingFlowId, final UUID parentStepId)
-            throws NoSuchProcessInstanceException {
-        final ProcessStep step = steps.create(instanceId, nodeId, incomingFlowId, parentStepId);
-        taskService.trigger(BpmnNodeTask.BEAN_NAME, step.id());
-        return step;
+    @Override
+    @Transactional(rollbackFor = TaskException.class)
+    public void executeSerialized(final String serializedPayload) throws TaskException {
+        this.execute(this.deserializePayload(serializedPayload));
     }
 
     /**
-     * Executes one step (a node of a process instance) with the {@link Invoker} for the node's type (as enhanced by
-     * the {@link InvokerEnhancer} beans) and creates a step and triggers a {@link BpmnNodeTask} for the target
-     * of each sequence flow taken, all in one transaction. The
-     * process instance is locked first ({@link ProcessInstanceRepository#lock}), so the steps of one instance are
-     * executed one after the other. Supported node types (one {@link Invoker} each, in the sub-packages):
+     * Executes the step in one transaction through {@link #executeNode}.
+     *
+     * @param stepId the id of the process step
+     * @throws TaskException with the {@link ProcessEngineException} as cause if the step failed; the transaction is
+     *             rolled back
+     */
+    @Override
+    @Transactional(rollbackFor = TaskException.class)
+    public void execute(final UUID stepId) throws TaskException {
+        try {
+            this.executeNode(stepId);
+        } catch (final ProcessEngineException e) {
+            throw new TaskException("Cannot execute process step " + stepId + ".", e);
+        }
+    }
+
+    /**
+     * Executes one step (a node of a process instance) with {@link Invoker#execute} of the {@link Invoker} for the
+     * node's type (as enhanced by the {@link InvokerEnhancer} beans) and triggers the target of each sequence flow
+     * taken with {@link Invoker#trigger}, all in one transaction. The process instance is locked first
+     * ({@link ProcessInstanceRepository#lock}), so the steps of one instance are executed one after the other.
+     * Supported node types (one {@link Invoker} each, in the sub-packages):
      * <ul>
      * <li>{@code startEvent}: nothing to do, all outgoing flows are taken.</li>
      * <li>{@code task}: nothing to do, the outgoing flows are taken like for every activity (see below).</li>
@@ -129,23 +118,21 @@ public class BpmnNodeExecutor {
      * <li>{@code exclusiveGateway}: takes the first non-default outgoing flow (in document order) without condition or
      * whose condition is true, else the {@code default} flow; fails if there is none.</li>
      * <li>{@code parallelGateway} with at most one incoming flow: takes all outgoing flows (fork).</li>
-     * <li>{@code parallelGateway} with more incoming flows (join): continues only if a step is pending at the gateway
-     * for every incoming flow. Then the oldest pending step of each incoming flow is completed and all outgoing flows
-     * are taken once. Otherwise the step stays pending (parked at the join) and no flow is taken.</li>
-     * <li>{@code callActivity}: a wait state. The first execution starts an instance of the called process and leaves
-     * the step pending; when that child instance ends, the step is executed again, passes the variables back,
-     * completes and takes the outgoing flows like for every activity.</li>
-     * <li>{@code userTask}: a wait state. Its execution leaves the step pending; {@link #completeUserTask} completes it
-     * from outside, merges the given variables and takes the outgoing flows like for every activity.</li>
+     * <li>{@code parallelGateway} with more incoming flows (join): reaching it creates a step, which gets a task only
+     * if a step is then pending at the gateway for every incoming flow. Executing it completes the oldest pending step
+     * of each incoming flow and takes all outgoing flows once; if the set is no longer complete, nothing happens.</li>
+     * <li>{@code callActivity}: a wait state. Reaching it starts an instance of the called process; when that child
+     * instance ends, the step is executed, passes the variables back, completes and takes the outgoing flows like for
+     * every activity.</li>
      * <li>{@code endEvent} without event definition: ends the instance (sets its end date) if no other step of the
-     * instance is pending; if the instance was started by a call activity, triggers a {@link BpmnNodeTask} for the
+     * instance is pending; if the instance was started by a call activity, triggers a {@value #BEAN_NAME} task for the
      * waiting call activity step of the parent instance. Inside a sub-process it only completes its step (see
      * below).</li>
-     * <li>embedded {@code subProcess}: creates a step for each start event inside it, with the sub-process step as
-     * {@link ProcessStep#parentStepId() parent}; the sub-process step stays pending. Steps inside it are created with
-     * the same parent. When no child step of the sub-process step is pending any more, the sub-process step is
-     * completed and the outgoing flows of the sub-process are taken like for every activity (with the variables as
-     * changed inside it); if it takes none, the enclosing sub-process is checked the same way.</li>
+     * <li>embedded {@code subProcess}: reaching it creates its step and triggers each start event inside it, with the
+     * sub-process step as {@link ProcessStep#parentStepId() parent}; the sub-process step stays pending. Steps inside
+     * it are created with the same parent. When no child step of the sub-process step is pending any more, a task is
+     * triggered for the sub-process step, whose execution completes it and takes the outgoing flows of the
+     * sub-process like for every activity (with the variables as changed inside it).</li>
      * </ul>
      * An activity takes every outgoing flow without condition and every flow whose condition is true; its
      * {@code default} flow only if no condition is true. Conditions are evaluated by the {@link ConditionEvaluator}
@@ -156,67 +143,27 @@ public class BpmnNodeExecutor {
      * pending step of the activity, and the outgoing flows are taken once, in the scope of the activity step, when the
      * loop is finished (see {@code loop.MultiInstanceLoop}, added by an {@link InvokerEnhancer}).
      * A step that is no longer pending (a task delivered again, or a join step completed by another step) and the steps
-     * of an instance that has already ended are skipped.
+     * of an instance that has already ended are skipped. A target node that is not supported or cannot be reached
+     * fails this step.
      *
      * @param stepId the id of the process step
      * @throws ProcessEngineException if the step, instance or node does not exist, the node type or a sequence flow
-     *             condition is not supported, or the node's implementation failed
+     *             condition is not supported, the node's implementation failed or a target node cannot be triggered
      */
     @Transactional(rollbackFor = ProcessEngineException.class)
     public void executeNode(final UUID stepId) throws ProcessEngineException {
-        this.execute(stepId, null);
-    }
-
-    /**
-     * Completes a waiting {@code userTask} step from outside: like {@link #executeNode}, in one transaction under the
-     * lock of the instance, but the {@code userTask} invoker gets the given variables ({@link NodeExecution#completion()}),
-     * merges them into the process variables, completes the step and takes the outgoing flows like for every activity.
-     * Unlike {@link #executeNode}, a step that is no longer pending or whose instance has ended is not skipped but
-     * rejected.
-     *
-     * @param stepId the id of the pending {@code userTask} step
-     * @param variables the variables to set (added or replaced, none removed); {@code null} means none; values must
-     *            not be {@code null}
-     * @throws ProcessEngineException if the step does not exist, is not pending, is not at a {@code userTask}, its
-     *             instance has ended, a value is {@code null}, or the flows cannot be taken
-     */
-    @Transactional(rollbackFor = ProcessEngineException.class)
-    public void completeUserTask(final UUID stepId, final Map<String, Object> variables)
-            throws ProcessEngineException {
-        final Map<String, Object> completion = variables == null ? Map.of() : variables;
-        for (final Map.Entry<String, Object> variable : completion.entrySet()) {
-            if (variable.getKey() == null || variable.getValue() == null) {
-                throw new ProcessEngineException("Cannot complete user task step " + stepId
-                        + " with the null variable or value " + variable.getKey() + ".");
-            }
-        }
-        this.execute(stepId, completion);
-    }
-
-    /**
-     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside.
-     */
-    private void execute(final UUID stepId, final Map<String, Object> completion) throws ProcessEngineException {
         try {
             final ProcessStep step = this.steps.retrieve(stepId);
             final ProcessInstance instance = this.instances.lock(step.processInstanceId());
             // read after locking, so steps completed by a concurrent execution are seen
             final List<ProcessStep> pendingAtNode = this.steps.pending(instance.id(), step.nodeId());
             if (pendingAtNode.stream().noneMatch(pending -> pending.id().equals(stepId))) {
-                if (completion != null) {
-                    throw new ProcessEngineException("Cannot complete user task step " + stepId
-                            + ", which is already completed.");
-                }
                 LoggerFactory.getLogger(this.getClass()).info(
                         "Skipping step {} (node {}) of process instance {}, which is already completed.",
                         stepId, step.nodeId(), instance.id());
                 return;
             }
             if (instance.endDate() != null) {
-                if (completion != null) {
-                    throw new ProcessEngineException("Cannot complete user task step " + stepId
-                            + " of process instance " + instance.id() + ", which has ended.");
-                }
                 LoggerFactory.getLogger(this.getClass()).warn(
                         "Skipping step {} (node {}) of process instance {}, which has ended.",
                         stepId, step.nodeId(), instance.id());
@@ -225,26 +172,15 @@ public class BpmnNodeExecutor {
             final Definitions document = this.models.document(instance.processDefinition());
             final Process process = ProcessEngineService.process(document, instance.processDefinition());
             final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
-            if (completion != null && node.getClass() != UserTask.class) {
-                throw new ProcessEngineException("Cannot complete step " + stepId + ", node '" + node.getId()
-                        + "' is a " + node.getClass().getSimpleName() + ", not a UserTask.");
-            }
-            final Invoker<?> invoker = this.invokers.get(node.getClass());
-            if (invoker == null) {
-                throw new ProcessEngineException("Node '" + node.getId() + "' is a "
-                        + node.getClass().getSimpleName() + ", which is not supported yet.");
-            }
-            final NodeExecution execution = new NodeExecution(this.steps, instance, step, process, node,
+            final Invoker<?> invoker = this.invokers.invoker(node);
+            final NodeExecution execution = new NodeExecution(this.invokers, instance, step, process, node,
                     document.getExpressionLanguage(), pendingAtNode.stream()
                             .filter(pending -> SubProcessScopes.inSameScope(pending, step))
                             .toList());
-            if (completion != null) {
-                execution.completion(completion);
-            }
-            final Collection<SequenceFlow> taken = BpmnNodeExecutor.invoke(invoker, node, execution);
-            this.subProcesses.take(instance, taken, execution.scope());
-            this.subProcesses.leaveCompleted(instance, document.getExpressionLanguage(), process,
+            final Collection<SequenceFlow> taken = BpmnNodeExecutor.run(invoker, node, execution);
+            this.subProcesses.take(instance.id(), process, document.getExpressionLanguage(), taken,
                     execution.scope());
+            this.subProcesses.leaveCompleted(instance.id(), execution.scope());
             LoggerFactory.getLogger(this.getClass()).debug(
                     "Executed step {} (node {}) of process instance {}, taken flows {}",
                     stepId, step.nodeId(), instance.id(), taken.stream().map(SequenceFlow::getId).toList());
@@ -253,8 +189,8 @@ public class BpmnNodeExecutor {
         }
     }
 
-    private static <T extends FlowNode> Collection<SequenceFlow> invoke(final Invoker<T> invoker, final FlowNode node,
-            final NodeExecution execution) throws ProcessEngineException {
-        return invoker.invoke(invoker.nodeType().cast(node), execution);
+    private static <T extends FlowNode> Collection<SequenceFlow> run(final Invoker<T> invoker,
+            final FlowNode node, final NodeExecution execution) throws ProcessEngineException {
+        return invoker.execute(invoker.nodeType().cast(node), execution);
     }
 }

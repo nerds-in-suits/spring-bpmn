@@ -50,19 +50,20 @@ Package-private helpers are listed when they hold engine behaviour.
 ### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
 
 - `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `task.NodeContext`).
-- `BpmnNodeExecutor`: executes one `ProcessStep` per `bpmnNodeTask` under a lock on the instance with the `Invoker` for the node type and schedules the steps of the flows taken.
+- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with `Invoker.execute` for the node type and triggers the target nodes of the flows taken.
 - `BpmnNodeImplementation`: application code bound to a `serviceTask` by bean name.
-- `BpmnNodeTask`: the `bpmnNodeTask` task bean; its payload is the id of the step to execute.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
-- `Invoker`: executes the flow nodes of one type (`nodeType()`, exact class); all `Invoker` beans are injected into `BpmnNodeExecutor`, at most one per type. The implementations live in the sub-packages below.
-- `InvokerEnhancer`: wraps invokers in another `Invoker` of the same node type where needed (e.g. a loop around an activity); all enhancer beans are injected into `BpmnNodeExecutor`, which passes every invoker through each of them.
+- `Invoker`: triggers (`trigger()`, when a node is reached: creates its steps and schedules their tasks) and executes (`execute()`, runs a pending step) the flow nodes of one type (`nodeType()`, exact class); at most one bean per type. The implementations live in the sub-packages below.
+- `InvokerEnhancer`: wraps invokers in another `Invoker` of the same node type where needed (e.g. a loop around an activity); all enhancer beans are injected into `InvokerRegistry`, which passes every invoker through each of them.
+- `InvokerRegistry`: collects the `Invoker` beans by node type, enhanced by all `InvokerEnhancer` beans, and triggers nodes through them; used by `BpmnNodeExecutor`, `ProcessEngineService` and `NodeTrigger`.
 - `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language, flow scope, loop instance); completes steps.
+- `NodeTrigger`: how an `Invoker` reaches its node (instance, incoming flow, scope, loop data); creates and schedules steps and triggers other nodes.
 - `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances and to list and complete their open user tasks.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
-- `SubProcessScopes`: creates follow-up steps in their scope and leaves embedded sub-processes.
+- `SubProcessScopes`: triggers the target nodes of the flows taken in their scope and schedules leaving embedded sub-processes.
 
 ### `de.nemeses.spring.bpmn.exec.*` invokers (module `spring-bpmn`)
 
@@ -72,7 +73,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `gateway.ExclusiveGatewayInvoker`: takes one outgoing flow of an `exclusiveGateway`.
 - `gateway.ParallelGatewayInvoker`: forks and joins at a `parallelGateway`.
 - `loop.MultiInstanceLoop`, `loop.MultiInstanceLoopEnhancer`: wrap the invoker of every activity type and run `multiInstanceLoopCharacteristics` with one step per instance below the pending activity step.
-- `subprocess.SubProcessInvoker`: enters an embedded `subProcess`.
+- `subprocess.SubProcessInvoker`: enters and leaves an embedded `subProcess`.
 - `task.ActivityLoop`: runs the `standardLoopCharacteristics` of an activity within one step.
 - `task.ManualTaskInvoker`: passes a `manualTask` through like a plain `task`.
 - `task.ScriptTaskInvoker`, `task.ServiceTaskInvoker`, `task.TaskInvoker`: execute `scriptTask`, `serviceTask` and plain `task`.
@@ -114,7 +115,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `TaskImplementation`: a task type, as a Spring bean referenced by its bean name.
 - `TaskPersistence`: stores tasks and hands due ones to the workers (`next()`, `TaskInfo.complete()`, `TaskInfo.fail()`).
 - `TaskProperties`: the `spring.tasks.*` settings.
-- `TaskService`: public entry (`trigger`, `schedule`); a `SmartLifecycle` running the worker pool.
+- `TaskService`: public entry (`trigger`, `schedule`); a `SmartLifecycle` running the worker pool; looks up the `TaskImplementation` beans by name in the bean factory when needed, so task beans may depend on it.
 
 ### `de.nemeses.spring.tasks.jms` (module `spring-tasks-jms`)
 
@@ -138,9 +139,9 @@ Package-private helpers are listed when they hold engine behaviour.
 
 ## Flow of a process instance
 
-1. `ProcessEngineService.startProcess` creates the instance and, per start event, a `ProcessStep` and a `bpmnNodeTask` with the step id.
-2. `BpmnNodeTask` calls `BpmnNodeExecutor.executeNode`, which locks the instance, runs the node and completes the step.
-3. For each sequence flow taken, the executor creates a step for the target node and triggers a `bpmnNodeTask`, all in the same transaction.
+1. `ProcessEngineService.startProcess` creates the instance and triggers each start event (`Invoker.trigger`), which creates a `ProcessStep` and a `bpmnNodeTask` with the step id.
+2. The `bpmnNodeTask` bean `BpmnNodeExecutor` locks the instance, runs the node (`Invoker.execute`) and completes the step.
+3. For each sequence flow taken, the executor triggers the target node (`Invoker.trigger`), which creates its step and, unless the node waits, a `bpmnNodeTask`, all in the same transaction.
 4. A failing step rolls back and its task fails; `JmsTaskPersistence` redelivers it, `JpaTaskPersistence` marks it `FAILED` without retry.
 
 ## Extension points
