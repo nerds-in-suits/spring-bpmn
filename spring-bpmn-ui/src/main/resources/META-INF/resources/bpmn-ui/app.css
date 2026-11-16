@@ -1,0 +1,118 @@
+[x-cloak] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  color: #222;
+  background: #fff;
+}
+
+header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  padding: 12px 16px;
+  background: #2b3a4a;
+  color: #fff;
+}
+
+header nav a {
+  margin-right: 16px;
+  color: #cfd8e3;
+  text-decoration: none;
+}
+
+header nav a.active {
+  color: #fff;
+  font-weight: bold;
+}
+
+main {
+  padding: 0 16px 16px;
+}
+
+h1 {
+  font-size: 20px;
+}
+
+h2 {
+  font-size: 16px;
+}
+
+a {
+  color: #1f5fa8;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+th {
+  background: #f2f4f7;
+}
+
+.number {
+  text-align: right;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.state {
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.state.running {
+  background: #fff3cd;
+}
+
+.state.finished {
+  background: #d1e7dd;
+}
+
+.error {
+  padding: 8px;
+  background: #f8d7da;
+  color: #842029;
+}
+
+.pager {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content auto;
+  gap: 4px 16px;
+}
+
+dd {
+  margin: 0;
+}
+
+pre {
+  margin: 0;
+}

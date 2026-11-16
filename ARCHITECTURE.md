@@ -18,7 +18,7 @@ It stores models and history through its repository API (`de.nemeses.spring.bpmn
 spring-bpmn ──> spring-tasks   <── spring-tasks-jpa
      ^                         <── spring-tasks-jms
      ├─────── spring-bpmn-repository-jpa
-     └─────── spring-bpmn-rest
+     └─────── spring-bpmn-rest <── spring-bpmn-ui
 ```
 
 An arrow points from the dependent module to the module it depends on.
@@ -32,6 +32,7 @@ The application chooses the concrete backends by adding implementation modules t
 | `spring-bpmn` | Parses BPMN documents, registers process definitions and executes process instances on `spring-tasks`; contains the repository API. |
 | `spring-bpmn-repository-jpa` | JPA implementation of the repository API of `spring-bpmn`. |
 | `spring-bpmn-rest` | REST API (JSON) for process definitions, process instances with their steps, and user tasks. |
+| `spring-bpmn-ui` | Single page web UI (Alpine.js, static resources) on the REST API of `spring-bpmn-rest`. |
 | `spring-tasks` | API and core to schedule and execute tasks (`TaskService`, `TaskImplementation`, `TaskPersistence`). |
 | `spring-tasks-jms` | `TaskPersistence` on a JMS queue. |
 | `spring-tasks-jpa` | `TaskPersistence` in a JPA table. |
@@ -122,6 +123,11 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessNodes`: reads the type (BPMN element name) and name of the flow nodes of a definition from the `ProcessDefinitionModelCache`.
 - `UserTaskController`: `/user-tasks`; lists and completes the open user tasks of an instance through `ProcessEngineService`.
 
+### `de.nemeses.spring.bpmn.ui` (module `spring-bpmn-ui`)
+
+- `BpmnUiAutoConfiguration`: in a servlet web application with the REST API, redirects `/bpmn-ui` to `/bpmn-ui/` and forwards that to the static `index.html` of `META-INF/resources/bpmn-ui/` (Alpine.js from its WebJar, hash routes, no Node build).
+- `BpmnUiConfigController`: `GET /bpmn-ui/config.json`; tells the pages the REST base path (servlet context path plus `spring.bpmn.rest.base-path`).
+
 ### `de.nemeses.spring.tasks` (module `spring-tasks`)
 
 - `JsonPayloadTaskImplementation`: `TaskImplementation` with a JSON payload (Jackson 3, `tools.jackson`).
@@ -166,7 +172,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - New repository backend: new module `spring-bpmn-repository-<name>` implementing the repository interfaces, registered by auto-configuration.
 - New task backend: new module `spring-tasks-<name>` providing a `TaskPersistence` bean via auto-configuration (`@ConditionalOnMissingBean(TaskPersistence.class)`).
 - New task type: a Spring bean implementing `TaskImplementation`, referenced by bean name.
-- Web frontend: the planned module `spring-bpmn-ui` (#116) uses Alpine.js as static resources in its JAR, with Alpine as a WebJar and no Node build (evaluation in #117).
+- Web frontend: the module `spring-bpmn-ui` uses Alpine.js as static resources in its JAR, with Alpine as a WebJar and no Node build (evaluation in #117).
 - Engine logic belongs in `spring-bpmn`, built on `TaskService`; do not add a second scheduler.
 
 ## Packaging conventions
