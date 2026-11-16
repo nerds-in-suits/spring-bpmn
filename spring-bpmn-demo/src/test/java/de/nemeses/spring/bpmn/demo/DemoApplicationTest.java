@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
@@ -21,7 +23,8 @@ import com.jayway.jsonpath.JsonPath;
 
 /**
  * The demo application starts with all modules, serves the UI and the REST API, registers the sample processes and
- * runs them end to end. Uses an in-memory database instead of the file database of {@code application.yaml}.
+ * runs them end to end, secured by the demo users (requests as {@code admin} with HTTP Basic). Uses an in-memory
+ * database instead of the file database of {@code application.yaml}.
  */
 @SpringBootTest(classes = DemoApplication.class, properties = {
     "spring.datasource.url=jdbc:h2:mem:spring-bpmn-demo-test", "spring.jpa.hibernate.ddl-auto=create-drop" })
@@ -36,7 +39,10 @@ class DemoApplicationTest {
 
     @BeforeEach
     void setUp() {
-        this.mvc = MockMvcBuilders.webAppContextSetup(this.context).build();
+        this.mvc = MockMvcBuilders.webAppContextSetup(this.context).apply(SecurityMockMvcConfigurers.springSecurity())
+                .defaultRequest(MockMvcRequestBuilders.get("/").with(
+                        SecurityMockMvcRequestPostProcessors.httpBasic("admin", "admin")))
+                .build();
     }
 
     @Test
@@ -47,6 +53,28 @@ class DemoApplicationTest {
         this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/config.json"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.apiBasePath").value(BASE));
+    }
+
+    @Test
+    void testNeedsLogin() throws Exception {
+        final MockMvc anonymous = this.withoutUser();
+        anonymous.perform(MockMvcRequestBuilders.get("/bpmn-ui/").accept(MediaType.TEXT_HTML))
+                .andExpect(MockMvcResultMatchers.status().is3xxRedirection())
+                .andExpect(MockMvcResultMatchers.redirectedUrl("/login"));
+        anonymous.perform(MockMvcRequestBuilders.get(BASE + "/process-definitions"))
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized());
+    }
+
+    @Test
+    void testViewerMayOnlyRead() throws Exception {
+        final MockMvc viewer = this.withoutUser();
+        viewer.perform(MockMvcRequestBuilders.get(BASE + "/process-definitions")
+                .with(SecurityMockMvcRequestPostProcessors.httpBasic("viewer", "viewer")))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        viewer.perform(MockMvcRequestBuilders.post(BASE + "/process-instances")
+                .with(SecurityMockMvcRequestPostProcessors.httpBasic("viewer", "viewer"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"processDefinition\":\"helloWorld\"}"))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
     }
 
     @Test
@@ -88,6 +116,11 @@ class DemoApplicationTest {
                 + "/complete").contentType(MediaType.APPLICATION_JSON).content("{\"approved\":true}"))
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
         this.awaitFinished(id);
+    }
+
+    private MockMvc withoutUser() {
+        return MockMvcBuilders.webAppContextSetup(this.context).apply(SecurityMockMvcConfigurers.springSecurity())
+                .build();
     }
 
     private String start(final String request) throws Exception {
