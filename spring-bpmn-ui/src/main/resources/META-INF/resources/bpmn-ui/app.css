@@ -117,6 +117,27 @@ pre {
   margin: 0;
 }
 
+.diagram {
+  height: 360px;
+  margin-bottom: 8px;
+  border: 1px solid #ddd;
+}
+
+.diagram .step-finished:not(.djs-connection) .djs-visual > :nth-child(1) {
+  stroke: #198754 !important;
+  fill: #d1e7dd !important;
+}
+
+.diagram .step-running:not(.djs-connection) .djs-visual > :nth-child(1) {
+  stroke: #b58100 !important;
+  fill: #fff3cd !important;
+}
+
+.diagram-message {
+  padding: 8px;
+  background: #f2f4f7;
+}
+
 .action {
   width: 1%;
 }

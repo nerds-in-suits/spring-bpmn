@@ -4,7 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BPMN</title>
+  <link rel="stylesheet" href="../webjars/bpmn-js/dist/assets/diagram-js.css">
+  <link rel="stylesheet" href="../webjars/bpmn-js/dist/assets/bpmn-js.css">
   <link rel="stylesheet" href="app.css">
+  <!-- bpmn-js viewer (bpmn.io license: its watermark must stay visible) -->
+  <script defer src="../webjars/bpmn-js/dist/bpmn-viewer.production.min.js"></script>
   <!-- app.js registers the component on alpine:init, so it is loaded before Alpine -->
   <script defer src="app.js"></script>
   <script defer src="../webjars/alpinejs/dist/cdn.min.js"></script>
@@ -130,9 +134,15 @@
 
     <!-- process instance detail -->
     <section x-show="route.page === 'instance'">
+      <h1>Process instance <span x-text="route.id"></span></h1>
+      <!-- bpmn-js renders into this element; Alpine only shows or hides it -->
+      <div class="diagram" x-ref="diagram" x-show="diagram.shown"></div>
+      <p x-show="diagram.shown">
+        Nodes with steps: <span class="state finished">finished</span> <span class="state running">running</span>
+      </p>
+      <p class="diagram-message" x-show="diagram.message" x-text="diagram.message"></p>
       <template x-if="instance">
         <div>
-          <h1>Process instance <span x-text="instance.id"></span></h1>
           <dl>
             <dt>Process definition</dt>
             <dd>
