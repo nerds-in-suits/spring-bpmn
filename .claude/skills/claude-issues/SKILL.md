@@ -28,6 +28,8 @@ If no issues and no conflicting PRs remain, report that and stop.
 
 Spawn one Agent per remaining issue, all in a single message so they run in parallel. Use `subagent_type: "general-purpose"` and `isolation: "worktree"` so each issue gets its own checkout. Do not do the issue work in this session.
 
+The agent's name (the Agent `description`) must start with the issue id: `#N <short title>`, e.g. `#124 REST security`; a follow-up agent is named `#N follow-up PR #P`.
+
 Prompt for each agent (fill in the issue number, title, body, comments, URL):
 
 > You are solving GitHub issue #N (<url>) in this repository. Read `CLAUDE.md` / `AGENTS.md` first and follow them, including the GitHub workflow.
@@ -50,6 +52,7 @@ Prompt for each agent (fill in the issue number, title, body, comments, URL):
 ## 2b. Start one merge agent per conflicting PR
 
 In the same message as the issue agents, spawn one Agent per conflicting PR (`subagent_type: "general-purpose"`, `isolation: "worktree"`).
+Name it after the issue as well: `#N merge PR #P`.
 
 Prompt for each merge agent (fill in the PR number, URL, branch and issue number):
 
