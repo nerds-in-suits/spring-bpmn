@@ -126,7 +126,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 - `JsonPayloadTaskImplementation`: `TaskImplementation` with a JSON payload (Jackson 3, `tools.jackson`).
 - `PayloadException`: the payload cannot be serialized or deserialized.
-- `TaskConfiguration`: `@SpringBootConfiguration` that scans the package and enables `TaskProperties`.
+- `TaskConfiguration`: `@SpringBootConfiguration` that scans the package, but not the sub-packages of other modules (`jms`, `jpa`), and enables `TaskProperties`.
 - `TaskException`: a task failed.
 - `TaskImplementation`: a task type, as a Spring bean referenced by its bean name.
 - `TaskPersistence`: stores tasks and hands due ones to the workers (`next()`, `TaskInfo.complete()`, `TaskInfo.fail()`).
