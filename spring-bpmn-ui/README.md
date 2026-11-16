@@ -3,6 +3,7 @@
 Single page web UI of [`spring-bpmn`](../spring-bpmn/README.md) on the REST API of [`spring-bpmn-rest`](../spring-bpmn-rest/README.md) (`de.nemeses.spring:spring-bpmn-ui`).
 
 - Process definitions with the number of their running and finished instances, linking to the filtered instance list.
+- Process definitions have a play button that asks for the variables as a JSON object and starts an instance, then shows it.
 - Process instances filtered by definition and state, sorted by start or end date, paged.
 - Process instance details with variables and its steps, filtered by state and task type, sorted by start date, end date or task type.
 - Open it at `/bpmn-ui/` of the application (below the servlet context path); `/bpmn-ui` redirects there.
