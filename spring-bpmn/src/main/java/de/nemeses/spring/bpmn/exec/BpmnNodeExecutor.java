@@ -8,6 +8,7 @@ import java.util.UUID;
 import javax.xml.namespace.QName;
 
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,10 @@ import de.nemeses.spring.tasks.TaskException;
  * ({@link Invoker#trigger}) all happen in that transaction; a {@link ProcessEngineException} rolls all of it back and
  * fails the task as a {@link TaskException}; whether it is retried depends on the task backend. The supported node
  * types are listed at {@link #executeNode} and in {@code docs/bpmn-support.md}.
+ * <p>
+ * While a step is executed ({@link #executeNode}, {@link #completeUserTask}), the SLF4J {@link MDC} holds the id of its
+ * process instance under {@value #MDC_PROCESS_INSTANCE_ID} and its own id under {@value #MDC_STEP_ID}; afterwards the
+ * previous values are restored, or the keys removed if they had none.
  */
 @Component(BpmnNodeExecutor.BEAN_NAME)
 public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
@@ -48,6 +53,12 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
 
     /** Extension attribute of a {@code serviceTask} naming its {@link BpmnNodeImplementation} bean. */
     public static final QName BEAN_ATTRIBUTE = new QName(BpmnNodeExecutor.NAMESPACE, "bean");
+
+    /** {@link MDC} key of the id of the process instance whose step is executed. */
+    public static final String MDC_PROCESS_INSTANCE_ID = "processInstanceId";
+
+    /** {@link MDC} key of the id of the process step that is executed. */
+    public static final String MDC_STEP_ID = "stepId";
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
@@ -186,11 +197,16 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
     }
 
     /**
-     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside.
+     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside. Meanwhile the
+     * step id and the process instance id are in the {@link MDC}; the previous values are restored afterwards.
      */
     private void executeStep(final UUID stepId, final Map<String, Object> completion) throws ProcessEngineException {
+        final String previousProcessInstanceId = MDC.get(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID);
+        final String previousStepId = MDC.get(BpmnNodeExecutor.MDC_STEP_ID);
         try {
+            MDC.put(BpmnNodeExecutor.MDC_STEP_ID, stepId.toString());
             final ProcessStep step = this.steps.retrieve(stepId);
+            MDC.put(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID, step.processInstanceId().toString());
             final ProcessInstance instance = this.instances.lock(step.processInstanceId());
             // read after locking, so steps completed by a concurrent execution are seen
             final List<ProcessStep> pendingAtNode = this.steps.pending(instance.id(), step.nodeId());
@@ -238,6 +254,20 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
                     stepId, step.nodeId(), instance.id(), taken.stream().map(SequenceFlow::getId).toList());
         } catch (final NoSuchProcessStepException | NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot execute process step " + stepId + ".", e);
+        } finally {
+            BpmnNodeExecutor.restoreMdc(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID, previousProcessInstanceId);
+            BpmnNodeExecutor.restoreMdc(BpmnNodeExecutor.MDC_STEP_ID, previousStepId);
+        }
+    }
+
+    /**
+     * Sets the {@link MDC} key back to its previous value, or removes it if it had none.
+     */
+    private static void restoreMdc(final String key, final String previous) {
+        if (previous == null) {
+            MDC.remove(key);
+        } else {
+            MDC.put(key, previous);
         }
     }
 

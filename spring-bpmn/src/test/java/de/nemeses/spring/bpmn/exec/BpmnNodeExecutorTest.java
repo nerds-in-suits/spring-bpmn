@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
@@ -54,6 +55,7 @@ class BpmnNodeExecutorTest {
     private final InMemoryProcessStepRepository steps = new InMemoryProcessStepRepository(this.instances);
     private final RecordingTaskPersistence tasks = new RecordingTaskPersistence();
     private final List<BpmnNodeContext> calls = new ArrayList<>();
+    private final List<String> mdc = new ArrayList<>();
 
     private ProcessInstance instance(final String processContent) {
         return this.instance("", processContent);
@@ -94,6 +96,10 @@ class BpmnNodeExecutorTest {
                 .withBean(ProcessStepRepository.class, () -> this.steps)
                 .withBean(TaskPersistence.class, () -> this.tasks)
                 .withBean("recording", BpmnNodeImplementation.class, () -> this.calls::add)
+                .withBean("mdc", BpmnNodeImplementation.class, () -> context -> {
+                    this.mdc.add(MDC.get(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID));
+                    this.mdc.add(MDC.get(BpmnNodeExecutor.MDC_STEP_ID));
+                })
                 .withBean("failing", BpmnNodeImplementation.class, () -> context -> {
                     throw new ProcessEngineException("failed");
                 })
@@ -384,6 +390,33 @@ class BpmnNodeExecutorTest {
             Assertions.assertEquals(Map.of("amount", 3), call.variables());
             Assertions.assertThrows(UnsupportedOperationException.class, () -> call.variables().put("x", 1));
             Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void stepRunsWithProcessInstanceAndStepIdInMdc() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"mdc\"/>");
+        this.withEngine(context -> {
+            final ProcessStep step = this.execute(context, instance, "st");
+
+            Assertions.assertEquals(List.of(instance.id().toString(), step.id().toString()), this.mdc);
+            Assertions.assertNull(MDC.get(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID));
+            Assertions.assertNull(MDC.get(BpmnNodeExecutor.MDC_STEP_ID));
+        });
+    }
+
+    @Test
+    void failedStepRestoresPreviousMdcValues() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"failing\"/>");
+        this.withEngine(context -> {
+            MDC.put(BpmnNodeExecutor.MDC_STEP_ID, "outer");
+            try {
+                this.assertFails(context, instance, "st");
+                Assertions.assertEquals("outer", MDC.get(BpmnNodeExecutor.MDC_STEP_ID));
+                Assertions.assertNull(MDC.get(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID));
+            } finally {
+                MDC.remove(BpmnNodeExecutor.MDC_STEP_ID);
+            }
         });
     }
 
