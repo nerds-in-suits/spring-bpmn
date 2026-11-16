@@ -180,5 +180,12 @@ class ProcessDefinitionRegistrarTest {
         public Collection<ProcessDefinition> retrieveAll(final String name) {
             return this.all.stream().filter(d -> d.name().equals(name)).toList();
         }
+
+        @Override
+        public List<ProcessDefinition> retrieveLatestAll() {
+            return this.all.stream().map(ProcessDefinition::name).distinct().sorted()
+                    .map(name -> this.all.stream().filter(d -> d.name().equals(name)).findFirst().orElseThrow())
+                    .toList();
+        }
     }
 }

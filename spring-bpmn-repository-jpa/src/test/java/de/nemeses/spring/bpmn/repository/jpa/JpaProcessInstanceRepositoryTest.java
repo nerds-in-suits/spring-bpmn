@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.orm.jpa.EntityManagerFactoryUtils;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,7 +28,10 @@ import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceCount;
+import de.nemeses.spring.bpmn.repository.ProcessInstancePage;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceSort;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 
@@ -276,6 +280,83 @@ class JpaProcessInstanceRepositoryTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void testQueryFiltersSortsAndPages() throws NoSuchProcessDefinitionException {
+        this.definitions.register(new ProcessDefinitionEntity("query-a", new Date(1000), "<a1/>"));
+        final ProcessDefinition first = this.definitions.retrieveLatest("query-a");
+        this.definitions.register(new ProcessDefinitionEntity("query-a", new Date(2000), "<a2/>"));
+        final ProcessDefinition second = this.definitions.retrieveLatest("query-a");
+        this.definitions.register(new ProcessDefinitionEntity("query-b", new Date(3000), "<b/>"));
+        final UUID a1 = this.instance(first, 10_000, 40_000L);
+        final UUID a2 = this.instance(second, 20_000, 30_000L);
+        final UUID a3 = this.instance(second, 30_000, null);
+        final UUID b1 = this.instance(this.definitions.retrieveLatest("query-b"), 40_000, null);
+
+        Assertions.assertEquals(List.of(a1, a2, a3), this.ids(this.repository.query("query-a", null,
+                ProcessInstanceSort.START_DATE, true, 0, 10)));
+        Assertions.assertEquals(List.of(a3, a2, a1), this.ids(this.repository.query("query-a", null,
+                ProcessInstanceSort.START_DATE, false, 0, 10)));
+        Assertions.assertEquals(List.of(a2, a1, a3), this.ids(this.repository.query("query-a", null,
+                ProcessInstanceSort.END_DATE, true, 0, 10)));
+        Assertions.assertEquals(List.of(a3, a1, a2), this.ids(this.repository.query("query-a", null,
+                ProcessInstanceSort.END_DATE, false, 0, 10)));
+        Assertions.assertEquals(List.of(a3), this.ids(this.repository.query("query-a", true,
+                ProcessInstanceSort.START_DATE, true, 0, 10)));
+        Assertions.assertEquals(List.of(a1, a2), this.ids(this.repository.query("query-a", false,
+                ProcessInstanceSort.START_DATE, true, 0, 10)));
+
+        final ProcessInstancePage page = this.repository.query("query-a", null, ProcessInstanceSort.START_DATE, true,
+                1, 1);
+        Assertions.assertEquals(List.of(a2), this.ids(page));
+        Assertions.assertEquals(3, page.total());
+
+        final ProcessInstancePage all = this.repository.query(null, null, ProcessInstanceSort.START_DATE, true, 0,
+                1000);
+        Assertions.assertEquals(all.items().size(), all.total());
+        Assertions.assertTrue(this.ids(all).containsAll(List.of(a1, a2, a3, b1)));
+    }
+
+    @Test
+    void testCountByDefinition() throws NoSuchProcessDefinitionException {
+        this.definitions.register(new ProcessDefinitionEntity("count-a", new Date(1000), "<a1/>"));
+        this.instance(this.definitions.retrieveLatest("count-a"), 1000, 2000L);
+        this.definitions.register(new ProcessDefinitionEntity("count-a", new Date(2000), "<a2/>"));
+        this.instance(this.definitions.retrieveLatest("count-a"), 3000, 4000L);
+        this.instance(this.definitions.retrieveLatest("count-a"), 5000, null);
+        this.definitions.register(new ProcessDefinitionEntity("count-b", new Date(1000), "<b/>"));
+        this.instance(this.definitions.retrieveLatest("count-b"), 1000, null);
+        this.definitions.register(new ProcessDefinitionEntity("count-c", new Date(1000), "<c/>"));
+
+        final Map<String, ProcessInstanceCount> counts = this.repository.countByDefinition();
+
+        Assertions.assertEquals(new ProcessInstanceCount(1, 2), counts.get("count-a"));
+        Assertions.assertEquals(new ProcessInstanceCount(1, 0), counts.get("count-b"));
+        Assertions.assertFalse(counts.containsKey("count-c"));
+    }
+
+    /**
+     * Persists an instance with the given start and end date.
+     */
+    private UUID instance(final ProcessDefinition definition, final long start, final Long end) {
+        final UUID id = UUID.randomUUID();
+        new TransactionTemplate(this.transactionManager).executeWithoutResult(_ -> {
+            final EntityManager entityManager = EntityManagerFactoryUtils.getTransactionalEntityManager(
+                    this.entityManagerFactory);
+            final ProcessInstanceEntity entity = new ProcessInstanceEntity(id, entityManager.find(
+                    ProcessDefinitionEntity.class, ((ProcessDefinitionEntity) definition).getId()), Map.of(),
+                    new Date(start), null);
+            if (end != null) {
+                entity.endDate(new Date(end));
+            }
+            entityManager.persist(entity);
+        });
+        return id;
+    }
+
+    private List<UUID> ids(final ProcessInstancePage page) {
+        return page.items().stream().map(ProcessInstance::id).toList();
     }
 
     /**

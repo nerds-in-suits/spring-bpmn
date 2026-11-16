@@ -176,5 +176,12 @@ class ProcessEngineServiceTest {
         public Collection<ProcessDefinition> retrieveAll(final String name) {
             return this.definitions.containsKey(name) ? List.of(this.definitions.get(name)) : List.of();
         }
+
+        @Override
+        public List<ProcessDefinition> retrieveLatestAll() {
+            return this.definitions.values().stream()
+                    .sorted((a, b) -> a.name().compareTo(b.name()))
+                    .toList();
+        }
     }
 }

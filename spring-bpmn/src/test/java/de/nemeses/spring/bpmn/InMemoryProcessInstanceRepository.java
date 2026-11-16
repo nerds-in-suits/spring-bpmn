@@ -1,7 +1,9 @@
 package de.nemeses.spring.bpmn;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -10,7 +12,10 @@ import java.util.UUID;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceCount;
+import de.nemeses.spring.bpmn.repository.ProcessInstancePage;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceSort;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 
 /**
@@ -68,6 +73,34 @@ public class InMemoryProcessInstanceRepository implements ProcessInstanceReposit
                 old.startDate(), old.endDate(), old.parentStep(), old.parentInstance());
         this.created.set(index, updated);
         return updated;
+    }
+
+    @Override
+    public ProcessInstancePage query(final String definitionName, final Boolean running,
+            final ProcessInstanceSort sort, final boolean ascending, final int offset, final int limit) {
+        final Comparator<Date> dates = Comparator.nullsLast(Comparator.<Date>naturalOrder());
+        Comparator<ProcessInstance> order = sort == ProcessInstanceSort.END_DATE
+                ? Comparator.comparing(ProcessInstance::endDate, dates)
+                : Comparator.comparing(ProcessInstance::startDate, dates);
+        order = order.thenComparing(ProcessInstance::id);
+        final List<ProcessInstance> matching = this.created.stream()
+                .filter(i -> definitionName == null || definitionName.equals(i.processDefinition().name()))
+                .filter(i -> running == null || running == (i.endDate() == null))
+                .sorted(ascending ? order : order.reversed())
+                .toList();
+        return new ProcessInstancePage(matching.stream().skip(offset).limit(limit).toList(), matching.size());
+    }
+
+    @Override
+    public Map<String, ProcessInstanceCount> countByDefinition() {
+        final Map<String, ProcessInstanceCount> counts = new HashMap<>();
+        for (final ProcessInstance instance : this.created) {
+            final boolean ended = instance.endDate() != null;
+            counts.merge(instance.processDefinition().name(),
+                    new ProcessInstanceCount(ended ? 0 : 1, ended ? 1 : 0),
+                    (a, b) -> new ProcessInstanceCount(a.running() + b.running(), a.finished() + b.finished()));
+        }
+        return counts;
     }
 
     private int index(final UUID id) throws NoSuchProcessInstanceException {

@@ -1,6 +1,8 @@
 package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,10 +15,14 @@ import org.springframework.transaction.annotation.Transactional;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceCount;
+import de.nemeses.spring.bpmn.repository.ProcessInstancePage;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceSort;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.criteria.CriteriaBuilder;
 
 /**
  * JPA backed {@link ProcessInstanceRepository}. Each variable is stored as one row with a JSON value
@@ -61,8 +67,11 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     @Override
     @Transactional(readOnly = true)
     public Optional<ProcessInstance> retrieveChild(final UUID parentStepId) {
-        return this.entityManager.createQuery("select i from ProcessInstanceEntity i where i.parentStepId = :stepId",
-                ProcessInstance.class)
+        return this.entityManager.createQuery("""
+                select i
+                from ProcessInstanceEntity i
+                where i.parentStepId = :stepId
+                """, ProcessInstance.class)
                 .setParameter("stepId", parentStepId)
                 .getResultStream()
                 .findFirst();
@@ -107,6 +116,44 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
         final ProcessInstanceEntity entity = this.entity(id);
         entity.variables(variables);
         return entity;
+    }
+
+    /**
+     * Runs one criteria query for the page and one for the total count ({@link ProcessInstanceCriteria}). Sorting by
+     * end date puts running instances (no end date) last in ascending and first in descending order.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ProcessInstancePage query(final String definitionName, final Boolean running,
+            final ProcessInstanceSort sort, final boolean ascending, final int offset, final int limit) {
+        final CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
+        final List<ProcessInstanceEntity> items = this.entityManager
+                .createQuery(ProcessInstanceCriteria.items(builder, definitionName, running, sort, ascending))
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList();
+        final long total = this.entityManager
+                .createQuery(ProcessInstanceCriteria.total(builder, definitionName, running))
+                .getSingleResult();
+        return new ProcessInstancePage(List.copyOf(items), total);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, ProcessInstanceCount> countByDefinition() {
+        final Map<String, ProcessInstanceCount> counts = new LinkedHashMap<>();
+        this.entityManager.createQuery("""
+                select i.definition.processDefinitionName, count(i), count(i.end)
+                from ProcessInstanceEntity i
+                group by i.definition.processDefinitionName
+                """, Object[].class)
+                .getResultList()
+                .forEach(row -> {
+                    final long all = ((Number) row[1]).longValue();
+                    final long finished = ((Number) row[2]).longValue();
+                    counts.put((String) row[0], new ProcessInstanceCount(all - finished, finished));
+                });
+        return counts;
     }
 
     private ProcessInstanceEntity entity(final UUID id) throws NoSuchProcessInstanceException {
