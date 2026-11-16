@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,10 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceCount;
+import de.nemeses.spring.bpmn.repository.ProcessInstancePage;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
+import de.nemeses.spring.bpmn.repository.ProcessInstanceSort;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.TypedQuery;
 
 /**
  * JPA backed {@link ProcessInstanceRepository}. Each variable is stored as one row with a JSON value
@@ -107,6 +112,55 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
         final ProcessInstanceEntity entity = this.entity(id);
         entity.variables(variables);
         return entity;
+    }
+
+    /**
+     * Runs one query for the page and one for the total count. Sorting by end date puts running instances (no end
+     * date) last in ascending and first in descending order.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ProcessInstancePage query(final String definitionName, final Boolean running,
+            final ProcessInstanceSort sort, final boolean ascending, final int offset, final int limit) {
+        final String state;
+        if (running == null) {
+            state = "";
+        } else {
+            state = running ? " and i.end is null" : " and i.end is not null";
+        }
+        final String where = " where 1 = 1" + (definitionName == null
+                ? ""
+                : " and i.definition.processDefinitionName = :name") + state;
+        final String direction = ascending ? " asc" : " desc";
+        final String order = sort == ProcessInstanceSort.END_DATE
+                ? " order by i.end" + direction + (ascending ? " nulls last" : " nulls first")
+                : " order by i.start" + direction;
+        final TypedQuery<ProcessInstance> items = this.entityManager.createQuery(
+                "select i from ProcessInstanceEntity i" + where + order + ", i.uuid" + direction,
+                ProcessInstance.class);
+        final TypedQuery<Long> total = this.entityManager.createQuery(
+                "select count(i) from ProcessInstanceEntity i" + where, Long.class);
+        if (definitionName != null) {
+            items.setParameter("name", definitionName);
+            total.setParameter("name", definitionName);
+        }
+        return new ProcessInstancePage(items.setFirstResult(offset).setMaxResults(limit).getResultList(),
+                total.getSingleResult());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, ProcessInstanceCount> countByDefinition() {
+        final Map<String, ProcessInstanceCount> counts = new LinkedHashMap<>();
+        this.entityManager.createQuery("select i.definition.processDefinitionName, count(i), count(i.end)"
+                + " from ProcessInstanceEntity i group by i.definition.processDefinitionName", Object[].class)
+                .getResultList()
+                .forEach(row -> {
+                    final long all = ((Number) row[1]).longValue();
+                    final long finished = ((Number) row[2]).longValue();
+                    counts.put((String) row[0], new ProcessInstanceCount(all - finished, finished));
+                });
+        return counts;
     }
 
     private ProcessInstanceEntity entity(final UUID id) throws NoSuchProcessInstanceException {

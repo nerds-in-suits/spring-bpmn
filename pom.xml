@@ -31,6 +31,7 @@
         <module>spring-tasks-jms</module>
         <module>spring-bpmn-repository-jpa</module>
         <module>spring-bpmn</module>
+        <module>spring-bpmn-rest</module>
     </modules>
 
     <dependencyManagement>
@@ -74,6 +75,11 @@
             <dependency>
                 <groupId>de.nemeses.spring</groupId>
                 <artifactId>spring-bpmn-repository-jpa</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.nemeses.spring</groupId>
+                <artifactId>spring-bpmn-rest</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

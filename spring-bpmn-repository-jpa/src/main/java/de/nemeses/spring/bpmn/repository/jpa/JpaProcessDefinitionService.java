@@ -60,4 +60,17 @@ public class JpaProcessDefinitionService implements ProcessDefinitionService {
                 .createQuery(JpaProcessDefinitionService.QUERY, ProcessDefinitionEntity.class).setParameter("name", name).getResultList());
         return result == null ? List.of() : List.copyOf(result);
     }
+
+    /**
+     * Selects, per name, the version with the latest creation date (unique per name by the table index) in one query.
+     */
+    @Override
+    public List<ProcessDefinition> retrieveLatestAll() {
+        final List<ProcessDefinitionEntity> result = this.transactionTemplate.execute(_ -> this.entityManager
+                .createQuery("select d from ProcessDefinitionEntity d where d.created = (select max(o.created)"
+                        + " from ProcessDefinitionEntity o where o.processDefinitionName = d.processDefinitionName)"
+                        + " order by d.processDefinitionName", ProcessDefinitionEntity.class)
+                .getResultList());
+        return result == null ? List.of() : List.copyOf(result);
+    }
 }

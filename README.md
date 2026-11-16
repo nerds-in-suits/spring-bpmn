@@ -11,6 +11,7 @@ Licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)).
 | [`conventions`](conventions/README.md) | Checkstyle, PMD and SpotBugs rulesets and Eclipse settings for all modules. |
 | [`spring-bpmn`](spring-bpmn/README.md) | The BPMN engine and its repository API. |
 | [`spring-bpmn-repository-jpa`](spring-bpmn-repository-jpa/README.md) | JPA implementation of the repository API. |
+| [`spring-bpmn-rest`](spring-bpmn-rest/README.md) | REST API for process definitions, process instances and user tasks. |
 | [`spring-tasks`](spring-tasks/README.md) | API and core to schedule and execute persistent tasks. |
 | [`spring-tasks-jms`](spring-tasks-jms/README.md) | Task persistence on a JMS queue. |
 | [`spring-tasks-jpa`](spring-tasks-jpa/README.md) | Task persistence in a JPA table. |

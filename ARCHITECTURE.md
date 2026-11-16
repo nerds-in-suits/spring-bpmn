@@ -17,7 +17,8 @@ It stores models and history through its repository API (`de.nemeses.spring.bpmn
 ```text
 spring-bpmn ──> spring-tasks   <── spring-tasks-jpa
      ^                         <── spring-tasks-jms
-     └─────── spring-bpmn-repository-jpa
+     ├─────── spring-bpmn-repository-jpa
+     └─────── spring-bpmn-rest
 ```
 
 An arrow points from the dependent module to the module it depends on.
@@ -30,6 +31,7 @@ The application chooses the concrete backends by adding implementation modules t
 | `conventions` | Checkstyle/PMD/SpotBugs rulesets and Eclipse prefs. Independent POM. |
 | `spring-bpmn` | Parses BPMN documents, registers process definitions and executes process instances on `spring-tasks`; contains the repository API. |
 | `spring-bpmn-repository-jpa` | JPA implementation of the repository API of `spring-bpmn`. |
+| `spring-bpmn-rest` | REST API (JSON) for process definitions, process instances with their steps, and user tasks. |
 | `spring-tasks` | API and core to schedule and execute tasks (`TaskService`, `TaskImplementation`, `TaskPersistence`). |
 | `spring-tasks-jms` | `TaskPersistence` on a JMS queue. |
 | `spring-tasks-jpa` | `TaskPersistence` in a JPA table. |
@@ -43,7 +45,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 - `BpmnParser`: unmarshals and schema-validates BPMN documents into the generated JAXB model (`BpmnParseException`).
 - `ConfiguredLocationsProcessDefinitionSource`: the default `ProcessDefinitionSource`, reading `spring.bpmn.process-definition-locations`.
-- `ProcessDefinitionAutoConfiguration`: component-scans the package and its sub-packages (`exec` and its invoker sub-packages); needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
+- `ProcessDefinitionAutoConfiguration`: component-scans the package and `exec` with its invoker sub-packages, but not the sub-packages of other modules (`repository.jpa`, `rest`); needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
 - `ProcessDefinitionRegistrar`: registers every `process` of every `ProcessDefinitionSource` document on startup, skipping unchanged ones.
 - `ProcessDefinitionSource`: contributes BPMN documents to register.
 
@@ -91,9 +93,12 @@ Package-private helpers are listed when they hold engine behaviour.
 
 - `NoSuchProcessDefinitionException`, `NoSuchProcessInstanceException`, `NoSuchProcessStepException`: checked "not found" exceptions of the repositories.
 - `ProcessDefinition`: one registered version of a process (name, BPMN XML, MD5 hash).
-- `ProcessDefinitionService`: registers and retrieves process definition versions.
+- `ProcessDefinitionService`: registers and retrieves process definition versions; `retrieveLatestAll` lists the latest version of every name.
 - `ProcessInstance`: a running or ended instance with its variables; `parentStep()` is the waiting call activity step, if any.
-- `ProcessInstanceRepository`: stores instances; `lock` serializes the steps of one instance.
+- `ProcessInstanceCount`: number of running and finished instances of one definition name (`ProcessInstanceRepository.countByDefinition`).
+- `ProcessInstancePage`: one page of `ProcessInstanceRepository.query` with the total count.
+- `ProcessInstanceRepository`: stores instances; `lock` serializes the steps of one instance; `query` pages through the instances filtered by definition and state, `countByDefinition` counts them per definition name.
+- `ProcessInstanceSort`: sort order of `ProcessInstanceRepository.query` (start or end date).
 - `ProcessStep`: one execution of a flow node; pending while `endDate` is null; `parentStepId()` is the enclosing sub-process or multi-instance activity step; `loopCounter()`/`loopItem()` hold loop data.
 - `ProcessStepRepository`: stores steps, which are never deleted and form the trail of an instance.
 
@@ -105,6 +110,17 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessInstanceEntity`: table `spring_bpmn_process_instance`.
 - `ProcessStepEntity`: table `spring_bpmn_process_step`.
 - `ProcessVariableEntity`: table `spring_bpmn_process_variable`, one JSON value row per instance and variable.
+
+### `de.nemeses.spring.bpmn.rest` (module `spring-bpmn-rest`)
+
+- `*Dto`, `StartProcessRequest`: JSON records of the requests and responses; dates are ISO-8601 instants.
+- `BpmnRestAutoConfiguration`: registers the controllers in a servlet web application with a `ProcessEngineService` and prefixes their paths with `spring.bpmn.rest.base-path`; brings no security of its own.
+- `BpmnRestExceptionHandler`: maps the exceptions of the controllers to RFC 9457 problem details (404 for unknown entities, 422 for other `ProcessEngineException`s, 400 for invalid requests).
+- `BpmnRestProperties`: the `spring.bpmn.rest.*` settings.
+- `ProcessDefinitionController`: `/process-definitions`, addressed by name; lists the latest versions with instance counts, reads versions and BPMN XML, deploys BPMN documents if enabled; no deletion.
+- `ProcessInstanceController`: `/process-instances`; pages, reads and starts instances and lists their steps, filtered and sorted, with the node type from the model.
+- `ProcessNodes`: reads the type (BPMN element name) and name of the flow nodes of a definition from the `ProcessDefinitionModelCache`.
+- `UserTaskController`: `/user-tasks`; lists and completes the open user tasks of an instance through `ProcessEngineService`.
 
 ### `de.nemeses.spring.tasks` (module `spring-tasks`)
 
@@ -167,6 +183,10 @@ Bind them with one `@ConfigurationProperties` record per module and `@DefaultVal
 | Property | Module | Default | Description |
 |----------|--------|---------|-------------|
 | `spring.bpmn.process-definition-locations` | `spring-bpmn` | `classpath*:/process-definitions/*.bpmn` | Resource patterns scanned on startup for BPMN documents to register as process definitions (`ConfiguredLocationsProcessDefinitionSource`). |
+| `spring.bpmn.rest.base-path` | `spring-bpmn-rest` | `/api/bpmn/v1` | Path prefix of all REST endpoints; must start with `/` (`BpmnRestProperties`). |
+| `spring.bpmn.rest.default-page-size` | `spring-bpmn-rest` | `20` | Page size of paged lists (`GET /process-instances`) without `size` parameter; positive (`BpmnRestProperties`). |
+| `spring.bpmn.rest.deployment-enabled` | `spring-bpmn-rest` | `false` | Whether `POST /process-definitions` deploys BPMN documents at runtime; if `false` it answers `403 Forbidden` (`BpmnRestProperties`). |
+| `spring.bpmn.rest.max-page-size` | `spring-bpmn-rest` | `100` | Largest page size; larger `size` parameters are reduced to it; not less than the default page size (`BpmnRestProperties`). |
 | `spring.tasks.error-backoff` | `spring-tasks` | `1s` | `Duration` a worker pauses after `TaskPersistence.next()` failed, to avoid a busy loop (`TaskProperties`). |
 | `spring.tasks.jms.queue` | `spring-tasks-jms` | `spring.tasks` | Name of the JMS queue tasks are sent to and received from (`JmsTaskProperties`). |
 | `spring.tasks.jpa.max-results` | `spring-tasks-jpa` | `20` | Maximum number of due tasks claimed (`RUNNING`) per database query and served from memory (`JpaTaskProperties`). |

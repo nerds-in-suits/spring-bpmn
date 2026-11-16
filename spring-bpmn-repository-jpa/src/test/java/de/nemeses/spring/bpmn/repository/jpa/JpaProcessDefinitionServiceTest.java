@@ -79,6 +79,22 @@ class JpaProcessDefinitionServiceTest {
         Assertions.assertNotEquals(ids.get(0), ids.get(1));
     }
 
+    @Test
+    void testRetrieveLatestAll() {
+        this.service.register(new ProcessDefinitionEntity("latest-b", new Date(500), "<b/>"));
+        this.service.register(new ProcessDefinitionEntity("latest-a", new Date(2000), "<a2/>"));
+        this.service.register(new ProcessDefinitionEntity("latest-a", new Date(1000), "<a1/>"));
+
+        final List<ProcessDefinition> all = this.service.retrieveLatestAll();
+
+        final List<String> names = all.stream().map(ProcessDefinition::name).toList();
+        Assertions.assertEquals(names.stream().distinct().sorted().toList(), names);
+        Assertions.assertEquals(List.of("<a2/>", "<b/>"), all.stream()
+                .filter(definition -> definition.name().startsWith("latest-"))
+                .map(ProcessDefinition::bpmnXml)
+                .toList());
+    }
+
     /**
      * Test application.
      */

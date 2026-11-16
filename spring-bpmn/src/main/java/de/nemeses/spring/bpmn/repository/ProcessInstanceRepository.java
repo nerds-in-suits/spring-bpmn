@@ -75,4 +75,28 @@ public interface ProcessInstanceRepository {
      * @throws NoSuchProcessInstanceException if no instance with that id exists
      */
     ProcessInstance updateVariables(UUID id, Map<String, Object> variables) throws NoSuchProcessInstanceException;
+
+    /**
+     * Lists the instances matching a filter, one page at a time. Instances with the same sort value are ordered by
+     * id, so the pages are stable.
+     *
+     * @param definitionName only instances of any version of the process definition of that name; {@code null} for
+     *            all definitions
+     * @param running {@code true} only running instances (no end date), {@code false} only finished ones,
+     *            {@code null} both
+     * @param sort the sort order
+     * @param ascending {@code true} oldest first, {@code false} newest first
+     * @param offset the number of matching instances to skip, not negative
+     * @param limit the maximum number of instances to return, positive
+     * @return the page and the total number of matching instances
+     */
+    ProcessInstancePage query(String definitionName, Boolean running, ProcessInstanceSort sort, boolean ascending,
+            int offset, int limit);
+
+    /**
+     * Counts the running and finished instances of every process definition name, over all its versions.
+     *
+     * @return the counts by process definition name; names without instances are missing
+     */
+    Map<String, ProcessInstanceCount> countByDefinition();
 }
