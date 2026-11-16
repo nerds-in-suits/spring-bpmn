@@ -52,6 +52,8 @@ mvn clean install
 
 Do **not** pass `-Dtest=...` on the full reactor (`-am` / root `test`): `conventions` has no tests and Maven will fail or skip oddly.
 
+`.mvn/jvm.config` passes `--enable-native-access=ALL-UNNAMED` and `--sun-misc-unsafe-memory-access=allow` to Maven's own JVM, silencing Java 25 warnings from Maven's bundled jansi and guava; do not remove it.
+
 Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) run on **every** `mvn verify` / `install`; there are no profiles to enable or skip them.
 `owasp-dependencycheck` is the only opt-in check.
 Rulesets come from the `conventions` JAR, so a changed ruleset needs `conventions` installed before the other modules see it.
