@@ -150,6 +150,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - New repository backend: new module `spring-bpmn-repository-<name>` implementing the repository interfaces, registered by auto-configuration.
 - New task backend: new module `spring-tasks-<name>` providing a `TaskPersistence` bean via auto-configuration (`@ConditionalOnMissingBean(TaskPersistence.class)`).
 - New task type: a Spring bean implementing `TaskImplementation`, referenced by bean name.
+- Web frontend: the planned module `spring-bpmn-ui` (#116) uses Alpine.js as static resources in its JAR, with Alpine as a WebJar and no Node build (evaluation in #117).
 - Engine logic belongs in `spring-bpmn`, built on `TaskService`; do not add a second scheduler.
 
 ## Packaging conventions
