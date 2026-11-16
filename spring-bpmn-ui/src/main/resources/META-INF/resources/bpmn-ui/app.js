@@ -8,6 +8,7 @@
  *
  * The play button of a process definition asks for the variables in a dialog, starts an instance and shows it.
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
+ * The headers of the columns the API can sort by are buttons that sort by them (see sortBy).
  * The diagram is rendered by the bpmn-js viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
  */
 document.addEventListener('alpine:init', () => {
@@ -271,6 +272,42 @@ document.addEventListener('alpine:init', () => {
     /** Changes a filter or sort parameter and goes back to the first page. */
     filter(name, value) {
       this.navigate({ [name]: value, page: '' });
+    },
+
+    /**
+     * Sorts by column, a sort value of the API, on a click on its header and goes back to the first page:
+     * the sorted column again reverses the direction, another column is sorted ascending.
+     * Without sort and direction in the URL the API sorts by start date ascending, so that column shows as sorted.
+     */
+    sortBy(column) {
+      const direction = this.sortColumn() === column && this.sortDirection() === 'asc' ? 'desc' : 'asc';
+      this.navigate({ sort: column, direction, page: '' });
+    },
+
+    /** @return the sorted column, the default of the API if the URL has none */
+    sortColumn() {
+      return this.route.query.sort || 'startDate';
+    },
+
+    /** @return the sort direction, asc or desc, the default of the API if the URL has none */
+    sortDirection() {
+      return this.route.query.direction === 'desc' ? 'desc' : 'asc';
+    },
+
+    /** @return the aria-sort value of the header of column; null removes it from the unsorted columns */
+    ariaSort(column) {
+      if (this.sortColumn() !== column) {
+        return null;
+      }
+      return this.sortDirection() === 'desc' ? 'descending' : 'ascending';
+    },
+
+    /** @return the arrow shown in the header of column: up ascending, down descending, none if not sorted */
+    sortMark(column) {
+      if (this.sortColumn() !== column) {
+        return '';
+      }
+      return this.sortDirection() === 'desc' ? ' ▼' : ' ▲';
     },
 
     instancesLink(definition, state) {
