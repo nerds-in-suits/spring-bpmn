@@ -23,7 +23,7 @@ import de.nemeses.spring.bpmn.exec.ProcessEngineService;
 @ConditionalOnBean(ProcessEngineService.class)
 @EnableConfigurationProperties(BpmnRestProperties.class)
 @Import({ BpmnRestExceptionHandler.class, ProcessDefinitionController.class, ProcessInstanceController.class,
-    ProcessNodes.class, UserTaskController.class })
+    ProcessNodes.class, ProcessVariableController.class, UserTaskController.class })
 public class BpmnRestAutoConfiguration implements WebMvcConfigurer {
 
     private final BpmnRestProperties properties;

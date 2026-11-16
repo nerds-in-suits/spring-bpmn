@@ -1,6 +1,7 @@
 package de.nemeses.spring.bpmn.exec;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +30,8 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import jakarta.xml.bind.JAXBElement;
 
 /**
- * Core service of the process engine: starts process instances and lists and completes their open user tasks.
+ * Core service of the process engine: starts process instances, lists and completes their open user tasks and
+ * updates their variables.
  * <p>
  * Starting an instance creates it and triggers each start event of the process ({@link Invoker#trigger}, which
  * creates a {@link ProcessStep} and a {@code bpmnNodeTask} for it), in one transaction. Failures (unknown definition,
@@ -37,6 +39,8 @@ import jakarta.xml.bind.JAXBElement;
  * <p>
  * An open user task is a pending step at a {@code userTask} node ({@link #openUserTasks}); it is identified by the id
  * of its step and completed with {@link #completeUserTask}.
+ * <p>
+ * The variables of a running instance are changed from outside with {@link #updateVariables}.
  * <p>
  * The {@link InvokerRegistry} is looked up when an instance is started and the {@link BpmnNodeExecutor} when a user
  * task is completed, because the invoker of {@code callActivity} depends on this service.
@@ -165,6 +169,82 @@ public class ProcessEngineService {
     public void completeUserTask(final UUID stepId, final Map<String, Object> variables)
             throws ProcessEngineException {
         this.executor.getObject().completeUserTask(stepId, variables);
+    }
+
+    /**
+     * Updates the variables of a running process instance from outside, in one transaction.
+     * <p>
+     * In merge mode ({@code replace == false}) every entry of {@code variables} adds or replaces the variable of its
+     * name and a {@code null} value removes it (like a JSON Merge Patch, RFC 7396, but only at the top level: a map
+     * value replaces the old value as a whole); all other variables stay. In replace mode {@code variables} becomes the
+     * complete set of variables, and {@code null} values are rejected.
+     * <p>
+     * The update does <em>not</em> take the lock of the instance ({@link ProcessInstanceRepository#lock}), so it may
+     * interleave with a step executing at the same time: such a step works on the variables it read before and may
+     * overwrite this update when it stores its own changes. Nothing is re-evaluated; waiting steps see the new values
+     * when they execute.
+     *
+     * @param processInstanceId the id of the process instance
+     * @param variables the variables to merge, or the new complete set; {@code null} means none, so it changes nothing
+     *            in merge mode and removes all variables in replace mode; keys must not be {@code null}
+     * @param replace {@code true} to replace all variables, {@code false} to merge
+     * @return the updated instance
+     * @throws ProcessEngineException if the instance does not exist (caused by a
+     *             {@link NoSuchProcessInstanceException}) or has ended, a key is {@code null}, or a value is
+     *             {@code null} in replace mode
+     */
+    @Transactional(rollbackFor = ProcessEngineException.class)
+    public ProcessInstance updateVariables(final UUID processInstanceId, final Map<String, Object> variables,
+            final boolean replace) throws ProcessEngineException {
+        try {
+            final ProcessInstance instance = this.instances.retrieve(processInstanceId);
+            if (instance.endDate() != null) {
+                throw new ProcessEngineException("Cannot update the variables of process instance "
+                        + processInstanceId + ", it has ended.");
+            }
+            final Map<String, Object> changes = variables == null ? Map.of() : variables;
+            if (!replace && changes.isEmpty()) {
+                return instance;
+            }
+            final Map<String, Object> updated = ProcessEngineService.applyVariables(processInstanceId,
+                    replace ? Map.of() : instance.variables(), changes, replace);
+            LoggerFactory.getLogger(this.getClass()).info("Updating variables {} of process instance {}{}",
+                    changes.keySet(), processInstanceId, replace ? ", replacing all" : "");
+            return this.instances.updateVariables(processInstanceId, updated);
+        } catch (final NoSuchProcessInstanceException e) {
+            throw new ProcessEngineException("Cannot update the variables of process instance " + processInstanceId
+                    + ".", e);
+        }
+    }
+
+    /**
+     * Applies variable changes as described in {@link #updateVariables}.
+     *
+     * @param processInstanceId the id of the process instance, for the messages
+     * @param current the variables to start from (empty in replace mode)
+     * @param changes the changes
+     * @param replace whether {@code null} values are rejected instead of removing the variable
+     * @return the resulting variables
+     * @throws ProcessEngineException if a key is {@code null}, or a value is {@code null} in replace mode
+     */
+    private static Map<String, Object> applyVariables(final UUID processInstanceId, final Map<String, Object> current,
+            final Map<String, Object> changes, final boolean replace) throws ProcessEngineException {
+        final Map<String, Object> updated = new HashMap<>(current);
+        for (final Map.Entry<String, Object> variable : changes.entrySet()) {
+            if (variable.getKey() == null) {
+                throw new ProcessEngineException("Cannot update the variables of process instance "
+                        + processInstanceId + " with a null variable name.");
+            }
+            if (variable.getValue() != null) {
+                updated.put(variable.getKey(), variable.getValue());
+            } else if (replace) {
+                throw new ProcessEngineException("Cannot replace the variables of process instance "
+                        + processInstanceId + " with the null value of " + variable.getKey() + ".");
+            } else {
+                updated.remove(variable.getKey());
+            }
+        }
+        return updated;
     }
 
     private static Collection<FlowNode> startNodes(final Process process, final ProcessDefinition definition)

@@ -27,7 +27,7 @@ import de.nemeses.spring.tasks.TaskService;
 
 /**
  * The REST API on the real engine with the JPA repositories and the JPA task persistence on H2: deploys a process,
- * starts an instance, completes its user task and reads the result.
+ * starts an instance, updates its variables, completes its user task and reads the result.
  */
 @SpringBootTest(classes = BpmnRestIntegrationTest.TestApplication.class, properties = {
     "spring.jpa.hibernate.ddl-auto=create-drop", "spring.bpmn.rest.deployment-enabled=true",
@@ -76,6 +76,24 @@ class BpmnRestIntegrationTest {
                 .andExpect(MockMvcResultMatchers.jsonPath("$[0].runningInstances").value(1))
                 .andExpect(MockMvcResultMatchers.jsonPath("$[0].finishedInstances").value(0));
 
+        mvc.perform(MockMvcRequestBuilders.patch(instance + "/variables").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"note\":\"n\",\"customer\":{\"name\":\"c\"}}"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.amount").value(3))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.customer.name").value("c"));
+        mvc.perform(MockMvcRequestBuilders.put(instance + "/variables/amount").contentType(MediaType.APPLICATION_JSON)
+                .content("5"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().json("5"));
+        mvc.perform(MockMvcRequestBuilders.delete(instance + "/variables/note"))
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
+        mvc.perform(MockMvcRequestBuilders.get(instance + "/variables/note"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound());
+        mvc.perform(MockMvcRequestBuilders.get(instance + "/variables"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.amount").value(5))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.customer.name").value("c"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.note").doesNotExist());
+
         mvc.perform(MockMvcRequestBuilders.post(BASE + "/user-tasks/" + JsonPath.read(tasks, "$[0].id") + "/complete")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"approved\":true}"))
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
@@ -84,8 +102,11 @@ class BpmnRestIntegrationTest {
                 .perform(MockMvcRequestBuilders.get(instance))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8), "$.state")));
         mvc.perform(MockMvcRequestBuilders.get(instance))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.amount").value(3))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.amount").value(5))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.variables.approved").value(true));
+        mvc.perform(MockMvcRequestBuilders.patch(instance + "/variables").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":6}"))
+                .andExpect(MockMvcResultMatchers.status().isUnprocessableContent());
         final String steps = mvc.perform(MockMvcRequestBuilders.get(instance + "/steps"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
