@@ -69,6 +69,22 @@ class BpmnUiTest {
     }
 
     @Test
+    void testEntryPageCanUploadDefinition() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("@click=\"$refs.uploadFile.click()\"")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "<input type=\"file\" id=\"upload-file\"")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("accept=\".bpmn,.xml,application/xml,text/xml\"")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("async uploadDefinition(input)")));
+    }
+
+    @Test
     void testServesAlpineWebJar() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/webjars/alpinejs/dist/cdn.min.js"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -95,7 +111,8 @@ class BpmnUiTest {
     void testConfigHasBasePath() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/config.json"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.apiBasePath").value("/bpmn"));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.apiBasePath").value("/bpmn"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.deploymentEnabled").value(false));
     }
 
     @Test
