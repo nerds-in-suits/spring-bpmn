@@ -13,7 +13,7 @@ import de.nemeses.spring.tasks.jpa.application.TestApplication;
 
 /**
  * Starts {@link TaskConfiguration} together with the auto-configurations: the {@link TaskService} uses the
- * {@link JpaTaskPersistence}, because the component scan of {@link TaskConfiguration} does not pick up
+ * {@link JpaTaskPersistence}, because {@link TaskConfiguration} has no component scan that could pick up
  * {@link JpaTaskPersistenceAutoConfiguration} before an {@code EntityManagerFactory} exists.
  */
 @SpringBootTest(classes = { TaskConfiguration.class, TestApplication.class },

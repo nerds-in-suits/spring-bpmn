@@ -1,9 +1,7 @@
 package de.nemeses.spring.tasks;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
-@Service
 public class TestTaskImplementation extends JsonPayloadTaskImplementation<TestPayload> {
 
     @Override
