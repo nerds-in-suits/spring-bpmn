@@ -13,7 +13,8 @@ import de.nemeses.spring.tasks.TaskConfiguration;
  * ({@code spring-bpmn-repository-jpa}), the JPA task persistence ({@code spring-tasks-jpa}), the REST API
  * ({@code spring-bpmn-rest}) and the UI ({@code spring-bpmn-ui}); {@code spring-tasks} has no auto-configuration, so
  * its {@link TaskConfiguration} is imported here. The database, port and engine settings are in
- * {@code application.yaml}; the sample processes in {@code process-definitions/} are registered on startup.
+ * {@code application.yaml}; the sample processes in {@code process-definitions/} are registered on startup. Spring
+ * Boot's default security secures the UI with form login for the users of {@link DemoUsers}.
  */
 @SpringBootApplication
 @Import(TaskConfiguration.class)
