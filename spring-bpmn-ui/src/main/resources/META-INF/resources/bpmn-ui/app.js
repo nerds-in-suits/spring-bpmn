@@ -136,22 +136,11 @@ document.addEventListener('alpine:init', () => {
 
     /** POSTs body as JSON and returns the JSON response; rejects with the detail of a problem response. */
     async post(url, body) {
-      const response = await fetch(url, {
+      return (await this.request(url, {
         method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        let detail = response.status + ' ' + response.statusText;
-        try {
-          const problem = await response.json();
-          detail = problem.detail || problem.title || detail;
-        } catch (ignored) {
-          // no problem details
-        }
-        throw new Error(detail);
-      }
-      return response.json();
+      })).json();
     },
 
     /** Opens the dialog that asks for the variables to start an instance of the process definition. */
