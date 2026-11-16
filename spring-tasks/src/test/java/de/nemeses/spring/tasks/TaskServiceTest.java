@@ -1,11 +1,16 @@
 package de.nemeses.spring.tasks;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -108,6 +113,31 @@ public class TaskServiceTest {
     }
 
     @Test
+    public void testTaskIdInMdcWhileTaskRuns() throws InterruptedException {
+        final RecordingTaskPersistence standalone = new RecordingTaskPersistence();
+        final MdcCapturingTaskImplementation capturing = new MdcCapturingTaskImplementation();
+        final TaskService service = new TaskService(standalone,
+            new StaticListableBeanFactory(Map.of("capturing", capturing)), TaskServiceTest.properties(1));
+        service.start();
+        try {
+            service.trigger("capturing", "first");
+            service.trigger("capturing", "second");
+            final RecordingTaskPersistence.RecordedTask first = standalone.awaitFinished();
+            final RecordingTaskPersistence.RecordedTask second = standalone.awaitFinished();
+            Assertions.assertTrue(first.completed() && second.completed(), "tasks completed");
+            Assertions.assertEquals(first.taskId(), capturing.captured().poll(10, TimeUnit.SECONDS).get(TaskMdc.TASK_ID),
+                "first task id in MDC");
+            Assertions.assertEquals(second.taskId(), capturing.captured().poll(10, TimeUnit.SECONDS).get(TaskMdc.TASK_ID),
+                "second task id in MDC");
+            Assertions.assertEquals(1, standalone.awaitWaiting(1), "worker waiting again");
+            Assertions.assertEquals(List.of("null", "null", "null"), standalone.taskIdsAtNext(),
+                "task id removed from the MDC after each task");
+        } finally {
+            service.stop();
+        }
+    }
+
+    @Test
     public void testPropertiesBound() {
         Assertions.assertEquals(3, this.properties.poolSize(), "configured pool size");
         Assertions.assertEquals(Duration.ofSeconds(1), this.properties.errorBackoff(), "default error backoff");
@@ -158,6 +188,33 @@ public class TaskServiceTest {
         @Bean
         TaskImplementation<String> failingTaskImplementation() {
             return new FailingTaskImplementation();
+        }
+    }
+
+    /**
+     * Task that records the MDC it runs with.
+     */
+    static class MdcCapturingTaskImplementation implements TaskImplementation<String> {
+
+        private final BlockingQueue<Map<String, String>> captured = new LinkedBlockingQueue<>();
+
+        @Override
+        public void execute(final String payload) throws TaskException {
+            this.captured.add(MDC.getCopyOfContextMap());
+        }
+
+        @Override
+        public String serializePayload(final String payload) {
+            return payload;
+        }
+
+        @Override
+        public String deserializePayload(final String serializedPayload) {
+            return serializedPayload;
+        }
+
+        BlockingQueue<Map<String, String>> captured() {
+            return this.captured;
         }
     }
 

@@ -72,6 +72,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances, to list and complete their open user tasks and to update their variables (merge or replace, without the instance lock).
+- `ProcessMdc`: the MDC keys `processInstanceId`, `stepId` and `nodeId`, set while `BpmnNodeExecutor` executes a step and (only `processInstanceId`) while `InvokerRegistry` triggers a node, e.g. the start events of a new instance.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
 - `SubProcessScopes`: triggers the target nodes of the flows taken in their scope and schedules leaving embedded sub-processes.
 
@@ -143,7 +144,8 @@ Package-private helpers are listed when they hold engine behaviour.
 - `TaskConfiguration`: `@SpringBootConfiguration` that imports `TaskService` explicitly (no component scan) and enables `TaskProperties`.
 - `TaskException`: a task failed.
 - `TaskImplementation`: a task type, as a Spring bean referenced by its bean name.
-- `TaskPersistence`: stores tasks and hands due ones to the workers (`next()`, `TaskInfo.complete()`, `TaskInfo.fail()`).
+- `TaskMdc`: the MDC key `taskId`, set by `TaskService` while a task runs, and scopes that set MDC entries and restore the previous values.
+- `TaskPersistence`: stores tasks and hands due ones to the workers (`next()`, `TaskInfo.taskId()`, `TaskInfo.complete()`, `TaskInfo.fail()`).
 - `TaskProperties`: the `spring.tasks.*` settings.
 - `TaskService`: public entry (`trigger`, `schedule`); a `SmartLifecycle` running the worker pool; looks up the `TaskImplementation` beans by name in the bean factory when needed, so task beans may depend on it.
 

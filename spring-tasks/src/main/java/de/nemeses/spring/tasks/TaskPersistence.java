@@ -24,6 +24,13 @@ public interface TaskPersistence {
     TaskInfo next() throws InterruptedException;
 
     interface TaskInfo {
+        /**
+         * Id of the task in this persistence, for logging; {@link TaskService} puts it into the MDC as
+         * {@link TaskMdc#TASK_ID} while the task runs.
+         * @return the id, the same for every delivery of the same task; <code>null</code> if the backend has none.
+         */
+        String taskId();
+
         String beanName();
         String payload();
         Date earliestExecution();

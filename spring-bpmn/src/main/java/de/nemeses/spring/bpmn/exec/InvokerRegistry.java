@@ -14,6 +14,7 @@ import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
+import de.nemeses.spring.tasks.TaskMdc;
 import de.nemeses.spring.tasks.TaskService;
 
 /**
@@ -115,7 +116,9 @@ class InvokerRegistry {
     }
 
     /**
-     * Triggers a node through its {@link Invoker} ({@link Invoker#trigger}).
+     * Triggers a node through its {@link Invoker} ({@link Invoker#trigger}), with the instance id in the MDC as
+     * {@link ProcessMdc#PROCESS_INSTANCE_ID} meanwhile (so also when {@link ProcessEngineService} starts an instance);
+     * the previous value is restored afterwards.
      *
      * @param instanceId the id of the process instance
      * @param process the process
@@ -129,8 +132,10 @@ class InvokerRegistry {
      */
     ProcessStep trigger(final UUID instanceId, final Process process, final String language, final FlowNode node,
             final String incomingFlowId, final UUID parentStepId) throws ProcessEngineException {
-        return InvokerRegistry.trigger(this.invoker(node),
-                this.nodeTrigger(instanceId, process, language, node, incomingFlowId, parentStepId));
+        try (TaskMdc.Scope _ = ProcessMdc.put(instanceId)) {
+            return InvokerRegistry.trigger(this.invoker(node),
+                    this.nodeTrigger(instanceId, process, language, node, incomingFlowId, parentStepId));
+        }
     }
 
     private static <T extends FlowNode> ProcessStep trigger(final Invoker<T> invoker, final NodeTrigger trigger)

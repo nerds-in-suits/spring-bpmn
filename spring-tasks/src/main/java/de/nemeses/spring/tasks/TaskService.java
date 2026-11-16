@@ -19,6 +19,7 @@ import org.springframework.context.SmartLifecycle;
  * Each worker repeatedly takes the next due task from the {@link TaskPersistence}, executes it with the
  * {@link TaskImplementation} bean of the task's bean name and reports the outcome via
  * {@link TaskPersistence.TaskInfo#complete()} or {@link TaskPersistence.TaskInfo#fail(Exception)}.
+ * While a task runs and its outcome is reported, its id is in the SLF4J MDC under {@link TaskMdc#TASK_ID}.
  * The workers are interrupted and awaited when the application context stops.
  * All settings are bound from {@link TaskProperties}.
  * <p>
@@ -141,11 +142,21 @@ public class TaskService implements SmartLifecycle {
     }
 
     /**
-     * Executes the task and reports its outcome. Never throws: every exception of the task is reported via
+     * Executes the task and reports its outcome with the task id in the MDC as {@link TaskMdc#TASK_ID}; the previous
+     * value is restored afterwards. Never throws: every exception of the task is reported via
      * {@link TaskPersistence.TaskInfo#fail(Exception)}, failures to report are logged.
      */
-    @SuppressWarnings({"checkstyle:IllegalCatch", "PMD.AvoidCatchingGenericException"})
     private void execute(final TaskPersistence.TaskInfo info) {
+        try (TaskMdc.Scope _ = TaskMdc.put(TaskMdc.TASK_ID, info.taskId())) {
+            this.run(info);
+        }
+    }
+
+    /**
+     * Executes the task and reports its outcome, see {@link #execute(TaskPersistence.TaskInfo)}.
+     */
+    @SuppressWarnings({"checkstyle:IllegalCatch", "PMD.AvoidCatchingGenericException"})
+    private void run(final TaskPersistence.TaskInfo info) {
         try {
             LoggerFactory.getLogger(this.getClass()).debug("Executing task {}.", info.beanName());
             this.taskImplementation(info.beanName()).executeSerialized(info.payload());

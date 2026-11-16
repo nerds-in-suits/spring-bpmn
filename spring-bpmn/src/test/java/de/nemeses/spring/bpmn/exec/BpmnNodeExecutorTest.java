@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
@@ -54,6 +55,7 @@ class BpmnNodeExecutorTest {
     private final InMemoryProcessStepRepository steps = new InMemoryProcessStepRepository(this.instances);
     private final RecordingTaskPersistence tasks = new RecordingTaskPersistence();
     private final List<BpmnNodeContext> calls = new ArrayList<>();
+    private final List<Map<String, String>> mdc = new ArrayList<>();
 
     private ProcessInstance instance(final String processContent) {
         return this.instance("", processContent);
@@ -94,6 +96,7 @@ class BpmnNodeExecutorTest {
                 .withBean(ProcessStepRepository.class, () -> this.steps)
                 .withBean(TaskPersistence.class, () -> this.tasks)
                 .withBean("recording", BpmnNodeImplementation.class, () -> this.calls::add)
+                .withBean("mdc", BpmnNodeImplementation.class, () -> _ -> this.mdc.add(MDC.getCopyOfContextMap()))
                 .withBean("failing", BpmnNodeImplementation.class, () -> context -> {
                     throw new ProcessEngineException("failed");
                 })
@@ -384,6 +387,25 @@ class BpmnNodeExecutorTest {
             Assertions.assertEquals(Map.of("amount", 3), call.variables());
             Assertions.assertThrows(UnsupportedOperationException.class, () -> call.variables().put("x", 1));
             Assertions.assertEquals(List.of("e"), this.triggeredNodes(context));
+        });
+    }
+
+    @Test
+    void stepIdsInMdcWhileStepRuns() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"mdc\"/>");
+        this.withEngine(context -> {
+            MDC.put(ProcessMdc.PROCESS_INSTANCE_ID, "outer");
+            try {
+                final ProcessStep step = this.execute(context, instance, "st");
+
+                Assertions.assertEquals(List.of(Map.of(ProcessMdc.PROCESS_INSTANCE_ID, instance.id().toString(),
+                        ProcessMdc.STEP_ID, step.id().toString(), ProcessMdc.NODE_ID, "st")), this.mdc);
+                Assertions.assertEquals("outer", MDC.get(ProcessMdc.PROCESS_INSTANCE_ID), "previous value restored");
+                Assertions.assertNull(MDC.get(ProcessMdc.STEP_ID), "step id removed");
+                Assertions.assertNull(MDC.get(ProcessMdc.NODE_ID), "node id removed");
+            } finally {
+                MDC.clear();
+            }
         });
     }
 

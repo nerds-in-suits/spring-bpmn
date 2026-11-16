@@ -140,6 +140,7 @@ public class JmsTaskPersistence implements TaskPersistence {
 
         private final Session session;
         private final TextMessage message;
+        private final String messageId;
         private final String name;
         private final String body;
         private final Date notBefore;
@@ -147,10 +148,19 @@ public class JmsTaskPersistence implements TaskPersistence {
         JmsTaskInfo(final Session session, final TextMessage message) throws JMSException {
             this.session = session;
             this.message = message;
-            this.name = message.getStringProperty(PROPERTY_BEAN_NAME);
+            this.messageId = message.getJMSMessageID();
+            this.name =message.getStringProperty(PROPERTY_BEAN_NAME);
             this.body = message.getText();
             this.notBefore = message.propertyExists(PROPERTY_EARLIEST_EXECUTION)
                 ? new Date(message.getLongProperty(PROPERTY_EARLIEST_EXECUTION)) : null;
+        }
+
+        /**
+         * @return the JMS message id, which a redelivery keeps
+         */
+        @Override
+        public String taskId() {
+            return this.messageId;
         }
 
         @Override

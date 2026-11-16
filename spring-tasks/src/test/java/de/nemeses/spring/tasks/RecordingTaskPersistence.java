@@ -2,11 +2,14 @@ package de.nemeses.spring.tasks;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.MDC;
 
 /**
  * In-memory {@link TaskPersistence} for tests; stands in for a real backend, which needs JPA or JMS.
@@ -19,6 +22,7 @@ class RecordingTaskPersistence implements TaskPersistence {
     private final BlockingQueue<RecordedTask> finished = new LinkedBlockingQueue<>();
     private final AtomicInteger waiting = new AtomicInteger();
     private final AtomicInteger interrupted = new AtomicInteger();
+    private final List<String> taskIdsAtNext = new CopyOnWriteArrayList<>();
 
     @Override
     public void persist(final String beanName, final String payload, final Date earliestExecution) {
@@ -29,6 +33,7 @@ class RecordingTaskPersistence implements TaskPersistence {
 
     @Override
     public TaskInfo next() throws InterruptedException {
+        this.taskIdsAtNext.add(String.valueOf(MDC.get(TaskMdc.TASK_ID)));
         this.waiting.incrementAndGet();
         try {
             return this.due.take();
@@ -83,6 +88,11 @@ class RecordingTaskPersistence implements TaskPersistence {
         return this.waiting.get();
     }
 
+    /** The MDC value of {@link TaskMdc#TASK_ID} at each call of {@link #next()}, {@code "null"} if unset. */
+    List<String> taskIdsAtNext() {
+        return this.taskIdsAtNext;
+    }
+
     /** Number of {@link #next()} calls left by an interruption. */
     int interrupted() {
         return this.interrupted.get();
@@ -92,6 +102,7 @@ class RecordingTaskPersistence implements TaskPersistence {
      * A recorded task with its outcome.
      */
     final class RecordedTask implements TaskInfo {
+        private final String identifier = UUID.randomUUID().toString();
         private final String name;
         private final String data;
         private final Date notBefore;
@@ -102,6 +113,11 @@ class RecordingTaskPersistence implements TaskPersistence {
             this.name = name;
             this.data = data;
             this.notBefore = notBefore;
+        }
+
+        @Override
+        public String taskId() {
+            return this.identifier;
         }
 
         @Override

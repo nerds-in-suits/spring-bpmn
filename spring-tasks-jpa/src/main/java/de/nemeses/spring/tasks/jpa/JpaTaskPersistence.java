@@ -117,6 +117,11 @@ public class JpaTaskPersistence implements TaskPersistence {
         }
 
         @Override
+        public String taskId() {
+            return String.valueOf(this.id);
+        }
+
+        @Override
         public String beanName() {
             return this.task;
         }

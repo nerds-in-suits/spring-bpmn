@@ -24,6 +24,7 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import de.nemeses.spring.tasks.JsonPayloadTaskImplementation;
 import de.nemeses.spring.tasks.TaskException;
+import de.nemeses.spring.tasks.TaskMdc;
 
 /**
  * Executes single steps (nodes) of process instances; the task bean {@value #BEAN_NAME}, whose payload is the id of
@@ -36,6 +37,10 @@ import de.nemeses.spring.tasks.TaskException;
  * ({@link Invoker#trigger}) all happen in that transaction; a {@link ProcessEngineException} rolls all of it back and
  * fails the task as a {@link TaskException}; whether it is retried depends on the task backend. The supported node
  * types are listed at {@link #executeNode} and in {@code docs/bpmn-support.md}.
+ * <p>
+ * While a step runs, the ids of its process instance, the step and its node are in the SLF4J MDC under the keys of
+ * {@link ProcessMdc}, next to the task id the {@code TaskService} puts there; the previous values are restored
+ * afterwards.
  */
 @Component(BpmnNodeExecutor.BEAN_NAME)
 public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
@@ -186,11 +191,28 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
     }
 
     /**
-     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside.
+     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside. The ids of
+     * the instance, step and node are in the MDC meanwhile ({@link ProcessMdc}).
      */
     private void executeStep(final UUID stepId, final Map<String, Object> completion) throws ProcessEngineException {
+        final ProcessStep step;
         try {
-            final ProcessStep step = this.steps.retrieve(stepId);
+            step = this.steps.retrieve(stepId);
+        } catch (final NoSuchProcessStepException e) {
+            throw new ProcessEngineException("Cannot execute process step " + stepId + ".", e);
+        }
+        try (TaskMdc.Scope _ = ProcessMdc.put(step)) {
+            this.executeStep(step, completion);
+        }
+    }
+
+    /**
+     * Executes a retrieved step, see {@link #executeStep(UUID, Map)}.
+     */
+    private void executeStep(final ProcessStep step, final Map<String, Object> completion)
+            throws ProcessEngineException {
+        final UUID stepId = step.id();
+        try {
             final ProcessInstance instance = this.instances.lock(step.processInstanceId());
             // read after locking, so steps completed by a concurrent execution are seen
             final List<ProcessStep> pendingAtNode = this.steps.pending(instance.id(), step.nodeId());
