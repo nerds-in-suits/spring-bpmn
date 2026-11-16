@@ -485,9 +485,10 @@ class MultiInstanceLoopTest {
                 MultiInstanceLoopTest.assertTriggerFails(context, instance, id);
             }
             MultiInstanceLoopTest.assertTriggerFails(context, instance, "behavior");
-            MultiInstanceLoopTest.assertTriggerFails(context, instance, "u");
-            // the loop is generic: the delegate triggers the instances, and a sub-process rejects its loop
+            // the loop is generic: the delegate triggers the instances, and a sub-process and a user task (#100)
+            // reject their loop
             MultiInstanceLoopTest.assertTriggerFails(context, instance, "sp");
+            MultiInstanceLoopTest.assertTriggerFails(context, instance, "u");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
 
             // the completion condition is evaluated after the instance

@@ -145,7 +145,7 @@ public final class NodeExecution {
 
     /**
      * @return the variables passed from outside to complete the waiting step ({@link BpmnNodeExecutor#completeUserTask}),
-     *         unmodifiable; empty for an execution by its {@link BpmnNodeTask}
+     *         unmodifiable; empty for an execution by the step's {@value BpmnNodeExecutor#BEAN_NAME} task
      */
     public Optional<Map<String, Object>> completion() {
         return Optional.ofNullable(this.completionVariables);

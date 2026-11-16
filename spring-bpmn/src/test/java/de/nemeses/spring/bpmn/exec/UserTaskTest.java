@@ -84,7 +84,7 @@ class UserTaskTest {
     }
 
     private UUID payload(final AssertableApplicationContext context, final int index) throws TaskException {
-        return context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class)
+        return context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class)
                 .deserializePayload(this.tasks.persisted().get(index).payload());
     }
 
@@ -92,7 +92,7 @@ class UserTaskTest {
         while (this.executed < this.tasks.persisted().size()) {
             final UUID stepId = this.payload(context, this.executed);
             this.executed++;
-            context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class).execute(stepId);
+            context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class).execute(stepId);
         }
     }
 
@@ -122,10 +122,11 @@ class UserTaskTest {
             Assertions.assertNull(this.current(instance).endDate(), "the open user task keeps the instance running");
             Assertions.assertEquals(List.of("s", "approve"), this.nodes(instance));
 
-            // a task delivered again keeps waiting
-            context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class).execute(userTask.id());
+            // the user task step gets no task and cannot be executed without completion
+            Assertions.assertEquals(1, this.tasks.persisted().size());
+            Assertions.assertThrows(TaskException.class,
+                    () -> context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class).execute(userTask.id()));
             Assertions.assertNull(this.steps.retrieve(userTask.id()).endDate());
-            Assertions.assertEquals(this.executed, this.tasks.persisted().size());
 
             engine.completeUserTask(userTask.id(), Map.of("approved", true, "amount", 4));
             Assertions.assertNotNull(this.steps.retrieve(userTask.id()).endDate());
@@ -145,10 +146,7 @@ class UserTaskTest {
         this.withEngine(context -> {
             final ProcessEngineService engine = context.getBean(ProcessEngineService.class);
             final ProcessInstance instance = engine.startProcess("p", Map.of("approved", false));
-            // completed before its task ran: the task is skipped later
-            final UUID startStep = this.payload(context, 0);
-            context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class).execute(startStep);
-            this.executed++;
+            this.runAll(context);
             engine.completeUserTask(engine.openUserTasks(instance.id()).iterator().next().id(), null);
 
             this.runAll(context);
@@ -218,15 +216,37 @@ class UserTaskTest {
     }
 
     @Test
-    void loopCharacteristicsFail() {
+    void userTaskInSubProcessLeavesItWhenCompleted() {
+        this.define("<startEvent id=\"s\"/><subProcess id=\"sp\"><startEvent id=\"ss\"/><userTask id=\"u\"/>"
+                + "<endEvent id=\"se\"/><sequenceFlow id=\"g1\" sourceRef=\"ss\" targetRef=\"u\"/>"
+                + "<sequenceFlow id=\"g2\" sourceRef=\"u\" targetRef=\"se\"/></subProcess><endEvent id=\"e\"/>"
+                + "<sequenceFlow id=\"f1\" sourceRef=\"s\" targetRef=\"sp\"/>"
+                + "<sequenceFlow id=\"f2\" sourceRef=\"sp\" targetRef=\"e\"/>");
+        this.withEngine(context -> {
+            final ProcessEngineService engine = context.getBean(ProcessEngineService.class);
+            final ProcessInstance instance = engine.startProcess("p", Map.of());
+            this.runAll(context);
+            final ProcessStep userTask = engine.openUserTasks(instance.id()).iterator().next();
+            Assertions.assertEquals("u", userTask.nodeId());
+            Assertions.assertNotNull(userTask.parentStepId());
+
+            engine.completeUserTask(userTask.id(), Map.of());
+            this.runAll(context);
+            Assertions.assertEquals(List.of("s", "sp", "ss", "u", "se", "e"), this.nodes(instance));
+            Assertions.assertNotNull(this.current(instance).endDate());
+        });
+    }
+
+    @Test
+    void loopCharacteristicsFailTheTriggeringStep() {
         this.define("<startEvent id=\"s\"/><userTask id=\"u\"><standardLoopCharacteristics loopMaximum=\"2\"/>"
                 + "</userTask><sequenceFlow id=\"f1\" sourceRef=\"s\" targetRef=\"u\"/>");
         this.withEngine(context -> {
-            context.getBean(ProcessEngineService.class).startProcess("p", Map.of());
-            final BpmnNodeTask nodeTask = context.getBean(BpmnNodeTask.BEAN_NAME, BpmnNodeTask.class);
-            nodeTask.execute(this.payload(context, 0));
-            final UUID userTaskStep = this.payload(context, 1);
-            Assertions.assertThrows(TaskException.class, () -> nodeTask.execute(userTaskStep));
+            final ProcessInstance instance = context.getBean(ProcessEngineService.class).startProcess("p", Map.of());
+            final UUID startStep = this.payload(context, 0);
+            Assertions.assertThrows(TaskException.class,
+                    () -> context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class).execute(startStep));
+            Assertions.assertEquals(List.of("s"), this.nodes(instance));
         });
     }
 }
