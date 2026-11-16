@@ -20,6 +20,7 @@ import de.nemeses.spring.bpmn.InMemoryProcessStepRepository;
 import de.nemeses.spring.bpmn.ProcessDefinitionAutoConfiguration;
 import de.nemeses.spring.bpmn.RecordingTaskPersistence;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
+import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
@@ -148,6 +149,72 @@ class ProcessEngineServiceTest {
                     () -> context.getBean(ProcessEngineService.class).startProcess("broken", Map.of()));
             Assertions.assertInstanceOf(BpmnParseException.class, e.getCause());
             this.assertNothingCreated();
+        });
+    }
+
+    @Test
+    void updateVariablesMergesAndRemovesNullValues() {
+        this.define("order", ProcessEngineServiceTest.bpmn("<process id=\"order\"><startEvent id=\"s\"/></process>"));
+        this.withEngine(context -> {
+            final ProcessEngineService engine = context.getBean(ProcessEngineService.class);
+            final ProcessInstance instance = engine.startProcess("order", Map.of("a", 1, "b", Map.of("x", 1), "c", 3));
+            final Map<String, Object> changes = new HashMap<>();
+            changes.put("b", Map.of("y", 2));
+            changes.put("c", null);
+            changes.put("d", "new");
+            changes.put("missing", null);
+
+            final ProcessInstance updated = engine.updateVariables(instance.id(), changes, false);
+            final Map<String, Object> expected = Map.of("a", 1, "b", Map.of("y", 2), "d", "new");
+            Assertions.assertEquals(expected, updated.variables());
+            Assertions.assertEquals(expected, this.instances.retrieve(instance.id()).variables());
+
+            Assertions.assertEquals(expected, engine.updateVariables(instance.id(), null, false).variables());
+            Assertions.assertEquals(expected, engine.updateVariables(instance.id(), Map.of(), false).variables());
+        });
+    }
+
+    @Test
+    void updateVariablesReplacesAll() {
+        this.define("order", ProcessEngineServiceTest.bpmn("<process id=\"order\"><startEvent id=\"s\"/></process>"));
+        this.withEngine(context -> {
+            final ProcessEngineService engine = context.getBean(ProcessEngineService.class);
+            final ProcessInstance instance = engine.startProcess("order", Map.of("a", 1, "b", 2));
+
+            Assertions.assertEquals(Map.of("b", 3, "c", 4),
+                    engine.updateVariables(instance.id(), Map.of("b", 3, "c", 4), true).variables());
+            Assertions.assertEquals(Map.of(), engine.updateVariables(instance.id(), null, true).variables());
+            Assertions.assertEquals(Map.of(), this.instances.retrieve(instance.id()).variables());
+        });
+    }
+
+    @Test
+    void invalidVariableUpdatesFail() {
+        this.define("order", ProcessEngineServiceTest.bpmn("<process id=\"order\"><startEvent id=\"s\"/></process>"));
+        this.withEngine(context -> {
+            final ProcessEngineService engine = context.getBean(ProcessEngineService.class);
+            final ProcessInstance instance = engine.startProcess("order", Map.of("a", 1));
+
+            final ProcessEngineException unknown = Assertions.assertThrows(ProcessEngineException.class,
+                    () -> engine.updateVariables(UUID.randomUUID(), Map.of("a", 2), false));
+            Assertions.assertInstanceOf(NoSuchProcessInstanceException.class, unknown.getCause());
+            final Map<String, Object> nullValue = new HashMap<>();
+            nullValue.put("a", null);
+            Assertions.assertThrows(ProcessEngineException.class,
+                    () -> engine.updateVariables(instance.id(), nullValue, true), "null value in replace mode");
+            final Map<String, Object> nullKey = new HashMap<>();
+            nullKey.put(null, 2);
+            Assertions.assertThrows(ProcessEngineException.class,
+                    () -> engine.updateVariables(instance.id(), nullKey, false), "null key");
+            Assertions.assertEquals(Map.of("a", 1), this.instances.retrieve(instance.id()).variables());
+
+            this.instances.updateEndDate(instance.id(), new Date());
+            final ProcessEngineException ended = Assertions.assertThrows(ProcessEngineException.class,
+                    () -> engine.updateVariables(instance.id(), Map.of("a", 2), false));
+            Assertions.assertNull(ended.getCause());
+            Assertions.assertThrows(ProcessEngineException.class,
+                    () -> engine.updateVariables(instance.id(), Map.of(), true));
+            Assertions.assertEquals(Map.of("a", 1), this.instances.retrieve(instance.id()).variables());
         });
     }
 
