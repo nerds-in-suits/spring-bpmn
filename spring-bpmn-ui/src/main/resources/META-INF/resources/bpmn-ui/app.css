@@ -116,3 +116,39 @@ dd {
 pre {
   margin: 0;
 }
+
+.action {
+  width: 1%;
+}
+
+.start {
+  padding: 0 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f2f4f7;
+  color: #1f7a3a;
+  cursor: pointer;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+dialog textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  font-family: monospace;
+}
+
+dialog .buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

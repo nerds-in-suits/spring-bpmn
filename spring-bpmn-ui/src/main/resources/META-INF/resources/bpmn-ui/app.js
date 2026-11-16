@@ -6,6 +6,7 @@
  *   #/instances?definition=&state=&sort=&direction=&page=           process instances (paged by the API)
  *   #/instances/{id}?state=&type=&sort=&direction=                  one instance with its steps
  *
+ * The play button of a process definition asks for the variables in a dialog, starts an instance and shows it.
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
  */
 document.addEventListener('alpine:init', () => {
@@ -19,6 +20,7 @@ document.addEventListener('alpine:init', () => {
     instance: null,
     steps: [],
     stepTypes: [],
+    start: { definition: null, variables: '{}', error: null, busy: false },
 
     async init() {
       try {
@@ -106,6 +108,62 @@ document.addEventListener('alpine:init', () => {
         throw new Error(detail);
       }
       return response.json();
+    },
+
+    /** POSTs body as JSON and returns the JSON response; rejects with the detail of a problem response. */
+    async post(url, body) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        let detail = response.status + ' ' + response.statusText;
+        try {
+          const problem = await response.json();
+          detail = problem.detail || problem.title || detail;
+        } catch (ignored) {
+          // no problem details
+        }
+        throw new Error(detail);
+      }
+      return response.json();
+    },
+
+    /** Opens the dialog that asks for the variables to start an instance of the process definition. */
+    openStart(definition) {
+      this.start = { definition, variables: '{}', error: null, busy: false };
+      this.$refs.startDialog.showModal();
+    },
+
+    /**
+     * Starts an instance with the variables of the dialog, which must be a JSON object, and shows it;
+     * keeps the dialog open with the error if the variables are invalid or the API rejects the start.
+     */
+    async confirmStart() {
+      let variables;
+      try {
+        variables = JSON.parse(this.start.variables.trim() || '{}');
+      } catch (e) {
+        this.start.error = 'Variables are not valid JSON: ' + e.message;
+        return;
+      }
+      if (variables === null || typeof variables !== 'object' || Array.isArray(variables)) {
+        this.start.error = 'Variables must be a JSON object, e.g. {"amount": 500}.';
+        return;
+      }
+      this.start.error = null;
+      this.start.busy = true;
+      try {
+        const instance = await this.post(this.api + '/process-instances',
+          { processDefinition: this.start.definition, variables });
+        this.$refs.startDialog.close();
+        window.location.hash = this.instanceLink(instance.id);
+      } catch (e) {
+        this.start.error = e.message;
+      } finally {
+        this.start.busy = false;
+      }
     },
 
     /** @return the query string of the non-empty parameters of query named in names */
