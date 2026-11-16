@@ -60,7 +60,7 @@ Package-private helpers are listed when they hold engine behaviour.
 ### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
 
 - `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `task.NodeContext`).
-- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with `Invoker.execute` for the node type and triggers the target nodes of the flows taken; `completeUserTask` executes a waiting `userTask` step the same way with the variables passed from outside; while a step runs, the MDC holds `processInstanceId` and `stepId`.
+- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with `Invoker.execute` for the node type and triggers the target nodes of the flows taken; `completeUserTask` executes a waiting `userTask` step the same way with the variables passed from outside; while a step runs, the MDC holds `pid` (process instance id) and `step` (step id).
 - `BpmnNodeImplementation`: application code bound to a `serviceTask` by bean name.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.

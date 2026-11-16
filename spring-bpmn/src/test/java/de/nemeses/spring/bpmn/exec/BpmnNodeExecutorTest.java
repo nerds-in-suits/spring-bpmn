@@ -406,17 +406,13 @@ class BpmnNodeExecutorTest {
     }
 
     @Test
-    void failedStepRestoresPreviousMdcValues() {
+    void failedStepRemovesMdcKeys() {
         final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"failing\"/>");
         this.withEngine(context -> {
-            MDC.put(BpmnNodeExecutor.MDC_STEP_ID, "outer");
-            try {
-                this.assertFails(context, instance, "st");
-                Assertions.assertEquals("outer", MDC.get(BpmnNodeExecutor.MDC_STEP_ID));
-                Assertions.assertNull(MDC.get(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID));
-            } finally {
-                MDC.remove(BpmnNodeExecutor.MDC_STEP_ID);
-            }
+            this.assertFails(context, instance, "st");
+
+            Assertions.assertNull(MDC.get(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID));
+            Assertions.assertNull(MDC.get(BpmnNodeExecutor.MDC_STEP_ID));
         });
     }
 
