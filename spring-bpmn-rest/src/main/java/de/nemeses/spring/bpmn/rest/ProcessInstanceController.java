@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +38,8 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
  * {@code page} is 0-based, {@code size} defaults to {@code spring.bpmn.rest.default-page-size} and is reduced to
  * {@code spring.bpmn.rest.max-page-size};</li>
  * <li>{@code GET /process-instances/{id}}: one instance with its variables;</li>
+ * <li>{@code GET /process-instances/{id}/bpmn}: the BPMN XML of the definition version the instance was started from,
+ * which may be older than the latest version;</li>
  * <li>{@code POST /process-instances}: starts the latest version of a definition (body {@link StartProcessRequest});
  * answers {@code 201 Created} with the instance and its {@code Location};</li>
  * <li>{@code GET /process-instances/{id}/steps?state=running|finished&type=&sort=startDate|endDate|type&direction=}:
@@ -100,6 +103,11 @@ class ProcessInstanceController {
     @GetMapping("/{id}")
     ProcessInstanceDto get(@PathVariable final UUID id) throws NoSuchProcessInstanceException {
         return ProcessInstanceDto.from(this.instances.retrieve(id));
+    }
+
+    @GetMapping(path = "/{id}/bpmn", produces = MediaType.APPLICATION_XML_VALUE)
+    String bpmn(@PathVariable final UUID id) throws NoSuchProcessInstanceException {
+        return this.instances.retrieve(id).processDefinition().bpmnXml();
     }
 
     @PostMapping

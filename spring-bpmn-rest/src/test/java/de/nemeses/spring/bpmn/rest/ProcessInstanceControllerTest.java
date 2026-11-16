@@ -163,6 +163,26 @@ class ProcessInstanceControllerTest {
     }
 
     @Test
+    void testBpmnOfInstanceVersion() throws Exception {
+        final UUID id = UUID.randomUUID();
+        Mockito.when(this.instances.retrieve(id)).thenReturn(ProcessInstanceControllerTest.instance(id, null));
+
+        this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/" + id + "/bpmn"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
+                .andExpect(MockMvcResultMatchers.content().string(MockedEngineConfiguration.ORDER_XML));
+    }
+
+    @Test
+    void testBpmnOfUnknownInstanceIsNotFound() throws Exception {
+        final UUID id = UUID.randomUUID();
+        Mockito.when(this.instances.retrieve(id)).thenThrow(new NoSuchProcessInstanceException(id));
+
+        this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/" + id + "/bpmn"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound());
+    }
+
+    @Test
     void testStart() throws Exception {
         final UUID id = UUID.randomUUID();
         Mockito.when(this.engine.startProcess("order", Map.of("amount", 3)))
