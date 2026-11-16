@@ -21,3 +21,8 @@ spring:
       deployment-enabled: true
   tasks:
     pool-size: 4
+
+logging:
+  pattern:
+    # Console log pattern; [%mdc] shows all MDC entries of the logging thread.
+    console: "%date{ISO8601} [%-5p][%t][%c][%mdc] %msg %n"
