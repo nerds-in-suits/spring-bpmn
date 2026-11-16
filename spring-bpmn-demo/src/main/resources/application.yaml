@@ -19,5 +19,14 @@ spring:
     rest:
       # Allows deploying BPMN files with POST /api/bpmn/v1/process-definitions.
       deployment-enabled: true
+      security:
+        # The authorities of the users in DemoUsers: viewer has BPMN_READ, admin has all.
+        authority:
+          read-definitions: BPMN_READ
+          read-instances: BPMN_READ
+          deploy: BPMN_DEPLOY
+          start-instance: BPMN_START
+          update-variables: BPMN_VARIABLES
+          complete-user-task: BPMN_TASK
   tasks:
     pool-size: 4

@@ -17,8 +17,9 @@ import de.nemeses.spring.bpmn.rest.BpmnRestProperties;
  * The pages themselves are static resources of this JAR in {@code META-INF/resources/bpmn-ui/}, served by Spring
  * Boot, with Alpine.js from its WebJar ({@code /webjars/alpinejs/...}). This configuration only redirects
  * {@code /bpmn-ui} to {@code /bpmn-ui/}, forwards {@code /bpmn-ui/} to {@code index.html} and registers
- * {@link BpmnUiConfigController}, which tells the pages where the REST API is. Like the REST API, the UI is not
- * secured by this module.
+ * {@link BpmnUiConfigController}, which tells the pages where the REST API is. The UI is not
+ * secured by this module: the application's login (or Spring Boot's default one) protects {@code /bpmn-ui/}, and the
+ * REST API of {@code spring-bpmn-rest} accepts that session.
  */
 @AutoConfiguration(after = BpmnRestAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)

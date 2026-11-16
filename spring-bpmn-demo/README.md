@@ -5,7 +5,7 @@ Runnable demo application (`de.nemeses.spring:spring-bpmn-demo`): a local BPMN e
 - Pulls together [`spring-bpmn`](../spring-bpmn/README.md), [`spring-bpmn-repository-jpa`](../spring-bpmn-repository-jpa/README.md), [`spring-tasks`](../spring-tasks/README.md), [`spring-tasks-jpa`](../spring-tasks-jpa/README.md), [`spring-bpmn-rest`](../spring-bpmn-rest/README.md) and [`spring-bpmn-ui`](../spring-bpmn-ui/README.md); no JMS.
 - Stores process definitions, instances, steps and tasks in an H2 file database at `target/demo-db/` of the working directory; Hibernate creates the tables (`ddl-auto: update`).
 - The only module packaged as an executable Spring Boot jar (`target/spring-bpmn-demo.jar`); the main class is `DemoApplication`.
-- Brings no security: run it locally only.
+- Secured with Spring Security and two fixed in-memory users (see [Users](#users)); still meant for local use only.
 
 ## Start
 
@@ -24,6 +24,17 @@ Without the scripts: `mvn install` and `java -jar spring-bpmn-demo/target/spring
 - REST API: <http://localhost:8080/api/bpmn/v1/process-definitions> (see [`spring-bpmn-rest`](../spring-bpmn-rest/README.md)).
 - The application logs both URLs with the actual port once the web server listens.
 
+## Users
+
+| User | Password | Authorities | May |
+|------|----------|-------------|-----|
+| `viewer` | `viewer` | `BPMN_READ` | read definitions, instances, steps, variables and user tasks |
+| `admin` | `admin` | `BPMN_READ`, `BPMN_DEPLOY`, `BPMN_START`, `BPMN_VARIABLES`, `BPMN_TASK` | everything |
+
+The UI shows Spring Boot's default login page; the REST API also accepts HTTP Basic (`curl -u admin:admin ...`).
+`application.yaml` maps the operations of the REST API to these authorities (`spring.bpmn.rest.security.authority.*`); the users are defined in `DemoUsers`.
+To log out, open <http://localhost:8080/logout>.
+
 ## Sample processes
 
 Registered on startup from `src/main/resources/process-definitions/`:
@@ -34,13 +45,13 @@ Registered on startup from `src/main/resources/process-definitions/`:
 Start one with the REST API, e.g.:
 
 ```text
-curl -H "Content-Type: application/json" -d "{\"processDefinition\":\"orderApproval\",\"variables\":{\"amount\":500}}" http://localhost:8080/api/bpmn/v1/process-instances
+curl -u admin:admin -H "Content-Type: application/json" -d "{\"processDefinition\":\"orderApproval\",\"variables\":{\"amount\":500}}" http://localhost:8080/api/bpmn/v1/process-instances
 ```
 
 Further BPMN files can be deployed at runtime, as `spring.bpmn.rest.deployment-enabled` is `true`:
 
 ```text
-curl -H "Content-Type: application/xml" --data-binary @my-process.bpmn http://localhost:8080/api/bpmn/v1/process-definitions
+curl -u admin:admin -H "Content-Type: application/xml" --data-binary @my-process.bpmn http://localhost:8080/api/bpmn/v1/process-definitions
 ```
 
 The settings are in `src/main/resources/application.yaml`; every one can be overridden on the command line (`--name=value`).

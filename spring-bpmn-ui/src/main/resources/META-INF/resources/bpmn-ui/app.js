@@ -94,7 +94,31 @@ document.addEventListener('alpine:init', () => {
 
     /** GETs JSON; rejects with the detail of a problem response. */
     async get(url) {
-      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      return (await this.request(url)).json();
+    },
+
+    /**
+     * fetch() with the session cookie for all requests of the UI; resolves with the response if it is ok.
+     * Modifying requests send the CSRF token of the cookie XSRF-TOKEN in the header X-XSRF-TOKEN.
+     * On 401 the page is reloaded once, so the login of the application takes over; 403 rejects with "Not permitted".
+     * Other errors reject with the detail of the problem response.
+     */
+    async request(url, options = {}) {
+      const method = (options.method || 'GET').toUpperCase();
+      const headers = { Accept: 'application/json', ...options.headers };
+      const token = document.cookie.split('; ').find((cookie) => cookie.startsWith('XSRF-TOKEN='));
+      if (token && method !== 'GET' && method !== 'HEAD') {
+        headers['X-XSRF-TOKEN'] = decodeURIComponent(token.substring('XSRF-TOKEN='.length));
+      }
+      const response = await fetch(url, { ...options, method, headers });
+      if (response.status === 401) {
+        if (!sessionStorage.getItem('bpmnUiReloaded')) {
+          sessionStorage.setItem('bpmnUiReloaded', 'true');
+          window.location.reload();
+        }
+        throw new Error('Not authenticated: please log in.');
+      }
+      sessionStorage.removeItem('bpmnUiReloaded');
       if (!response.ok) {
         let detail = response.status + ' ' + response.statusText;
         try {
@@ -103,9 +127,9 @@ document.addEventListener('alpine:init', () => {
         } catch (ignored) {
           // no problem details
         }
-        throw new Error(detail);
+        throw new Error(response.status === 403 ? 'Not permitted: ' + detail : detail);
       }
-      return response.json();
+      return response;
     },
 
     /** @return the query string of the non-empty parameters of query named in names */
