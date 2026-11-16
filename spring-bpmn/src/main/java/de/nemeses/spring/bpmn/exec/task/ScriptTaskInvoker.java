@@ -37,7 +37,7 @@ class ScriptTaskInvoker implements Invoker<ScriptTask> {
     }
 
     @Override
-    public Collection<SequenceFlow> invoke(final ScriptTask node, final NodeExecution execution)
+    public Collection<SequenceFlow> execute(final ScriptTask node, final NodeExecution execution)
             throws ProcessEngineException {
         final Map<String, Object> variables = this.runner.run(node, execution,
                 context -> this.scripts.execute(node, context));

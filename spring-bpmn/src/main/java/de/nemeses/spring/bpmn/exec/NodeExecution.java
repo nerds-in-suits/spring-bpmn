@@ -15,18 +15,17 @@ import de.nemeses.spring.bpmn.repository.NoSuchProcessStepException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
-import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 
 /**
- * One execution of a step by the {@link BpmnNodeExecutor}, passed to the {@link Invoker} of its node: the (locked)
- * process instance, the step, the flows around the node and the default expression language of the document.
+ * One execution of a step by the {@link BpmnNodeExecutor}, passed to {@link Invoker#execute}: the (locked) process
+ * instance, the step, the flows around the node and the default expression language of the document.
  * <p>
  * An invoker added by an {@link InvokerEnhancer} that runs the enhanced invoker for one instance of a loop passes it
  * a view of this execution ({@link #forLoopInstance}).
  */
 public final class NodeExecution {
 
-    private final ProcessStepRepository steps;
+    private final InvokerRegistry registry;
     private final ProcessInstance processInstance;
     private final ProcessStep processStep;
     private final Process process;
@@ -39,10 +38,10 @@ public final class NodeExecution {
     private boolean completed;
 
     @SuppressWarnings("PMD.ExcessiveParameterList") // created by the executor only
-    NodeExecution(final ProcessStepRepository steps, final ProcessInstance instance, final ProcessStep step,
+    NodeExecution(final InvokerRegistry registry, final ProcessInstance instance, final ProcessStep step,
             final Process process, final FlowNode node, final String language,
             final List<ProcessStep> pendingInScope) {
-        this.steps = steps;
+        this.registry = registry;
         this.processInstance = instance;
         this.processStep = step;
         this.process = process;
@@ -58,7 +57,7 @@ public final class NodeExecution {
      * Copies an execution for one instance of a loop ({@link #forLoopInstance}).
      */
     private NodeExecution(final NodeExecution original, final ProcessInstance instance, final LoopInstance loop) {
-        this.steps = original.steps;
+        this.registry = original.registry;
         this.processInstance = instance;
         this.processStep = original.processStep;
         this.process = original.process;
@@ -165,6 +164,18 @@ public final class NodeExecution {
     }
 
     /**
+     * Creates a trigger of the node of this step, reached on the same flow in the same scope, e.g. to create the step
+     * of the next instance of a sequential multi-instance loop ({@link NodeTrigger#forLoopInstance}). The trigger sees
+     * the variables as stored when it reads them.
+     *
+     * @return the trigger
+     */
+    public NodeTrigger trigger() {
+        return this.registry.nodeTrigger(this.processInstance.id(), this.process, this.expressionLanguage, this.node,
+                this.processStep.incomingFlowId(), this.processStep.parentStepId());
+    }
+
+    /**
      * Completes the step being executed.
      *
      * @throws ProcessEngineException if the step does not exist
@@ -181,7 +192,7 @@ public final class NodeExecution {
      */
     public void complete(final Collection<UUID> stepIds) throws ProcessEngineException {
         try {
-            this.steps.complete(stepIds, new Date());
+            this.registry.steps().complete(stepIds, new Date());
             this.completed |= stepIds.contains(this.processStep.id());
         } catch (final NoSuchProcessStepException e) {
             throw new ProcessEngineException("Cannot complete steps " + stepIds + " of process instance "

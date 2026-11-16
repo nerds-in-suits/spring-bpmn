@@ -7,37 +7,38 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
+import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
+import de.nemeses.spring.bpmn.exec.NodeTrigger;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
 import de.nemeses.spring.bpmn.model.bpmn20.StartEvent;
 import de.nemeses.spring.bpmn.model.bpmn20.SubProcess;
-import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
-import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
-import de.nemeses.spring.tasks.TaskService;
 import jakarta.xml.bind.JAXBElement;
 
 /**
- * Enters an embedded {@code subProcess}: creates a step (with the sub-process step as parent) and triggers a
- * {@code bpmnNodeTask} for each start event directly inside it. The sub-process step stays pending and no flow is
- * taken; the {@link BpmnNodeExecutor} completes it and takes its outgoing flows when none of its child steps is pending
- * any more. If the sub-process step already has child steps (a task delivered again), nothing is done. Event
- * sub-processes and loop characteristics are not supported (transactions and ad-hoc sub-processes are other node
- * types).
+ * Enters and leaves an embedded {@code subProcess}. Reaching it creates the sub-process step, without task, and
+ * triggers each start event directly inside it with the sub-process step as scope ({@link NodeTrigger#trigger}); the
+ * sub-process step stays pending. Once none of its child steps is pending any more, the {@link BpmnNodeExecutor}
+ * schedules a task for it, whose execution completes it and takes the outgoing flows like for every activity
+ * ({@link FlowSelector#activity}), evaluating their conditions against the variables as changed inside. An execution
+ * while a child step is pending does nothing. Event sub-processes, sub-processes without start event and loop
+ * characteristics are not supported and fail when the sub-process is reached (transactions and ad-hoc sub-processes
+ * are other node types).
  */
 @Component
 class SubProcessInvoker implements Invoker<SubProcess> {
 
     private final ProcessStepRepository steps;
-    private final TaskService taskService;
+    private final FlowSelector flows;
 
-    SubProcessInvoker(final ProcessStepRepository steps, final TaskService taskService) {
+    SubProcessInvoker(final ProcessStepRepository steps, final FlowSelector flows) {
         this.steps = steps;
-        this.taskService = taskService;
+        this.flows = flows;
     }
 
     @Override
@@ -46,37 +47,43 @@ class SubProcessInvoker implements Invoker<SubProcess> {
     }
 
     @Override
-    public Collection<SequenceFlow> invoke(final SubProcess node, final NodeExecution execution)
-            throws ProcessEngineException {
-        try {
-            if (node.isTriggeredByEvent()) {
-                throw new ProcessEngineException("Node '" + node.getId()
-                        + "' is a event sub-process, which is not supported yet.");
-            }
-            if (node.getLoopCharacteristics() != null) {
-                throw new ProcessEngineException("Activity '" + node.getId()
-                        + "' has loop characteristics, which are not supported yet.");
-            }
-            final ProcessInstance instance = execution.instance();
-            final ProcessStep step = execution.step();
-            if (!this.steps.children(step.id()).isEmpty()) {
-                LoggerFactory.getLogger(this.getClass()).info(
-                        "Skipping step {} (sub-process {}) of process instance {}, which has already been entered.",
-                        step.id(), node.getId(), instance.id());
-                return List.of();
-            }
-            final Collection<String> startEvents = SubProcessInvoker.startEvents(node);
-            if (startEvents.isEmpty()) {
-                throw new ProcessEngineException("Sub-process '" + node.getId() + "' has no start event.");
-            }
-            for (final String startEvent : startEvents) {
-                BpmnNodeExecutor.schedule(this.steps, this.taskService, instance.id(), startEvent, null, step.id());
-            }
-            return List.of();
-        } catch (final NoSuchProcessInstanceException e) {
-            throw new ProcessEngineException("Cannot enter sub-process '" + node.getId() + "' of process instance "
-                    + execution.instance().id() + ".", e);
+    public ProcessStep trigger(final SubProcess node, final NodeTrigger trigger) throws ProcessEngineException {
+        if (node.isTriggeredByEvent()) {
+            throw new ProcessEngineException("Node '" + node.getId()
+                    + "' is a event sub-process, which is not supported yet.");
         }
+        if (node.getLoopCharacteristics() != null) {
+            throw new ProcessEngineException("Activity '" + node.getId()
+                    + "' has loop characteristics, which are not supported yet.");
+        }
+        final Collection<String> startEvents = SubProcessInvoker.startEvents(node);
+        if (startEvents.isEmpty()) {
+            throw new ProcessEngineException("Sub-process '" + node.getId() + "' has no start event.");
+        }
+        final ProcessStep step = trigger.createStep();
+        for (final String startEvent : startEvents) {
+            trigger.trigger(startEvent, null, step.id());
+        }
+        return step;
+    }
+
+    @Override
+    public Collection<SequenceFlow> execute(final SubProcess node, final NodeExecution execution)
+            throws ProcessEngineException {
+        final ProcessStep step = execution.step();
+        if (this.steps.children(step.id()).stream().anyMatch(child -> child.endDate() == null)) {
+            LoggerFactory.getLogger(this.getClass()).info(
+                    "Skipping step {} (sub-process {}) of process instance {}, which still runs.",
+                    step.id(), node.getId(), execution.instance().id());
+            return List.of();
+        }
+        final Collection<SequenceFlow> taken = this.flows.activity(node, execution.outgoing(), execution.language(),
+                execution.instance().variables());
+        execution.complete();
+        LoggerFactory.getLogger(this.getClass()).debug(
+                "Completed sub-process {} (step {}) of process instance {}, taken flows {}",
+                node.getId(), step.id(), execution.instance().id(), taken.stream().map(SequenceFlow::getId).toList());
+        return taken;
     }
 
     /**

@@ -12,9 +12,10 @@ Do not invent Camunda-like APIs to fill a gap.
 - `boundaryEvent`: not supported (#61).
 - `businessRuleTask`: not supported (#67).
 - `callActivity`: supported (`CallActivityInvoker`).
-  A wait state: its first execution starts the latest definition named by the local part of `calledElement` as a child instance whose `ProcessInstance.parentStep()` is the call step.
-  When the child ends, the call step runs again, passes the variables back, completes and takes its outgoing flows like any activity.
+  A wait state: reaching it starts the latest definition named by the local part of `calledElement` as a child instance whose `ProcessInstance.parentStep()` is the call step.
+  When the child ends, the call step runs, passes the variables back, completes and takes its outgoing flows like any activity.
   Without mapping, all variables are copied in and merged back; any `spring:in`/`spring:out` extension element (`source`, `target`) makes both directions explicit.
+  A missing or unknown `calledElement` or an invalid mapping fails the step that takes the flow to the call activity.
   A child that fails or never ends leaves the parent waiting, and ending a parent does not end its children (#92).
   Loop characteristics fail (#59).
 - `complexGateway`: not supported (#57).
@@ -32,12 +33,13 @@ Do not invent Camunda-like APIs to fill a gap.
 - `multiInstanceLoopCharacteristics`: supported on `task`, `serviceTask` and `scriptTask` (`loop.MultiInstanceLoop`).
   One step per instance, below the pending step of the activity; parallel loops create all instance steps at once, sequential loops one after the other.
   The number of instances is `loopCardinality` (SpEL) or the size of the collection variable named by `loopDataInputRef`.
+  It is determined when the activity is reached, so an invalid loop fails the step that takes the flow to the activity.
   `inputDataItem` and `outputDataItem` are local to an instance; the outputs become the list variable named by `loopDataOutputRef`.
   `completionCondition` (SpEL) sees the BPMN names `loopCounter`, `numberOfInstances`, `numberOfActiveInstances`, `numberOfCompletedInstances` and `numberOfTerminatedInstances`.
   `behavior` other than `All` and `complexBehaviorDefinition` fail.
 - `parallelGateway`: supported (`ParallelGatewayInvoker`).
   With at most one incoming flow it is a fork and takes all outgoing flows.
-  With more incoming flows it is a join: it continues once a step is pending at the gateway for every incoming flow of the same scope, and parks the step otherwise.
+  With more incoming flows it is a join: it continues once a step is pending at the gateway for every incoming flow of the same scope, and parks the step without task otherwise.
   A join that can never complete keeps the instance running forever (#91).
 - `receiveTask`: not supported (#69).
 - `scriptTask`: supported (`ScriptTaskInvoker`, `SpelScriptRunner`).
@@ -56,17 +58,17 @@ Do not invent Camunda-like APIs to fill a gap.
   Every start event of the process (or of the entered sub-process) gets a step.
   Event definitions are not supported (#60).
 - `subProcess` (embedded): supported (`SubProcessInvoker`, `SubProcessScopes`).
-  Its start events get steps whose `ProcessStep.parentStepId()` is the sub-process step, which stays pending until none of its child steps is pending, then takes its outgoing flows like an activity.
+  Its start events get steps whose `ProcessStep.parentStepId()` is the sub-process step, which stays pending until none of its child steps is pending, then is left in a task of its own and takes its outgoing flows like an activity.
   Nested sub-processes and parallel paths inside one work.
   A top-level sub-process without outgoing flow does not end the instance; only a top-level `endEvent` does.
-  Event sub-processes (`triggeredByEvent`, #90), a sub-process without start event and loop characteristics (#59) fail.
+  Event sub-processes (`triggeredByEvent`, #90), a sub-process without start event and loop characteristics (#59) fail the step that takes the flow to the sub-process.
 - `task`: supported (`TaskInvoker`), does nothing and takes its outgoing flows like any activity.
 - `transaction`: not supported (#77).
 - `userTask`: not supported (#64).
 
 ## Engine features
 
-- Execution model: one `ProcessStep` per node execution, run by one `bpmnNodeTask` (`BpmnNodeExecutor`) with the `Invoker` for the node type.
+- Execution model: reaching a node creates its `ProcessStep` (`Invoker.trigger`, in the transaction of the step that takes the flow), and one `bpmnNodeTask` (`BpmnNodeExecutor`) per step runs it with the `Invoker` for the node type (`Invoker.execute`).
   A step runs under a pessimistic lock on its instance, so the steps of one instance run one after the other.
   Steps have no state: pending means `endDate` is null, and steps are never deleted.
 - Expressions: Spring SpEL (`ConditionEvaluator`), language `https://nemeses.de/spring-bpmn/spel` or the BPMN default XPath URI, which is treated as SpEL.

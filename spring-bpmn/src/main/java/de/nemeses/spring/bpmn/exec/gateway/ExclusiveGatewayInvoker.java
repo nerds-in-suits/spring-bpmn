@@ -32,7 +32,7 @@ class ExclusiveGatewayInvoker implements Invoker<ExclusiveGateway> {
     }
 
     @Override
-    public Collection<SequenceFlow> invoke(final ExclusiveGateway node, final NodeExecution execution)
+    public Collection<SequenceFlow> execute(final ExclusiveGateway node, final NodeExecution execution)
             throws ProcessEngineException {
         final SequenceFlow taken = this.flows.exclusive(node.getId(), node.getDefault(), execution.outgoing(),
                 execution.language(), execution.instance().variables());

@@ -17,6 +17,7 @@ import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
+import de.nemeses.spring.bpmn.exec.NodeTrigger;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.exec.ProcessEngineService;
 import de.nemeses.spring.bpmn.model.bpmn20.CallActivity;
@@ -30,9 +31,10 @@ import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 
 /**
- * Executes a {@code callActivity} step for the {@link BpmnNodeExecutor}. A call activity is a wait state: its first
- * execution starts a child instance of the called process and leaves the step pending; the end of the child triggers
- * the step again, which then passes the variables back, completes the step and takes the outgoing flows.
+ * Triggers and executes a {@code callActivity}. A call activity is a wait state: reaching it creates its step and
+ * starts a child instance of the called process, in the transaction of the triggering step, without scheduling a task
+ * for the call step, which stays pending; the end of the child triggers a task for the call step, whose execution
+ * passes the variables back, completes the step and takes the outgoing flows.
  * <p>
  * Variables: without mapping, the child starts with a copy of all parent variables and all final child variables are
  * merged into the parent variables when it ends. As soon as the call activity has any {@link #IN} or {@link #OUT}
@@ -45,8 +47,7 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * {@link ProcessDefinition} of that name, i.e. the process {@code name}, else its {@code id}, as registered. When the
  * child ends, its end event triggers the call step in the child's transaction, without locking the parent; the
  * step then runs under the parent's lock and finds the child through
- * {@link ProcessInstanceRepository#retrieveChild}. A task delivered again starts no second child, and the step is
- * skipped while the child is still running.
+ * {@link ProcessInstanceRepository#retrieveChild}. The step is skipped while the child is still running.
  * <p>
  * Not handled yet: a child that fails or never ends leaves the parent waiting, and ending a parent does not end its
  * children.
@@ -79,33 +80,52 @@ class CallActivityInvoker implements Invoker<CallActivity> {
     }
 
     /**
-     * Starts the called process if the step has no child instance yet; continues if the child has ended.
+     * Creates the call step and starts the called process with the call step as its parent step; schedules no task.
+     *
+     * @param call the call activity
+     * @param trigger how the call activity is reached
+     * @return the pending call step
+     * @throws ProcessEngineException if the call activity has loop characteristics, {@code calledElement} is missing
+     *             or unknown, a mapping is invalid or the child cannot be started
+     */
+    @Override
+    public ProcessStep trigger(final CallActivity call, final NodeTrigger trigger) throws ProcessEngineException {
+        if (call.getLoopCharacteristics() != null) {
+            throw new ProcessEngineException("Activity '" + call.getId()
+                    + "' has loop characteristics, which are not supported yet.");
+        }
+        final List<Mapping> mappings = CallActivityInvoker.mappings(call);
+        final ProcessDefinition called = this.calledDefinition(call);
+        final ProcessInstance instance = trigger.instance();
+        final ProcessStep step = trigger.createStep();
+        final ProcessInstance started = this.engine.startProcess(called,
+                CallActivityInvoker.input(mappings, instance.variables()), step);
+        LoggerFactory.getLogger(this.getClass()).debug(
+                "Call activity {} of process instance {} waits for process instance {}",
+                call.getId(), instance.id(), started.id());
+        return step;
+    }
+
+    /**
+     * Continues if the child instance has ended: passes the variables back, completes the step and selects the
+     * outgoing flows.
      *
      * @param call the call activity
      * @param execution the pending call activity step and its (locked) parent instance
      * @return the sequence flows to take; none while the child instance is running
-     * @throws ProcessEngineException if {@code calledElement} is missing or unknown, a mapping is invalid, the child
-     *             cannot be started or a flow condition fails
+     * @throws ProcessEngineException if the step has no child instance, a mapping is invalid or a flow condition fails
      */
     @Override
-    public Collection<SequenceFlow> invoke(final CallActivity call, final NodeExecution execution)
+    public Collection<SequenceFlow> execute(final CallActivity call, final NodeExecution execution)
             throws ProcessEngineException {
         try {
             final ProcessInstance instance = execution.instance();
             final ProcessStep step = execution.step();
-            if (call.getLoopCharacteristics() != null) {
-                throw new ProcessEngineException("Activity '" + call.getId()
-                        + "' has loop characteristics, which are not supported yet.");
-            }
             final List<Mapping> mappings = CallActivityInvoker.mappings(call);
             final Optional<ProcessInstance> child = this.instances.retrieveChild(step.id());
             if (child.isEmpty()) {
-                final ProcessInstance started = this.engine.startProcess(this.calledDefinition(call),
-                        CallActivityInvoker.input(mappings, instance.variables()), step);
-                LoggerFactory.getLogger(this.getClass()).debug(
-                        "Call activity {} of process instance {} waits for process instance {}",
-                        call.getId(), instance.id(), started.id());
-                return List.of();
+                throw new ProcessEngineException("Step " + step.id() + " of call activity '" + call.getId()
+                        + "' has no called process instance.");
             }
             if (child.get().endDate() == null) {
                 LoggerFactory.getLogger(this.getClass()).info(

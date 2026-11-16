@@ -34,7 +34,7 @@ class TaskInvoker implements Invoker<Task> {
     }
 
     @Override
-    public Collection<SequenceFlow> invoke(final Task node, final NodeExecution execution)
+    public Collection<SequenceFlow> execute(final Task node, final NodeExecution execution)
             throws ProcessEngineException {
         final Map<String, Object> variables = this.runner.loop(node, execution);
         final Collection<SequenceFlow> taken = this.flows.activity(node, execution.outgoing(), execution.language(),

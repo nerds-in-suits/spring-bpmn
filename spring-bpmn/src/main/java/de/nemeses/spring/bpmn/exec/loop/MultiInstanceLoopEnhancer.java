@@ -10,7 +10,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
-import de.nemeses.spring.tasks.TaskService;
 
 /**
  * Enhances the invoker of every activity type with a {@link MultiInstanceLoop}, which runs the activities with
@@ -21,15 +20,13 @@ class MultiInstanceLoopEnhancer implements InvokerEnhancer {
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
-    private final TaskService taskService;
     private final ConditionEvaluator conditions;
     private final FlowSelector flows;
 
     MultiInstanceLoopEnhancer(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
-            final TaskService taskService, final ConditionEvaluator conditions, final FlowSelector flows) {
+            final ConditionEvaluator conditions, final FlowSelector flows) {
         this.instances = instances;
         this.steps = steps;
-        this.taskService = taskService;
         this.conditions = conditions;
         this.flows = flows;
     }
@@ -39,7 +36,6 @@ class MultiInstanceLoopEnhancer implements InvokerEnhancer {
         if (!Activity.class.isAssignableFrom(invoker.nodeType())) {
             return invoker;
         }
-        return new MultiInstanceLoop<>(invoker, this.instances, this.steps, this.taskService, this.conditions,
-                this.flows);
+        return new MultiInstanceLoop<>(invoker, this.instances, this.steps, this.conditions, this.flows);
     }
 }
