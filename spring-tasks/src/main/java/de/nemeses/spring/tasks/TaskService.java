@@ -11,7 +11,6 @@ import org.springframework.beans.factory.BeanNotOfRequiredTypeException;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.SmartLifecycle;
-import org.springframework.stereotype.Component;
 
 /**
  * Schedules tasks and executes them.
@@ -23,10 +22,10 @@ import org.springframework.stereotype.Component;
  * The workers are interrupted and awaited when the application context stops.
  * All settings are bound from {@link TaskProperties}.
  * <p>
+ * Registered by {@link TaskConfiguration}.
  * The {@link TaskImplementation} beans are looked up by name in the bean factory each time a task is scheduled or
  * executed, not injected, so a task implementation may itself depend on this service.
  */
-@Component
 public class TaskService implements SmartLifecycle {
 
     private final TaskPersistence persistence;

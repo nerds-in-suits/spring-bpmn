@@ -15,7 +15,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  *
  */
-@SpringBootTest(classes = {TaskConfiguration.class, TaskServiceTest.PersistenceConfiguration.class},
+@SpringBootTest(classes = {TaskConfiguration.class, TaskServiceTest.PersistenceConfiguration.class,
+    TestTaskImplementation.class},
     properties = "spring.tasks.pool-size=3")
 public class TaskServiceTest {
 

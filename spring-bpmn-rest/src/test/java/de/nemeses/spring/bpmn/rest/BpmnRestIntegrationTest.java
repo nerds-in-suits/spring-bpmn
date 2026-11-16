@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -22,8 +21,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import com.jayway.jsonpath.JsonPath;
 
-import de.nemeses.spring.tasks.TaskProperties;
-import de.nemeses.spring.tasks.TaskService;
+import de.nemeses.spring.tasks.TaskConfiguration;
 
 /**
  * The REST API on the real engine with the JPA repositories and the JPA task persistence on H2: deploys a process,
@@ -124,14 +122,11 @@ class BpmnRestIntegrationTest {
     }
 
     /**
-     * Test application: all auto-configurations plus the task service. {@code TaskConfiguration} is not imported,
-     * because its component scan would pick up the JPA task persistence auto-configuration as a plain configuration,
-     * before an {@code EntityManagerFactory} exists.
+     * Test application: all auto-configurations plus the task service.
      */
     @Configuration
     @EnableAutoConfiguration
-    @EnableConfigurationProperties(TaskProperties.class)
-    @Import(TaskService.class)
+    @Import(TaskConfiguration.class)
     static class TestApplication {
     }
 }

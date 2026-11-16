@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.LoggerFactory;
@@ -35,9 +36,9 @@ import jakarta.xml.bind.JAXBElement;
  * Process definitions, addressed by name (the latest version, unless stated otherwise):
  * <ul>
  * <li>{@code GET /process-definitions}: the latest version of every definition with the number of its running and
- * finished instances (over all versions), ordered by name;</li>
+ * finished instances (over all versions);</li>
  * <li>{@code GET /process-definitions/{name}}: the latest version;</li>
- * <li>{@code GET /process-definitions/{name}/versions}: all versions, newest first;</li>
+ * <li>{@code GET /process-definitions/{name}/versions}: all versions;</li>
  * <li>{@code GET /process-definitions/{name}/bpmn}: the BPMN XML of the latest version;</li>
  * <li>{@code POST /process-definitions}: deploys a BPMN document (body {@code application/xml}), only if
  * {@code spring.bpmn.rest.deployment-enabled} is {@code true}, else {@code 403 Forbidden}. Like
@@ -67,7 +68,7 @@ class ProcessDefinitionController {
     }
 
     @GetMapping
-    Collection<ProcessDefinitionSummaryDto> list() {
+    Collection<ProcessDefinitionSummaryDto> all() {
         final Map<String, ProcessInstanceCount> counts = this.instances.countByDefinition();
         return this.definitions.retrieveLatestAll().stream()
                 .map(definition -> ProcessDefinitionSummaryDto.from(definition, counts.get(definition.name())))
@@ -79,8 +80,11 @@ class ProcessDefinitionController {
         return ProcessDefinitionDto.from(this.definitions.retrieveLatest(name));
     }
 
+    /**
+     * @return all versions as a {@link List}, because they are ordered newest first
+     */
     @GetMapping("/{name}/versions")
-    Collection<ProcessDefinitionDto> versions(@PathVariable final String name) throws NoSuchProcessDefinitionException {
+    List<ProcessDefinitionDto> versions(@PathVariable final String name) throws NoSuchProcessDefinitionException {
         final Collection<ProcessDefinition> versions = this.definitions.retrieveAll(name);
         if (versions.isEmpty()) {
             throw new NoSuchProcessDefinitionException(name);
