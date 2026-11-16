@@ -47,7 +47,8 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
  * and sorted in memory by start date (default), end date (running steps last in ascending order) or type, ties by
  * start date.</li>
  * </ul>
- * Instances are neither deleted nor cancelled (#118), and their variables are not updated (#119).
+ * Instances are neither deleted nor cancelled (#118); their variables are changed through
+ * {@link ProcessVariableController}.
  */
 @RestController
 @RequestMapping("/process-instances")
