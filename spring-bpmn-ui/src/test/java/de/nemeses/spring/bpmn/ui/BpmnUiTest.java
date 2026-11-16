@@ -13,7 +13,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * The UI is served at {@code /bpmn-ui/} with Alpine.js, and tells the pages the configured REST base path.
+ * The UI is served at {@code /bpmn-ui/} with Alpine.js and the bpmn-js viewer, and tells the pages the configured REST
+ * base path.
  */
 @SpringBootTest(classes = UiTestConfiguration.class, properties = "spring.bpmn.rest.base-path=/bpmn")
 class BpmnUiTest {
@@ -72,6 +73,22 @@ class BpmnUiTest {
         this.mvc.perform(MockMvcRequestBuilders.get("/webjars/alpinejs/dist/cdn.min.js"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("Alpine")));
+    }
+
+    @Test
+    void testServesBpmnJsViewerWebJar() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("../webjars/bpmn-js/dist/bpmn-viewer.production.min.js")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("../webjars/bpmn-js/dist/assets/bpmn-js.css")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/bpmn-viewer.production.min.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("BpmnJS")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/assets/diagram-js.css"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/assets/bpmn-js.css"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
     }
 
     @Test

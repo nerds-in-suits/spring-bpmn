@@ -15,7 +15,8 @@ import de.nemeses.spring.bpmn.rest.BpmnRestProperties;
  * {@code spring-bpmn-rest} ({@link BpmnRestProperties}).
  * <p>
  * The pages themselves are static resources of this JAR in {@code META-INF/resources/bpmn-ui/}, served by Spring
- * Boot, with Alpine.js from its WebJar ({@code /webjars/alpinejs/...}). This configuration only redirects
+ * Boot, with Alpine.js and the bpmn-js viewer from their WebJars ({@code /webjars/alpinejs/...},
+ * {@code /webjars/bpmn-js/...}). This configuration only redirects
  * {@code /bpmn-ui} to {@code /bpmn-ui/}, forwards {@code /bpmn-ui/} to {@code index.html} and registers
  * {@link BpmnUiConfigController}, which tells the pages where the REST API is. The UI is not
  * secured by this module: the application's login (or Spring Boot's default one) protects {@code /bpmn-ui/}, and the

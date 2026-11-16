@@ -13,6 +13,7 @@
 
     <properties>
         <alpinejs.version>3.17.5</alpinejs.version>
+        <bpmn-js.version>18.31.1</bpmn-js.version>
     </properties>
 
     <dependencies>
@@ -28,6 +29,18 @@
             <groupId>org.webjars.npm</groupId>
             <artifactId>alpinejs</artifactId>
             <version>${alpinejs.version}</version>
+        </dependency>
+        <dependency>
+            <!-- only the prebuilt viewer bundle in dist/ is used, which contains its npm dependencies -->
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>bpmn-js</artifactId>
+            <version>${bpmn-js.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.webjars</groupId>
