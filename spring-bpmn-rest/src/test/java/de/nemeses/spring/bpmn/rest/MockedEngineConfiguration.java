@@ -96,8 +96,14 @@ class MockedEngineConfiguration {
      * @param parentStep the parent step
      * @param parentInstance the parent instance
      */
-    record Instance(UUID id, ProcessDefinition processDefinition, Map<String, Object> variables, Date startDate,
-            Date endDate, ProcessStep parentStep, ProcessInstance parentInstance) implements ProcessInstance {
+    record Instance(
+            UUID id,
+            ProcessDefinition processDefinition,
+            Map<String, Object> variables,
+            Date startDate,
+            Date endDate,
+            ProcessStep parentStep,
+            ProcessInstance parentInstance) implements ProcessInstance {
     }
 
     /**
@@ -113,8 +119,16 @@ class MockedEngineConfiguration {
      * @param startDate the start date
      * @param endDate the end date
      */
-    record Step(UUID id, UUID processInstanceId, String nodeId, String incomingFlowId, UUID parentStepId,
-            Integer loopCounter, Object loopItem, Date startDate, Date endDate) implements ProcessStep {
+    record Step(
+            UUID id,
+            UUID processInstanceId,
+            String nodeId,
+            String incomingFlowId,
+            UUID parentStepId,
+            Integer loopCounter,
+            Object loopItem,
+            Date startDate,
+            Date endDate) implements ProcessStep {
 
         /**
          * @param processInstanceId the instance id
@@ -123,7 +137,15 @@ class MockedEngineConfiguration {
          * @param end the end date in milliseconds, {@code null} if pending
          */
         Step(final UUID processInstanceId, final String nodeId, final long start, final Long end) {
-            this(UUID.randomUUID(), processInstanceId, nodeId, null, null, null, null, new Date(start),
+            this(
+                    UUID.randomUUID(),
+                    processInstanceId,
+                    nodeId,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new Date(start),
                     end == null ? null : new Date(end));
         }
     }

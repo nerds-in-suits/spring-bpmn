@@ -34,9 +34,14 @@ public record ProcessInstanceSummaryDto(
      */
     static ProcessInstanceSummaryDto from(final ProcessInstance instance) {
         final ProcessStep parent = instance.parentStep();
-        return new ProcessInstanceSummaryDto(instance.id(), instance.processDefinition().name(),
-                Dates.instant(instance.processDefinition().createdDate()), State.from(instance.endDate()).value(),
-                Dates.instant(instance.startDate()), Dates.instant(instance.endDate()),
-                parent == null ? null : parent.processInstanceId(), parent == null ? null : parent.id());
+        return new ProcessInstanceSummaryDto(
+                instance.id(),
+                instance.processDefinition().name(),
+                Dates.instant(instance.processDefinition().createdDate()),
+                State.from(instance.endDate()).value(),
+                Dates.instant(instance.startDate()),
+                Dates.instant(instance.endDate()),
+                parent == null ? null : parent.processInstanceId(),
+                parent == null ? null : parent.id());
     }
 }

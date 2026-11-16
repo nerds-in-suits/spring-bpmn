@@ -21,7 +21,9 @@ public record ProcessDefinitionDto(
      * @return its response
      */
     static ProcessDefinitionDto from(final ProcessDefinition definition) {
-        return new ProcessDefinitionDto(definition.name(), Dates.instant(definition.createdDate()),
+        return new ProcessDefinitionDto(
+                definition.name(),
+                Dates.instant(definition.createdDate()),
                 definition.md5Hash());
     }
 }

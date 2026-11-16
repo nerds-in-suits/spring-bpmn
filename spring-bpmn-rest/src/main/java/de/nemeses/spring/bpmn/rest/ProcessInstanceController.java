@@ -59,8 +59,12 @@ class ProcessInstanceController {
     private final ProcessNodes nodes;
     private final BpmnRestProperties properties;
 
-    ProcessInstanceController(final ProcessEngineService engine, final ProcessInstanceRepository instances,
-            final ProcessStepRepository steps, final ProcessNodes nodes, final BpmnRestProperties properties) {
+    ProcessInstanceController(
+            final ProcessEngineService engine,
+            final ProcessInstanceRepository instances,
+            final ProcessStepRepository steps,
+            final ProcessNodes nodes,
+            final BpmnRestProperties properties) {
         this.engine = engine;
         this.instances = instances;
         this.steps = steps;
@@ -69,17 +73,27 @@ class ProcessInstanceController {
     }
 
     @GetMapping
-    PageDto<ProcessInstanceSummaryDto> list(@RequestParam(required = false) final String definition,
-            @RequestParam(required = false) final String state, @RequestParam(required = false) final String sort,
+    PageDto<ProcessInstanceSummaryDto> list(
+            @RequestParam(required = false) final String definition,
+            @RequestParam(required = false) final String state,
+            @RequestParam(required = false) final String sort,
             @RequestParam(required = false) final String direction,
-            @RequestParam(defaultValue = "0") final int page, @RequestParam(required = false) final Integer size) {
+            @RequestParam(defaultValue = "0") final int page,
+            @RequestParam(required = false) final Integer size) {
         final State filter = State.parse(state);
         final ProcessInstanceSort order = ProcessInstanceController.instanceSort(sort);
         final int pageSize = this.pageSize(page, size);
-        final ProcessInstancePage result = this.instances.query(definition,
-                filter == null ? null : filter == State.RUNNING, order, State.ascending(direction),
-                Math.multiplyExact(page, pageSize), pageSize);
-        return new PageDto<>(result.items().stream().map(ProcessInstanceSummaryDto::from).toList(), page, pageSize,
+        final ProcessInstancePage result = this.instances.query(
+                definition,
+                filter == null ? null : filter == State.RUNNING,
+                order,
+                State.ascending(direction),
+                Math.multiplyExact(page, pageSize),
+                pageSize);
+        return new PageDto<>(
+                result.items().stream().map(ProcessInstanceSummaryDto::from).toList(),
+                page,
+                pageSize,
                 result.total());
     }
 
@@ -106,8 +120,11 @@ class ProcessInstanceController {
      *         {@code direction}
      */
     @GetMapping("/{id}/steps")
-    List<ProcessStepDto> listSteps(@PathVariable final UUID id, @RequestParam(required = false) final String state,
-            @RequestParam(required = false) final String type, @RequestParam(required = false) final String sort,
+    List<ProcessStepDto> listSteps(
+            @PathVariable final UUID id,
+            @RequestParam(required = false) final String state,
+            @RequestParam(required = false) final String type,
+            @RequestParam(required = false) final String sort,
             @RequestParam(required = false) final String direction)
             throws NoSuchProcessInstanceException, ProcessEngineException {
         final State filter = State.parse(state);

@@ -61,9 +61,14 @@ class UserTaskControllerTest {
         final ProcessStep later = new MockedEngineConfiguration.Step(id, "approve", 3000, null);
         final ProcessStep earlier = new MockedEngineConfiguration.Step(id, "approve", 2000, null);
         Mockito.when(this.engine.openUserTasks(id)).thenReturn(List.of(later, earlier));
-        Mockito.when(this.instances.retrieve(id)).thenReturn(new MockedEngineConfiguration.Instance(id,
+        Mockito.when(this.instances.retrieve(id)).thenReturn(new MockedEngineConfiguration.Instance(
+                id,
                 new MockedEngineConfiguration.Definition("order", new Date(1000), MockedEngineConfiguration.ORDER_XML),
-                Map.of(), new Date(1000), null, null, null));
+                Map.of(),
+                new Date(1000),
+                null,
+                null,
+                null));
 
         this.mvc.perform(MockMvcRequestBuilders.get(BASE).param("processInstance", id.toString()))
                 .andExpect(MockMvcResultMatchers.status().isOk())

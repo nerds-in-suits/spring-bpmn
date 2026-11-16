@@ -29,7 +29,11 @@ public record ProcessDefinitionSummaryDto(
      */
     static ProcessDefinitionSummaryDto from(final ProcessDefinition definition, final ProcessInstanceCount count) {
         final ProcessInstanceCount counted = count == null ? new ProcessInstanceCount(0, 0) : count;
-        return new ProcessDefinitionSummaryDto(definition.name(), Dates.instant(definition.createdDate()),
-                definition.md5Hash(), counted.running(), counted.finished());
+        return new ProcessDefinitionSummaryDto(
+                definition.name(),
+                Dates.instant(definition.createdDate()),
+                definition.md5Hash(),
+                counted.running(),
+                counted.finished());
     }
 }

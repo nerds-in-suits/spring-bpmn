@@ -33,7 +33,14 @@ public record UserTaskDto(
      * @return its response
      */
     static UserTaskDto from(final ProcessStep step, final ProcessNodes.Node node) {
-        return new UserTaskDto(step.id(), step.processInstanceId(), step.nodeId(), node == null ? null : node.name(),
-                step.parentStepId(), step.loopCounter(), step.loopItem(), Dates.instant(step.startDate()));
+        return new UserTaskDto(
+                step.id(),
+                step.processInstanceId(),
+                step.nodeId(),
+                node == null ? null : node.name(),
+                step.parentStepId(),
+                step.loopCounter(),
+                step.loopItem(),
+                Dates.instant(step.startDate()));
     }
 }

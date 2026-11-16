@@ -32,7 +32,9 @@ class ProcessDefinitionControllerTest {
 
     private static final String BASE = "/api/bpmn/v1/process-definitions";
 
-    private static final ProcessDefinition ORDER = new MockedEngineConfiguration.Definition("order", new Date(1000),
+    private static final ProcessDefinition ORDER = new MockedEngineConfiguration.Definition(
+            "order",
+            new Date(1000),
             MockedEngineConfiguration.ORDER_XML);
 
     @Autowired

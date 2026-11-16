@@ -40,9 +40,17 @@ public record ProcessStepDto(
      * @return its response
      */
     static ProcessStepDto from(final ProcessStep step, final ProcessNodes.Node node) {
-        return new ProcessStepDto(step.id(), step.nodeId(), node == null ? null : node.name(),
-                node == null ? null : node.type(), State.from(step.endDate()).value(), step.incomingFlowId(),
-                step.parentStepId(), step.loopCounter(), step.loopItem(), Dates.instant(step.startDate()),
+        return new ProcessStepDto(
+                step.id(),
+                step.nodeId(),
+                node == null ? null : node.name(),
+                node == null ? null : node.type(),
+                State.from(step.endDate()).value(),
+                step.incomingFlowId(),
+                step.parentStepId(),
+                step.loopCounter(),
+                step.loopItem(),
+                Dates.instant(step.startDate()),
                 Dates.instant(step.endDate()));
     }
 }

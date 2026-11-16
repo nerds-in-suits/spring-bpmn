@@ -39,7 +39,9 @@ class ProcessInstanceControllerTest {
 
     private static final String BASE = "/api/bpmn/v1/process-instances";
 
-    private static final ProcessDefinition ORDER = new MockedEngineConfiguration.Definition("order", new Date(1000),
+    private static final ProcessDefinition ORDER = new MockedEngineConfiguration.Definition(
+            "order",
+            new Date(1000),
             MockedEngineConfiguration.ORDER_XML);
 
     @Autowired
@@ -67,8 +69,14 @@ class ProcessInstanceControllerTest {
     }
 
     private static ProcessInstance instance(final UUID id, final Long end) {
-        return new MockedEngineConfiguration.Instance(id, ORDER, Map.of("amount", 3), new Date(2000),
-                end == null ? null : new Date(end), null, null);
+        return new MockedEngineConfiguration.Instance(
+                id,
+                ORDER,
+                Map.of("amount", 3),
+                new Date(2000),
+                end == null ? null : new Date(end),
+                null,
+                null);
     }
 
     @Test
@@ -125,8 +133,14 @@ class ProcessInstanceControllerTest {
         final UUID id = UUID.randomUUID();
         final UUID parentInstance = UUID.randomUUID();
         final ProcessStep parentStep = new MockedEngineConfiguration.Step(parentInstance, "call", 1000, null);
-        Mockito.when(this.instances.retrieve(id)).thenReturn(new MockedEngineConfiguration.Instance(id, ORDER,
-                Map.of("amount", 3), new Date(2000), new Date(3000), parentStep, null));
+        Mockito.when(this.instances.retrieve(id)).thenReturn(new MockedEngineConfiguration.Instance(
+                id,
+                ORDER,
+                Map.of("amount", 3),
+                new Date(2000),
+                new Date(3000),
+                parentStep,
+                null));
 
         this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/" + id))
                 .andExpect(MockMvcResultMatchers.status().isOk())

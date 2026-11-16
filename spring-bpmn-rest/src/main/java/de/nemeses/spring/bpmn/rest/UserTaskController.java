@@ -39,7 +39,9 @@ class UserTaskController {
     private final ProcessInstanceRepository instances;
     private final ProcessNodes nodes;
 
-    UserTaskController(final ProcessEngineService engine, final ProcessInstanceRepository instances,
+    UserTaskController(
+            final ProcessEngineService engine,
+            final ProcessInstanceRepository instances,
             final ProcessNodes nodes) {
         this.engine = engine;
         this.instances = instances;

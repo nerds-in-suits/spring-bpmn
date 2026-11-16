@@ -25,7 +25,10 @@ public record DeployedProcessDefinitionDto(
      * @return its response
      */
     static DeployedProcessDefinitionDto from(final ProcessDefinition definition, final boolean registered) {
-        return new DeployedProcessDefinitionDto(definition.name(), Dates.instant(definition.createdDate()),
-                definition.md5Hash(), registered);
+        return new DeployedProcessDefinitionDto(
+                definition.name(),
+                Dates.instant(definition.createdDate()),
+                definition.md5Hash(),
+                registered);
     }
 }

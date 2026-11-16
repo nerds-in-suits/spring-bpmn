@@ -55,8 +55,11 @@ class ProcessDefinitionController {
     private final BpmnParser parser;
     private final BpmnRestProperties properties;
 
-    ProcessDefinitionController(final ProcessDefinitionService definitions, final ProcessInstanceRepository instances,
-            final BpmnParser parser, final BpmnRestProperties properties) {
+    ProcessDefinitionController(
+            final ProcessDefinitionService definitions,
+            final ProcessInstanceRepository instances,
+            final BpmnParser parser,
+            final BpmnRestProperties properties) {
         this.definitions = definitions;
         this.instances = instances;
         this.parser = parser;

@@ -36,8 +36,15 @@ public record ProcessInstanceDto(
      */
     static ProcessInstanceDto from(final ProcessInstance instance) {
         final ProcessInstanceSummaryDto summary = ProcessInstanceSummaryDto.from(instance);
-        return new ProcessInstanceDto(summary.id(), summary.processDefinition(),
-                summary.processDefinitionCreatedDate(), summary.state(), summary.startDate(), summary.endDate(),
-                summary.parentInstanceId(), summary.parentStepId(), instance.variables());
+        return new ProcessInstanceDto(
+                summary.id(),
+                summary.processDefinition(),
+                summary.processDefinitionCreatedDate(),
+                summary.state(),
+                summary.startDate(),
+                summary.endDate(),
+                summary.parentInstanceId(),
+                summary.parentStepId(),
+                instance.variables());
     }
 }
