@@ -30,6 +30,7 @@ The application chooses the concrete backends by adding implementation modules t
 |--------|----------------|
 | `conventions` | Checkstyle/PMD/SpotBugs rulesets and Eclipse prefs. Independent POM. |
 | `spring-bpmn` | Parses BPMN documents, registers process definitions and executes process instances on `spring-tasks`; contains the repository API. |
+| `spring-bpmn-demo` | Runnable demo application (executable jar) with all modules except `spring-tasks-jms`, H2 and sample processes; not a library. |
 | `spring-bpmn-repository-jpa` | JPA implementation of the repository API of `spring-bpmn`. |
 | `spring-bpmn-rest` | REST API (JSON) for process definitions, process instances with their steps, and user tasks. |
 | `spring-bpmn-ui` | Single page web UI (Alpine.js, static resources) on the REST API of `spring-bpmn-rest`. |
@@ -49,6 +50,12 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessDefinitionAutoConfiguration`: component-scans the package and `exec` with its invoker sub-packages, but not the sub-packages of other modules (`repository.jpa`, `rest`); needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
 - `ProcessDefinitionRegistrar`: registers every `process` of every `ProcessDefinitionSource` document on startup, skipping unchanged ones.
 - `ProcessDefinitionSource`: contributes BPMN documents to register.
+
+### `de.nemeses.spring.bpmn.demo` (module `spring-bpmn-demo`)
+
+- `CheckOrder`, `Greet`: the `BpmnNodeImplementation` beans `checkOrder` and `greet` of the sample processes.
+- `DemoApplication`: the `@SpringBootApplication` main class; imports `TaskConfiguration`.
+- `UiUrlLogger`: logs the UI and REST URLs once the web server listens.
 
 ### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
 

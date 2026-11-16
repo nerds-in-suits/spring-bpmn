@@ -1,0 +1,23 @@
+# Local settings of the demo application; every value can be overridden on the command line (--name=value).
+server:
+  port: 8080
+
+spring:
+  application:
+    name: spring-bpmn-demo
+  datasource:
+    # File database below the working directory: survives restarts, deleted by "mvn clean" when started via the scripts.
+    url: jdbc:h2:file:./target/demo-db/spring-bpmn
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      # The modules bring no DDL scripts; Hibernate creates and updates their tables.
+      ddl-auto: update
+    open-in-view: false
+  bpmn:
+    rest:
+      # Allows deploying BPMN files with POST /api/bpmn/v1/process-definitions.
+      deployment-enabled: true
+  tasks:
+    pool-size: 4

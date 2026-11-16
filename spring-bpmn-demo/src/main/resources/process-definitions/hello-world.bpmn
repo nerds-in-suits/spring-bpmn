@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sample process: the service task greet sets the variable greeting; runs to its end without waiting. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:spring="https://nemeses.de/spring-bpmn"
+    id="helloWorldDefinitions" targetNamespace="https://nemeses.de/spring-bpmn/demo">
+  <bpmn:process id="helloWorld" isExecutable="true">
+    <bpmn:startEvent id="start" name="Start"/>
+    <bpmn:serviceTask id="greet" name="Greet" spring:bean="greet"/>
+    <bpmn:endEvent id="end" name="End"/>
+    <bpmn:sequenceFlow id="toGreet" sourceRef="start" targetRef="greet"/>
+    <bpmn:sequenceFlow id="toEnd" sourceRef="greet" targetRef="end"/>
+  </bpmn:process>
+</bpmn:definitions>

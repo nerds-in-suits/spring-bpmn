@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sample process: the service task checkOrder decides whether an order needs a manual approval (user task). -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:spring="https://nemeses.de/spring-bpmn"
+    id="orderApprovalDefinitions" targetNamespace="https://nemeses.de/spring-bpmn/demo">
+  <bpmn:process id="orderApproval" isExecutable="true">
+    <bpmn:startEvent id="orderReceived" name="Order received"/>
+    <bpmn:serviceTask id="checkOrder" name="Check order" spring:bean="checkOrder"/>
+    <bpmn:exclusiveGateway id="approvalRequired" name="Approval required?" default="noApproval"/>
+    <bpmn:userTask id="approveOrder" name="Approve order"/>
+    <bpmn:scriptTask id="markApproved" name="Mark approved">
+      <bpmn:script>approved = true</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="orderApproved" name="Order approved"/>
+    <bpmn:endEvent id="orderDone" name="Order done"/>
+    <bpmn:sequenceFlow id="toCheck" sourceRef="orderReceived" targetRef="checkOrder"/>
+    <bpmn:sequenceFlow id="toDecision" sourceRef="checkOrder" targetRef="approvalRequired"/>
+    <bpmn:sequenceFlow id="needsApproval" sourceRef="approvalRequired" targetRef="approveOrder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approvalRequired}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="noApproval" sourceRef="approvalRequired" targetRef="markApproved"/>
+    <bpmn:sequenceFlow id="approvedFlow" sourceRef="markApproved" targetRef="orderApproved"/>
+    <bpmn:sequenceFlow id="reviewedFlow" sourceRef="approveOrder" targetRef="orderDone"/>
+  </bpmn:process>
+</bpmn:definitions>

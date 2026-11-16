@@ -10,6 +10,7 @@ Licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)).
 |--------|---------|
 | [`conventions`](conventions/README.md) | Checkstyle, PMD and SpotBugs rulesets and Eclipse settings for all modules. |
 | [`spring-bpmn`](spring-bpmn/README.md) | The BPMN engine and its repository API. |
+| [`spring-bpmn-demo`](spring-bpmn-demo/README.md) | Runnable local engine with JPA on H2, REST API, UI and sample processes; started by `start.sh` / `start.cmd`. |
 | [`spring-bpmn-repository-jpa`](spring-bpmn-repository-jpa/README.md) | JPA implementation of the repository API. |
 | [`spring-bpmn-rest`](spring-bpmn-rest/README.md) | REST API for process definitions, process instances and user tasks. |
 | [`spring-bpmn-ui`](spring-bpmn-ui/README.md) | Single page web UI for process definitions, process instances and their steps. |

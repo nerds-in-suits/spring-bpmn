@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>spring-bpmn-demo</artifactId>
+    <name>Spring BPMN demo application</name>
+    <description>Runnable local BPMN engine with the JPA backends on H2, the REST API and the web UI.</description>
+
+    <parent>
+        <groupId>de.nemeses.spring</groupId>
+        <artifactId>parent</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <dependencies>
+        <dependency>
+            <groupId>de.nemeses.spring</groupId>
+            <artifactId>spring-bpmn</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.nemeses.spring</groupId>
+            <artifactId>spring-bpmn-repository-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.nemeses.spring</groupId>
+            <artifactId>spring-tasks</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.nemeses.spring</groupId>
+            <artifactId>spring-tasks-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.nemeses.spring</groupId>
+            <artifactId>spring-bpmn-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.nemeses.spring</groupId>
+            <artifactId>spring-bpmn-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <!-- Without version, so the start scripts find the jar after a release. -->
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <!-- Only this module is an executable jar; the library modules stay plain jars. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
