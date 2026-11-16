@@ -19,7 +19,8 @@ import jakarta.xml.bind.Unmarshaller;
 
 /**
  * Unmarshals BPMN 2.0 XML documents into the generated object model. Documents are validated against the BPMN 2.0
- * XML Schema ({@code xsd/bpmn/BPMN20.xsd} on the classpath), which is loaded once per parser. Extension attributes
+ * XML Schema ({@code xsd/bpmn/BPMN20.xsd} on the classpath, also inside an executable Spring Boot jar), which is
+ * loaded once per parser. Extension attributes
  * and elements in other namespaces (such as {@code spring:bean}) are allowed by the schema.
  */
 @Component
@@ -52,7 +53,9 @@ public class BpmnParser {
             final SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file,jar,jrt");
+            // the schema includes its siblings from the classpath; "nested" is the jar-in-jar URL protocol of an
+            // executable Spring Boot jar
+            factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file,jar,jrt,nested");
             return factory.newSchema(location);
         } catch (final SAXException e) {
             throw new BpmnParseException("Cannot load BPMN schema " + SCHEMA_LOCATION, e);
