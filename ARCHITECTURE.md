@@ -71,7 +71,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `NodeTrigger`: how an `Invoker` reaches its node (instance, incoming flow, scope, loop data); creates and schedules steps and triggers other nodes.
 - `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
-- `ProcessEngineService`: public entry to start process instances and to list and complete their open user tasks.
+- `ProcessEngineService`: public entry to start process instances, to list and complete their open user tasks and to update their variables (merge or replace, without the instance lock).
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
 - `SubProcessScopes`: triggers the target nodes of the flows taken in their scope and schedules leaving embedded sub-processes.
 
@@ -128,6 +128,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessDefinitionController`: `/process-definitions`, addressed by name; lists the latest versions with instance counts, reads versions and BPMN XML, deploys BPMN documents if enabled; no deletion.
 - `ProcessInstanceController`: `/process-instances`; pages, reads and starts instances and lists their steps, filtered and sorted, with the node type from the model.
 - `ProcessNodes`: reads the type (BPMN element name) and name of the flow nodes of a definition from the `ProcessDefinitionModelCache`.
+- `ProcessVariableController`: `/process-instances/{id}/variables`; reads, merges, replaces, sets and removes the variables of a running instance through `ProcessEngineService.updateVariables`, without locking the instance.
 - `UserTaskController`: `/user-tasks`; lists and completes the open user tasks of an instance through `ProcessEngineService`.
 
 ### `de.nemeses.spring.bpmn.ui` (module `spring-bpmn-ui`)
