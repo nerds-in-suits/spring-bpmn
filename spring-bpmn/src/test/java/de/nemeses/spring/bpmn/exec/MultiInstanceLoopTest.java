@@ -93,11 +93,14 @@ class MultiInstanceLoopTest {
                 .run(test);
     }
 
-    private ProcessStep execute(final AssertableApplicationContext context, final ProcessInstance instance,
-            final String nodeId) throws TaskException, NoSuchProcessInstanceException {
-        final ProcessStep step = this.steps.create(instance.id(), nodeId, null, null);
-        MultiInstanceLoopTest.execute(context, step);
-        return step;
+    /**
+     * Reaches the node at the top level without incoming flow ({@link Invoker#trigger}).
+     *
+     * @return the step created for the node, for a multi-instance activity its activity step
+     */
+    private static ProcessStep trigger(final AssertableApplicationContext context, final ProcessInstance instance,
+            final String nodeId) throws ProcessEngineException {
+        return context.getBean(InvokerRegistry.class).trigger(instance, nodeId, null, null);
     }
 
     private static void execute(final AssertableApplicationContext context, final ProcessStep step)
@@ -105,13 +108,14 @@ class MultiInstanceLoopTest {
         context.getBean(BpmnNodeExecutor.BEAN_NAME, BpmnNodeExecutor.class).execute(step.id());
     }
 
-    private void assertFails(final AssertableApplicationContext context, final ProcessInstance instance,
-            final String nodeId) throws NoSuchProcessInstanceException {
-        final ProcessStep step = this.steps.create(instance.id(), nodeId, null, null);
-        final TaskException e = Assertions.assertThrows(TaskException.class,
-                () -> MultiInstanceLoopTest.execute(context, step));
-        Assertions.assertInstanceOf(ProcessEngineException.class, e.getCause());
-        Assertions.assertFalse(e.getCause().getCause() instanceof BpmnParseException, nodeId);
+    /**
+     * Asserts that reaching the node fails, which fails the step taking a flow to it.
+     */
+    private static void assertTriggerFails(final AssertableApplicationContext context, final ProcessInstance instance,
+            final String nodeId) {
+        final ProcessEngineException e = Assertions.assertThrows(ProcessEngineException.class,
+                () -> MultiInstanceLoopTest.trigger(context, instance, nodeId), nodeId);
+        Assertions.assertFalse(e.getCause() instanceof BpmnParseException, nodeId);
     }
 
     /**
@@ -152,7 +156,7 @@ class MultiInstanceLoopTest {
                 "<multiInstanceLoopCharacteristics><loopCardinality>${amount}</loopCardinality>"
                         + "</multiInstanceLoopCharacteristics>");
         this.withEngine(context -> {
-            final ProcessStep activity = this.execute(context, instance, "mi");
+            final ProcessStep activity = MultiInstanceLoopTest.trigger(context, instance, "mi");
 
             final List<ProcessStep> created = this.triggered(context, "mi");
             Assertions.assertEquals(List.of(0, 1, 2), created.stream().map(ProcessStep::loopCounter).toList());
@@ -195,7 +199,7 @@ class MultiInstanceLoopTest {
                         + "<loopDataInputRef>items</loopDataInputRef><inputDataItem id=\"i\" name=\"item\"/>"
                         + "</multiInstanceLoopCharacteristics>");
         this.withEngine(context -> {
-            final ProcessStep activity = this.execute(context, instance, "mi");
+            final ProcessStep activity = MultiInstanceLoopTest.trigger(context, instance, "mi");
             Assertions.assertEquals(List.of("a", "b", "c"), this.stored(activity).loopItem());
 
             for (int index = 0; index < 3; index++) {
@@ -225,7 +229,7 @@ class MultiInstanceLoopTest {
                 "<multiInstanceLoopCharacteristics><loopCardinality>3</loopCardinality>"
                         + "</multiInstanceLoopCharacteristics>");
         this.withEngine(context -> {
-            this.execute(context, instance, "mi");
+            MultiInstanceLoopTest.trigger(context, instance, "mi");
             final List<ProcessStep> created = this.triggered(context, "mi");
 
             MultiInstanceLoopTest.execute(context, created.get(0));
@@ -244,7 +248,7 @@ class MultiInstanceLoopTest {
                         + " and numberOfActiveInstances == 2 and numberOfTerminatedInstances == 0"
                         + "</completionCondition></multiInstanceLoopCharacteristics>");
         this.withEngine(context -> {
-            final ProcessStep activity = this.execute(context, instance, "mi");
+            final ProcessStep activity = MultiInstanceLoopTest.trigger(context, instance, "mi");
             final List<ProcessStep> created = this.triggered(context, "mi");
 
             MultiInstanceLoopTest.execute(context, created.get(3));
@@ -270,7 +274,7 @@ class MultiInstanceLoopTest {
                         + "<completionCondition>${loopCounter == 1}</completionCondition>"
                         + "</multiInstanceLoopCharacteristics>");
         this.withEngine(context -> {
-            this.execute(context, instance, "mi");
+            MultiInstanceLoopTest.trigger(context, instance, "mi");
             MultiInstanceLoopTest.execute(context, this.triggered(context, "mi").get(0));
             MultiInstanceLoopTest.execute(context, this.triggered(context, "mi").get(1));
 
@@ -289,7 +293,7 @@ class MultiInstanceLoopTest {
                         + "</multiInstanceLoopCharacteristics><script>result = item + '!'; seen = item</script>"
                         + "</scriptTask>");
         this.withEngine(context -> {
-            this.execute(context, instance, "mi");
+            MultiInstanceLoopTest.trigger(context, instance, "mi");
             final List<ProcessStep> created = this.triggered(context, "mi");
             Assertions.assertEquals(List.of("a", "b", "c"), created.stream().map(ProcessStep::loopItem).toList());
 
@@ -313,7 +317,7 @@ class MultiInstanceLoopTest {
                         + "<completionCondition>numberOfCompletedInstances == 2</completionCondition>"
                         + "</multiInstanceLoopCharacteristics><script>result = item * 10</script></scriptTask>");
         this.withEngine(context -> {
-            this.execute(context, instance, "mi");
+            MultiInstanceLoopTest.trigger(context, instance, "mi");
             MultiInstanceLoopTest.execute(context, this.triggered(context, "mi").get(0));
             MultiInstanceLoopTest.execute(context, this.triggered(context, "mi").get(1));
 
@@ -329,10 +333,14 @@ class MultiInstanceLoopTest {
                         + "<loopDataOutputRef>results</loopDataOutputRef><outputDataItem id=\"result\"/>"
                         + "</multiInstanceLoopCharacteristics>");
         this.withEngine(context -> {
-            final ProcessStep activity = this.execute(context, instance, "mi");
+            final ProcessStep activity = MultiInstanceLoopTest.trigger(context, instance, "mi");
+            // without instances the activity step itself gets the task
+            Assertions.assertEquals(List.of(activity.id()),
+                    this.triggered(context, "mi").stream().map(ProcessStep::id).toList());
+            Assertions.assertEquals(0, this.stored(activity).loopCounter());
+            MultiInstanceLoopTest.execute(context, activity);
 
             Assertions.assertTrue(this.calls.isEmpty());
-            Assertions.assertTrue(this.triggered(context, "mi").isEmpty());
             Assertions.assertEquals(1, this.triggered(context, "e").size());
             Assertions.assertNotNull(this.stored(activity).endDate());
             Assertions.assertEquals(0, this.stored(activity).loopCounter());
@@ -349,13 +357,13 @@ class MultiInstanceLoopTest {
                 + "<sequenceFlow id=\"i2\" sourceRef=\"mi\" targetRef=\"se\"/></subProcess>"
                 + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"sp\" targetRef=\"e\"/>");
         this.withEngine(context -> {
-            final ProcessStep subProcess = this.execute(context, instance, "sp");
+            final ProcessStep subProcess = MultiInstanceLoopTest.trigger(context, instance, "sp");
             MultiInstanceLoopTest.execute(context, this.triggered(context, "ss").get(0));
-            final ProcessStep activity = this.triggered(context, "mi").get(0);
+            final ProcessStep activity = this.steps.pending(instance.id(), "mi").get(0);
             Assertions.assertEquals(subProcess.id(), activity.parentStepId());
-            MultiInstanceLoopTest.execute(context, activity);
 
-            final List<ProcessStep> created = this.triggered(context, "mi").subList(1, 3);
+            final List<ProcessStep> created = this.triggered(context, "mi");
+            Assertions.assertEquals(2, created.size());
             Assertions.assertTrue(created.stream().allMatch(step -> activity.id().equals(step.parentStepId())));
             MultiInstanceLoopTest.execute(context, created.get(0));
             MultiInstanceLoopTest.execute(context, created.get(1));
@@ -364,6 +372,7 @@ class MultiInstanceLoopTest {
             Assertions.assertEquals(subProcess.id(), end.parentStepId());
             Assertions.assertNull(this.stored(subProcess).endDate());
             MultiInstanceLoopTest.execute(context, end);
+            MultiInstanceLoopTest.execute(context, this.triggered(context, "sp").get(0));
             Assertions.assertNotNull(this.stored(subProcess).endDate());
             Assertions.assertEquals(1, this.triggered(context, "e").size());
         });
@@ -377,7 +386,7 @@ class MultiInstanceLoopTest {
                         + "</multiInstanceLoopCharacteristics></manualTask><endEvent id=\"e\"/>"
                         + "<sequenceFlow id=\"f\" sourceRef=\"mi\" targetRef=\"e\"/>");
         this.withEngine(context -> {
-            final ProcessStep activity = this.execute(context, instance, "mi");
+            final ProcessStep activity = MultiInstanceLoopTest.trigger(context, instance, "mi");
             final ProcessStep first = this.triggered(context, "mi").get(0);
             Assertions.assertEquals(activity.id(), first.parentStepId());
             Assertions.assertEquals(0, first.loopCounter());
@@ -402,14 +411,28 @@ class MultiInstanceLoopTest {
                 + "<sequenceFlow id=\"f1\" sourceRef=\"fork\" targetRef=\"mi\"/>"
                 + "<sequenceFlow id=\"f2\" sourceRef=\"fork\" targetRef=\"e\"/>");
         this.withEngine(context -> {
-            this.execute(context, instance, "fork");
-            MultiInstanceLoopTest.execute(context, this.triggered(context, "mi").get(0));
+            MultiInstanceLoopTest.execute(context, this.steps.create(instance.id(), "fork", null, null));
+            // the pending activity step (without task) keeps the instance running
             MultiInstanceLoopTest.execute(context, this.triggered(context, "e").get(0));
             Assertions.assertNull(this.instances.retrieve(instance.id()).endDate());
 
-            MultiInstanceLoopTest.execute(context, this.triggered(context, "mi").get(1));
+            MultiInstanceLoopTest.execute(context, this.triggered(context, "mi").get(0));
             Assertions.assertNull(this.instances.retrieve(instance.id()).endDate());
             Assertions.assertEquals(0, this.steps.countPending(instance.id()));
+        });
+    }
+
+    @Test
+    void loopIsStartedWithTheVariablesOfTheTriggeringStep() {
+        final ProcessInstance instance = this.instance(Map.of(), "<scriptTask id=\"st\"><script>n = 2</script>"
+                + "</scriptTask><task id=\"mi\"><multiInstanceLoopCharacteristics><loopCardinality>n</loopCardinality>"
+                + "</multiInstanceLoopCharacteristics></task><sequenceFlow id=\"f\" sourceRef=\"st\" targetRef=\"mi\"/>");
+        this.withEngine(context -> {
+            MultiInstanceLoopTest.execute(context, this.steps.create(instance.id(), "st", null, null));
+            final ProcessStep activity = this.steps.pending(instance.id(), "mi").get(0);
+            Assertions.assertEquals("f", activity.incomingFlowId());
+            Assertions.assertEquals(2, activity.loopCounter());
+            Assertions.assertEquals(2, this.triggered(context, "mi").size());
         });
     }
 
@@ -419,7 +442,7 @@ class MultiInstanceLoopTest {
                 "<multiInstanceLoopCharacteristics><loopCardinality>1</loopCardinality>"
                         + "</multiInstanceLoopCharacteristics>");
         this.withEngine(context -> {
-            this.execute(context, instance, "mi");
+            MultiInstanceLoopTest.trigger(context, instance, "mi");
             final ProcessStep created = this.triggered(context, "mi").get(0);
             final TaskException e = Assertions.assertThrows(TaskException.class,
                     () -> MultiInstanceLoopTest.execute(context, created));
@@ -459,21 +482,16 @@ class MultiInstanceLoopTest {
         final ProcessInstance instance = this.instance(Map.of("amount", 3), content.toString());
         this.withEngine(context -> {
             for (final String id : loops.keySet()) {
-                this.assertFails(context, instance, id);
+                MultiInstanceLoopTest.assertTriggerFails(context, instance, id);
             }
-            this.assertFails(context, instance, "behavior");
-            this.assertFails(context, instance, "u");
+            MultiInstanceLoopTest.assertTriggerFails(context, instance, "behavior");
+            MultiInstanceLoopTest.assertTriggerFails(context, instance, "u");
+            // the loop is generic: the delegate triggers the instances, and a sub-process rejects its loop
+            MultiInstanceLoopTest.assertTriggerFails(context, instance, "sp");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
 
-            // the loop is generic: an activity that cannot run an instance in one step fails at its instance
-            this.execute(context, instance, "sp");
-            final List<ProcessStep> subProcessInstances = this.triggered(context, "sp");
-            Assertions.assertEquals(1, subProcessInstances.size());
-            Assertions.assertThrows(TaskException.class,
-                    () -> MultiInstanceLoopTest.execute(context, subProcessInstances.get(0)));
-
             // the completion condition is evaluated after the instance
-            this.execute(context, instance, "nonBooleanCompletion");
+            MultiInstanceLoopTest.trigger(context, instance, "nonBooleanCompletion");
             final TaskException e = Assertions.assertThrows(TaskException.class,
                     () -> MultiInstanceLoopTest.execute(context, this.triggered(context, "nonBooleanCompletion").get(0)));
             Assertions.assertInstanceOf(ProcessEngineException.class, e.getCause());

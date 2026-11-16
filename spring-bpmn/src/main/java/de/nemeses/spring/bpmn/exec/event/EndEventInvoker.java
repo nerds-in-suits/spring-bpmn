@@ -47,7 +47,7 @@ class EndEventInvoker implements Invoker<EndEvent> {
     }
 
     @Override
-    public Collection<SequenceFlow> invoke(final EndEvent node, final NodeExecution execution)
+    public Collection<SequenceFlow> execute(final EndEvent node, final NodeExecution execution)
             throws ProcessEngineException {
         if (!node.getEventDefinition().isEmpty() || !node.getEventDefinitionRef().isEmpty()) {
             throw new ProcessEngineException("End event '" + node.getId()

@@ -24,7 +24,7 @@ class StartEventInvoker implements Invoker<StartEvent> {
     }
 
     @Override
-    public Collection<SequenceFlow> invoke(final StartEvent node, final NodeExecution execution)
+    public Collection<SequenceFlow> execute(final StartEvent node, final NodeExecution execution)
             throws ProcessEngineException {
         final Collection<SequenceFlow> taken = FlowSelector.unconditional(execution.outgoing());
         execution.complete();

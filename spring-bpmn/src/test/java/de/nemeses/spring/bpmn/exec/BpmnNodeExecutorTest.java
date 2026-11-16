@@ -43,7 +43,7 @@ import de.nemeses.spring.tasks.TaskPersistence;
 
 /**
  * Executes single steps through the {@link BpmnNodeExecutor} with in-memory repositories and recorded tasks and checks
- * how it collects its {@link Invoker}s.
+ * how the {@link InvokerRegistry} collects its {@link Invoker}s.
  */
 class BpmnNodeExecutorTest {
 
@@ -132,6 +132,14 @@ class BpmnNodeExecutorTest {
         final ProcessStep step = this.steps.create(instance.id(), nodeId, null, null);
         BpmnNodeExecutorTest.execute(context, step);
         return step;
+    }
+
+    /**
+     * Reaches the node at the top level without incoming flow ({@link Invoker#trigger}).
+     */
+    private static ProcessStep trigger(final AssertableApplicationContext context, final ProcessInstance instance,
+            final String nodeId) throws ProcessEngineException {
+        return context.getBean(InvokerRegistry.class).trigger(instance, nodeId, null, null);
     }
 
     private void assertFails(final AssertableApplicationContext context, final ProcessInstance instance,
@@ -290,20 +298,19 @@ class BpmnNodeExecutorTest {
             Assertions.assertEquals(List.of("a", "b"), this.triggeredNodes(context));
 
             this.execute(context, this.triggered(context, "a"));
-            final ProcessStep joinA = this.triggered(context).get(2);
+            // parked at the join: a pending step without task
+            final ProcessStep joinA = this.steps.pending(instance.id(), "join").get(0);
             Assertions.assertEquals("ja", joinA.incomingFlowId());
-            this.execute(context, joinA);
-            // parked at the join: still pending, nothing taken
-            Assertions.assertNull(this.stored(joinA).endDate());
-            Assertions.assertEquals(List.of("a", "b", "join"), this.triggeredNodes(context));
+            Assertions.assertEquals(List.of("a", "b"), this.triggeredNodes(context));
 
             this.execute(context, this.triggered(context, "b"));
-            final ProcessStep joinB = this.triggered(context).get(3);
+            // the step completing the set gets the task
+            final ProcessStep joinB = this.triggered(context).get(2);
             Assertions.assertEquals("jb", joinB.incomingFlowId());
             this.execute(context, joinB);
             Assertions.assertNotNull(this.stored(joinA).endDate());
             Assertions.assertNotNull(this.stored(joinB).endDate());
-            Assertions.assertEquals(List.of("a", "b", "join", "join", "e"), this.triggeredNodes(context));
+            Assertions.assertEquals(List.of("a", "b", "join", "e"), this.triggeredNodes(context));
 
             this.execute(context, this.triggered(context, "e"));
             Assertions.assertNotNull(this.endDate(instance));
@@ -667,24 +674,30 @@ class BpmnNodeExecutorTest {
                 + "<sequenceFlow id=\"f2\" sourceRef=\"sp\" targetRef=\"e\"/>");
         this.withEngine(context -> {
             this.execute(context, instance, "s");
-            final ProcessStep subProcess = this.executeTriggered(context, "sp");
+            // reaching the sub-process enters it at once, its step gets no task
+            final ProcessStep subProcess = this.steps.pending(instance.id(), "sp").get(0);
             Assertions.assertNull(subProcess.parentStepId());
+            Assertions.assertEquals("f1", subProcess.incomingFlowId());
             final ProcessStep start = this.triggered(context, "ss");
             Assertions.assertEquals(subProcess.id(), start.parentStepId());
             Assertions.assertNull(start.incomingFlowId());
-            Assertions.assertNull(this.stored(subProcess).endDate());
+            Assertions.assertEquals(List.of("ss"), this.triggeredNodes(context));
 
             this.executeTriggered(context, "ss");
             Assertions.assertEquals(subProcess.id(), this.triggered(context, "t").parentStepId());
             this.executeTriggered(context, "t");
             this.executeTriggered(context, "se");
-            // the end inside the sub-process completes the sub-process, not the instance
+            // the end inside the sub-process schedules leaving the sub-process, not the end of the instance
             Assertions.assertNull(this.endDate(instance));
+            Assertions.assertNull(this.stored(subProcess).endDate());
+            Assertions.assertEquals(List.of("ss", "t", "se", "sp"), this.triggeredNodes(context));
+
+            this.executeTriggered(context, "sp");
             Assertions.assertNotNull(this.stored(subProcess).endDate());
             final ProcessStep end = this.triggered(context, "e");
             Assertions.assertEquals("f2", end.incomingFlowId());
             Assertions.assertNull(end.parentStepId());
-            Assertions.assertEquals(List.of("sp", "ss", "t", "se", "e"), this.triggeredNodes(context));
+            Assertions.assertEquals(List.of("ss", "t", "se", "sp", "e"), this.triggeredNodes(context));
 
             this.executeTriggered(context, "e");
             Assertions.assertNotNull(this.endDate(instance));
@@ -693,13 +706,14 @@ class BpmnNodeExecutorTest {
     }
 
     @Test
-    void enteredSubProcessIsNotEnteredAgain() {
+    void runningSubProcessIsNotLeft() {
         final ProcessInstance instance = this.instance("<subProcess id=\"sp\"><startEvent id=\"ss\"/></subProcess>");
         this.withEngine(context -> {
-            final ProcessStep subProcess = this.execute(context, instance, "sp");
+            final ProcessStep subProcess = BpmnNodeExecutorTest.trigger(context, instance, "sp");
             BpmnNodeExecutorTest.execute(context, subProcess);
             Assertions.assertEquals(List.of("ss"), this.triggeredNodes(context));
             Assertions.assertNull(this.stored(subProcess).endDate());
+            Assertions.assertEquals(1, this.steps.children(subProcess.id()).size());
         });
     }
 
@@ -711,21 +725,27 @@ class BpmnNodeExecutorTest {
                 + "<sequenceFlow id=\"o1\" sourceRef=\"os\" targetRef=\"inner\"/></subProcess>"
                 + "<endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"outer\" targetRef=\"e\"/>");
         this.withEngine(context -> {
-            final ProcessStep outer = this.execute(context, instance, "outer");
+            final ProcessStep outer = BpmnNodeExecutorTest.trigger(context, instance, "outer");
             this.executeTriggered(context, "os");
-            final ProcessStep inner = this.executeTriggered(context, "inner");
+            final ProcessStep inner = this.steps.pending(instance.id(), "inner").get(0);
             Assertions.assertEquals(outer.id(), inner.parentStepId());
             Assertions.assertEquals(inner.id(), this.triggered(context, "is").parentStepId());
             this.executeTriggered(context, "is");
             Assertions.assertNull(this.stored(inner).endDate());
             Assertions.assertNull(this.stored(outer).endDate());
 
-            // the inner sub-process has no outgoing flow, so completing it also completes the outer one
+            // the sub-processes are left one task after the other
             this.executeTriggered(context, "ie");
+            Assertions.assertNull(this.stored(inner).endDate());
+            Assertions.assertEquals(List.of("os", "is", "ie", "inner"), this.triggeredNodes(context));
+            // the inner sub-process has no outgoing flow, so completing it schedules leaving the outer one
+            this.executeTriggered(context, "inner");
             Assertions.assertNotNull(this.stored(inner).endDate());
+            Assertions.assertNull(this.stored(outer).endDate());
+            this.executeTriggered(context, "outer");
             Assertions.assertNotNull(this.stored(outer).endDate());
             Assertions.assertNull(this.endDate(instance));
-            Assertions.assertEquals(List.of("os", "inner", "is", "ie", "e"), this.triggeredNodes(context));
+            Assertions.assertEquals(List.of("os", "is", "ie", "inner", "outer", "e"), this.triggeredNodes(context));
 
             this.executeTriggered(context, "e");
             Assertions.assertNotNull(this.endDate(instance));
@@ -744,7 +764,7 @@ class BpmnNodeExecutorTest {
                 + "<sequenceFlow id=\"i5\" sourceRef=\"b\" targetRef=\"eb\"/></subProcess>"
                 + "<task id=\"t\"/><sequenceFlow id=\"f\" sourceRef=\"sp\" targetRef=\"t\"/>");
         this.withEngine(context -> {
-            final ProcessStep subProcess = this.execute(context, instance, "sp");
+            final ProcessStep subProcess = BpmnNodeExecutorTest.trigger(context, instance, "sp");
             this.executeTriggered(context, "ss");
             this.executeTriggered(context, "fork");
             this.executeTriggered(context, "a");
@@ -752,10 +772,12 @@ class BpmnNodeExecutorTest {
             // path b is still pending inside the sub-process
             Assertions.assertNull(this.stored(subProcess).endDate());
             Assertions.assertNull(this.endDate(instance));
+            Assertions.assertFalse(this.triggeredNodes(context).contains("sp"));
             Assertions.assertFalse(this.triggeredNodes(context).contains("t"));
 
             this.executeTriggered(context, "b");
             this.executeTriggered(context, "eb");
+            this.executeTriggered(context, "sp");
             Assertions.assertNotNull(this.stored(subProcess).endDate());
             Assertions.assertNull(this.endDate(instance));
             Assertions.assertEquals(1, this.triggeredNodes(context).stream().filter("t"::equals).count());
@@ -794,12 +816,13 @@ class BpmnNodeExecutorTest {
                 + BpmnNodeExecutorTest.flow("f1", "sp", "a", "result == 'ok'")
                 + "<sequenceFlow id=\"f2\" sourceRef=\"sp\" targetRef=\"b\"/>");
         this.withEngine(context -> {
-            final ProcessStep subProcess = this.execute(context, instance, "sp");
+            final ProcessStep subProcess = BpmnNodeExecutorTest.trigger(context, instance, "sp");
             this.executeTriggered(context, "ss");
-            // the service task has no outgoing flow, so it completes the sub-process
+            // the service task has no outgoing flow, so it schedules leaving the sub-process
             this.executeTriggered(context, "st");
+            this.executeTriggered(context, "sp");
             Assertions.assertNotNull(this.stored(subProcess).endDate());
-            Assertions.assertEquals(List.of("ss", "st", "a"), this.triggeredNodes(context));
+            Assertions.assertEquals(List.of("ss", "st", "sp", "a"), this.triggeredNodes(context));
         });
     }
 
@@ -811,11 +834,22 @@ class BpmnNodeExecutorTest {
                 + "<adHocSubProcess id=\"adHoc\"><task id=\"at\"/></adHocSubProcess>"
                 + "<subProcess id=\"loop\"><standardLoopCharacteristics/><startEvent id=\"ls\"/></subProcess>");
         this.withEngine(context -> {
-            this.assertFails(context, instance, "noStart");
-            this.assertFails(context, instance, "event");
-            this.assertFails(context, instance, "tx");
-            this.assertFails(context, instance, "adHoc");
-            this.assertFails(context, instance, "loop");
+            // reaching them fails, which fails the step that took the flow to them
+            for (final String nodeId : List.of("noStart", "event", "tx", "adHoc", "loop")) {
+                Assertions.assertThrows(ProcessEngineException.class,
+                        () -> BpmnNodeExecutorTest.trigger(context, instance, nodeId), nodeId);
+            }
+            Assertions.assertTrue(this.tasks.persisted().isEmpty());
+            Assertions.assertTrue(this.steps.steps(instance.id()).isEmpty());
+        });
+    }
+
+    @Test
+    void flowToUnsupportedNodeFailsTheStepTakingIt() {
+        final ProcessInstance instance = this.instance("<task id=\"t\"/><subProcess id=\"noStart\"/>"
+                + "<sequenceFlow id=\"f\" sourceRef=\"t\" targetRef=\"noStart\"/>");
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "t");
             Assertions.assertTrue(this.tasks.persisted().isEmpty());
         });
     }
@@ -823,7 +857,11 @@ class BpmnNodeExecutorTest {
     @Test
     void unsupportedNodeTypeFails() {
         final ProcessInstance instance = this.instance("<userTask id=\"u\"/>");
-        this.withEngine(context -> this.assertFails(context, instance, "u"));
+        this.withEngine(context -> {
+            this.assertFails(context, instance, "u");
+            Assertions.assertThrows(ProcessEngineException.class,
+                    () -> BpmnNodeExecutorTest.trigger(context, instance, "u"));
+        });
     }
 
     private ProcessInstance loopingServiceTask(final String bean, final String loop) {
@@ -1031,13 +1069,13 @@ class BpmnNodeExecutorTest {
     void testTwoInvokersForOneNodeTypeFail() {
         final List<Invoker<?>> invokers = List.of(new TaskStub(), new TaskStub());
         final IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
-                () -> new BpmnNodeExecutor(null, null, null, null, invokers, List.of()));
+                () -> new InvokerRegistry(null, null, null, null, invokers, List.of()));
         Assertions.assertTrue(e.getMessage().contains("Task"), e.getMessage());
     }
 
     @Test
     void testOneInvokerPerNodeType() {
-        Assertions.assertDoesNotThrow(() -> new BpmnNodeExecutor(null, null, null, null, List.of(new TaskStub()),
+        Assertions.assertDoesNotThrow(() -> new InvokerRegistry(null, null, null, null, List.of(new TaskStub()),
                 List.of()));
     }
 
@@ -1045,7 +1083,7 @@ class BpmnNodeExecutorTest {
     void testEnhancersEnhanceEveryInvokerInTurn() {
         final TaskStub invoker = new TaskStub();
         final List<String> enhanced = new ArrayList<>();
-        new BpmnNodeExecutor(null, null, null, null, List.of(invoker), List.of(
+        new InvokerRegistry(null, null, null, null, List.of(invoker), List.of(
                 new RecordingEnhancer("first", enhanced), new RecordingEnhancer("second", enhanced)));
         Assertions.assertEquals(List.of("first:" + TaskStub.class.getSimpleName(),
                 "second:" + Wrapper.class.getSimpleName()), enhanced);
@@ -1080,9 +1118,9 @@ class BpmnNodeExecutorTest {
         }
 
         @Override
-        public Collection<SequenceFlow> invoke(final T node, final NodeExecution execution)
+        public Collection<SequenceFlow> execute(final T node, final NodeExecution execution)
                 throws ProcessEngineException {
-            return this.delegate.invoke(node, execution);
+            return this.delegate.execute(node, execution);
         }
     }
 
@@ -1097,7 +1135,7 @@ class BpmnNodeExecutorTest {
         }
 
         @Override
-        public Collection<SequenceFlow> invoke(final Task node, final NodeExecution execution) {
+        public Collection<SequenceFlow> execute(final Task node, final NodeExecution execution) {
             return List.of();
         }
     }
