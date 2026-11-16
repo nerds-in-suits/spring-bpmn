@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BPMN</title>
+  <link rel="stylesheet" href="app.css">
+  <!-- app.js registers the component on alpine:init, so it is loaded before Alpine -->
+  <script defer src="app.js"></script>
+  <script defer src="../webjars/alpinejs/dist/cdn.min.js"></script>
+</head>
+<body x-data="bpmnUi" x-cloak>
+  <header>
+    <strong>BPMN</strong>
+    <nav>
+      <a href="#/definitions" :class="{ active: route.page === 'definitions' }">Process definitions</a>
+      <a href="#/instances" :class="{ active: route.page !== 'definitions' }">Process instances</a>
+    </nav>
+    <span class="loading" x-show="loading">Loading&hellip;</span>
+  </header>
+
+  <main>
+    <p class="error" x-show="error" x-text="error"></p>
+
+    <!-- process definitions -->
+    <section x-show="route.page === 'definitions'">
+      <h1>Process definitions</h1>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Latest version</th><th class="number">Running</th><th class="number">Finished</th></tr>
+        </thead>
+        <tbody>
+          <template x-for="definition in definitions" :key="definition.name">
+            <tr>
+              <td><a :href="instancesLink(definition.name, '')" x-text="definition.name"></a></td>
+              <td x-text="formatDate(definition.createdDate)"></td>
+              <td class="number">
+                <a :href="instancesLink(definition.name, 'running')" x-text="definition.runningInstances"></a>
+              </td>
+              <td class="number">
+                <a :href="instancesLink(definition.name, 'finished')" x-text="definition.finishedInstances"></a>
+              </td>
+            </tr>
+          </template>
+          <tr x-show="definitions.length === 0"><td colspan="4">No process definitions.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- process instances -->
+    <section x-show="route.page === 'instances'">
+      <h1>Process instances</h1>
+      <form class="filters" @submit.prevent>
+        <label>Process definition
+          <select @change="filter('definition', $event.target.value)">
+            <option value="" :selected="!route.query.definition">all</option>
+            <template x-for="definition in definitions" :key="definition.name">
+              <option :value="definition.name" :selected="route.query.definition === definition.name"
+                x-text="definition.name"></option>
+            </template>
+          </select>
+        </label>
+        <label>State
+          <select @change="filter('state', $event.target.value)">
+            <option value="" :selected="!route.query.state">all</option>
+            <option value="running" :selected="route.query.state === 'running'">running</option>
+            <option value="finished" :selected="route.query.state === 'finished'">finished</option>
+          </select>
+        </label>
+        <label>Sort by
+          <select @change="filter('sort', $event.target.value)">
+            <option value="startDate" :selected="route.query.sort !== 'endDate'">start date</option>
+            <option value="endDate" :selected="route.query.sort === 'endDate'">end date</option>
+          </select>
+        </label>
+        <label>Order
+          <select @change="filter('direction', $event.target.value)">
+            <option value="asc" :selected="route.query.direction !== 'desc'">ascending</option>
+            <option value="desc" :selected="route.query.direction === 'desc'">descending</option>
+          </select>
+        </label>
+      </form>
+      <table>
+        <thead>
+          <tr><th>Id</th><th>Process definition</th><th>State</th><th>Start date</th><th>End date</th></tr>
+        </thead>
+        <tbody>
+          <template x-for="item in instances.items" :key="item.id">
+            <tr>
+              <td><a :href="instanceLink(item.id)" x-text="item.id"></a></td>
+              <td x-text="item.processDefinition"></td>
+              <td><span class="state" :class="item.state" x-text="item.state"></span></td>
+              <td x-text="formatDate(item.startDate)"></td>
+              <td x-text="formatDate(item.endDate)"></td>
+            </tr>
+          </template>
+          <tr x-show="instances.items.length === 0"><td colspan="5">No process instances.</td></tr>
+        </tbody>
+      </table>
+      <p class="pager">
+        <button type="button" :disabled="instances.page === 0"
+          @click="navigate({ page: String(instances.page - 1) })">Previous</button>
+        <span x-text="'Page ' + (instances.page + 1) + ' of ' + (lastPage + 1) + ' (' + instances.total
+          + ' instances)'"></span>
+        <button type="button" :disabled="instances.page >= lastPage"
+          @click="navigate({ page: String(instances.page + 1) })">Next</button>
+      </p>
+    </section>
+
+    <!-- process instance detail -->
+    <section x-show="route.page === 'instance'">
+      <template x-if="instance">
+        <div>
+          <h1>Process instance <span x-text="instance.id"></span></h1>
+          <dl>
+            <dt>Process definition</dt>
+            <dd>
+              <a :href="instancesLink(instance.processDefinition, '')" x-text="instance.processDefinition"></a>
+              (version <span x-text="formatDate(instance.processDefinitionCreatedDate)"></span>)
+            </dd>
+            <dt>State</dt>
+            <dd><span class="state" :class="instance.state" x-text="instance.state"></span></dd>
+            <dt>Start date</dt>
+            <dd x-text="formatDate(instance.startDate)"></dd>
+            <dt>End date</dt>
+            <dd x-text="formatDate(instance.endDate)"></dd>
+            <template x-if="instance.parentInstanceId">
+              <dt>Parent instance</dt>
+            </template>
+            <template x-if="instance.parentInstanceId">
+              <dd><a :href="instanceLink(instance.parentInstanceId)" x-text="instance.parentInstanceId"></a></dd>
+            </template>
+            <dt>Variables</dt>
+            <dd><pre x-text="formatJson(instance.variables)"></pre></dd>
+          </dl>
+        </div>
+      </template>
+      <h2>Steps</h2>
+      <form class="filters" @submit.prevent>
+        <label>State
+          <select @change="filter('state', $event.target.value)">
+            <option value="" :selected="!route.query.state">all</option>
+            <option value="running" :selected="route.query.state === 'running'">running</option>
+            <option value="finished" :selected="route.query.state === 'finished'">finished</option>
+          </select>
+        </label>
+        <label>Task type
+          <select @change="filter('type', $event.target.value)">
+            <option value="" :selected="!route.query.type">all</option>
+            <template x-for="type in stepTypes" :key="type">
+              <option :value="type" :selected="route.query.type === type" x-text="type"></option>
+            </template>
+          </select>
+        </label>
+        <label>Sort by
+          <select @change="filter('sort', $event.target.value)">
+            <option value="startDate" :selected="!route.query.sort || route.query.sort === 'startDate'">
+              start date</option>
+            <option value="endDate" :selected="route.query.sort === 'endDate'">end date</option>
+            <option value="type" :selected="route.query.sort === 'type'">task type</option>
+          </select>
+        </label>
+        <label>Order
+          <select @change="filter('direction', $event.target.value)">
+            <option value="asc" :selected="route.query.direction !== 'desc'">ascending</option>
+            <option value="desc" :selected="route.query.direction === 'desc'">descending</option>
+          </select>
+        </label>
+      </form>
+      <table>
+        <thead>
+          <tr><th>Node</th><th>Task type</th><th>State</th><th>Loop</th><th>Start date</th><th>End date</th></tr>
+        </thead>
+        <tbody>
+          <template x-for="step in steps" :key="step.id">
+            <tr>
+              <td x-text="step.nodeName || step.nodeId" :title="step.nodeId"></td>
+              <td x-text="step.type"></td>
+              <td><span class="state" :class="step.state" x-text="step.state"></span></td>
+              <td x-text="step.loopCounter ?? ''"></td>
+              <td x-text="formatDate(step.startDate)"></td>
+              <td x-text="formatDate(step.endDate)"></td>
+            </tr>
+          </template>
+          <tr x-show="steps.length === 0"><td colspan="6">No steps.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

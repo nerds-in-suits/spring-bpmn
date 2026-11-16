@@ -32,6 +32,7 @@
         <module>spring-bpmn-repository-jpa</module>
         <module>spring-bpmn</module>
         <module>spring-bpmn-rest</module>
+        <module>spring-bpmn-ui</module>
     </modules>
 
     <dependencyManagement>
@@ -80,6 +81,11 @@
             <dependency>
                 <groupId>de.nemeses.spring</groupId>
                 <artifactId>spring-bpmn-rest</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.nemeses.spring</groupId>
+                <artifactId>spring-bpmn-ui</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
