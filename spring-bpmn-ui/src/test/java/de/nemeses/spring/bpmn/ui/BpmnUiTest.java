@@ -57,6 +57,18 @@ class BpmnUiTest {
     }
 
     @Test
+    void testEntryPageCanStartProcess() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("@click=\"openStart(")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("<dialog id=\"start-dialog\"")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("async confirmStart()")));
+    }
+
+    @Test
     void testServesAlpineWebJar() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/webjars/alpinejs/dist/cdn.min.js"))
                 .andExpect(MockMvcResultMatchers.status().isOk())

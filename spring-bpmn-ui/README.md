@@ -3,6 +3,7 @@
 Single page web UI of [`spring-bpmn`](../spring-bpmn/README.md) on the REST API of [`spring-bpmn-rest`](../spring-bpmn-rest/README.md) (`de.nemeses.spring:spring-bpmn-ui`).
 
 - Process definitions with the number of their running and finished instances, linking to the filtered instance list.
+- Process definitions have a play button that asks for the variables as a JSON object and starts an instance, then shows it.
 - Process instances filtered by definition and state, sorted by start or end date, paged.
 - Process instance details with the BPMN diagram of its definition version, nodes with running and finished steps highlighted, its variables and its steps, filtered by state and task type, sorted by start date, end date or task type.
 - Without diagram interchange (BPMN DI) in the document, or if it cannot be rendered, a message replaces the diagram; there is no automatic layout.

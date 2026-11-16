@@ -7,12 +7,13 @@ It holds rules only; architecture is in `ARCHITECTURE.md`, BPMN coverage in `doc
 
 Apache-2.0 Maven multi-module project (`de.nemeses.spring:parent:1.0.0`) for a **Spring Boot 4.1.2 / Java 25** BPMN engine.
 Package root: `de.nemeses.spring`.
-No Maven wrapper, no runnable `@SpringBootApplication` main class.
+No Maven wrapper; the only runnable `@SpringBootApplication` main class is in `spring-bpmn-demo`, the library modules have none.
 
 | Module | Artifact | Role |
 |--------|----------|------|
 | `conventions` | `de.nemeses:conventions:1.2.0` | Checkstyle/PMD/SpotBugs rulesets and Eclipse prefs; independent POM, no Java sources. |
 | `spring-bpmn` | `de.nemeses.spring:spring-bpmn` | The BPMN engine and its repository API. |
+| `spring-bpmn-demo` | `de.nemeses.spring:spring-bpmn-demo` | Runnable demo application (executable jar), not a library. |
 | `spring-bpmn-repository-jpa` | `de.nemeses.spring:spring-bpmn-repository-jpa` | JPA implementation of the repository API. |
 | `spring-tasks` | `de.nemeses.spring:spring-tasks` | Task scheduling and execution API and core. |
 | `spring-tasks-jms` | `de.nemeses.spring:spring-tasks-jms` | JMS `TaskPersistence`. |
@@ -50,6 +51,8 @@ mvn clean install
 ```
 
 Do **not** pass `-Dtest=...` on the full reactor (`-am` / root `test`): `conventions` has no tests and Maven will fail or skip oddly.
+
+`.mvn/jvm.config` passes `--enable-native-access=ALL-UNNAMED` and `--sun-misc-unsafe-memory-access=allow` to Maven's own JVM, silencing Java 25 warnings from Maven's bundled jansi and guava; do not remove it.
 
 Quality plugins (Checkstyle 14.3.0, PMD 7.28.0, SpotBugs 4.10.5) run on **every** `mvn verify` / `install`; there are no profiles to enable or skip them.
 `owasp-dependencycheck` is the only opt-in check.

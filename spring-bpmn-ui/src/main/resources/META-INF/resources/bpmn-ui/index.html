@@ -31,11 +31,18 @@
       <h1>Process definitions</h1>
       <table>
         <thead>
-          <tr><th>Name</th><th>Latest version</th><th class="number">Running</th><th class="number">Finished</th></tr>
+          <tr>
+            <th class="action"><span class="visually-hidden">Start</span></th><th>Name</th><th>Latest version</th>
+            <th class="number">Running</th><th class="number">Finished</th>
+          </tr>
         </thead>
         <tbody>
           <template x-for="definition in definitions" :key="definition.name">
             <tr>
+              <td class="action">
+                <button type="button" class="start" @click="openStart(definition.name)"
+                  :title="'Start ' + definition.name" :aria-label="'Start ' + definition.name">&#9654;</button>
+              </td>
               <td><a :href="instancesLink(definition.name, '')" x-text="definition.name"></a></td>
               <td x-text="formatDate(definition.createdDate)"></td>
               <td class="number">
@@ -46,9 +53,23 @@
               </td>
             </tr>
           </template>
-          <tr x-show="definitions.length === 0"><td colspan="4">No process definitions.</td></tr>
+          <tr x-show="definitions.length === 0"><td colspan="5">No process definitions.</td></tr>
         </tbody>
       </table>
+
+      <!-- start a process instance -->
+      <dialog id="start-dialog" x-ref="startDialog" aria-labelledby="start-title" @close="start.definition = null">
+        <form @submit.prevent="confirmStart()">
+          <h2 id="start-title">Start <span x-text="start.definition"></span></h2>
+          <label for="start-variables">Variables (JSON object)</label>
+          <textarea id="start-variables" x-model="start.variables" rows="8" cols="60" spellcheck="false"></textarea>
+          <p class="error" x-show="start.error" x-text="start.error"></p>
+          <p class="buttons">
+            <button type="button" @click="$refs.startDialog.close()">Cancel</button>
+            <button type="submit" :disabled="start.busy">Confirm</button>
+          </p>
+        </form>
+      </dialog>
     </section>
 
     <!-- process instances -->

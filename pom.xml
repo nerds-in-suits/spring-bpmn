@@ -33,6 +33,7 @@
         <module>spring-bpmn</module>
         <module>spring-bpmn-rest</module>
         <module>spring-bpmn-ui</module>
+        <module>spring-bpmn-demo</module>
     </modules>
 
     <dependencyManagement>
