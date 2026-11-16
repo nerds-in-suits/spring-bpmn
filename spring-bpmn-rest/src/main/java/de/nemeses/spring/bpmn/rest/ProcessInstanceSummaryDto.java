@@ -18,8 +18,15 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * @param parentInstanceId the instance whose call activity started it, {@code null} for a top-level instance
  * @param parentStepId the call activity step that started it, {@code null} for a top-level instance
  */
-public record ProcessInstanceSummaryDto(UUID id, String processDefinition, Instant processDefinitionCreatedDate,
-        String state, Instant startDate, Instant endDate, UUID parentInstanceId, UUID parentStepId) {
+public record ProcessInstanceSummaryDto(
+        UUID id,
+        String processDefinition,
+        Instant processDefinitionCreatedDate,
+        String state,
+        Instant startDate,
+        Instant endDate,
+        UUID parentInstanceId,
+        UUID parentStepId) {
 
     /**
      * @param instance a process instance

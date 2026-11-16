@@ -11,7 +11,10 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinition;
  * @param createdDate the time the version was registered
  * @param md5Hash the MD5 hash of the BPMN XML of the version
  */
-public record ProcessDefinitionDto(String name, Instant createdDate, String md5Hash) {
+public record ProcessDefinitionDto(
+        String name,
+        Instant createdDate,
+        String md5Hash) {
 
     /**
      * @param definition a process definition version

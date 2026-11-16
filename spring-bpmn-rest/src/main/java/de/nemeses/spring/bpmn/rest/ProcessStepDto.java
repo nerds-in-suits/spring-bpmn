@@ -21,8 +21,17 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * @param startDate the time the step was created
  * @param endDate the time the step was completed, {@code null} while pending
  */
-public record ProcessStepDto(UUID id, String nodeId, String nodeName, String type, String state,
-        String incomingFlowId, UUID parentStepId, Integer loopCounter, Object loopItem, Instant startDate,
+public record ProcessStepDto(
+        UUID id,
+        String nodeId,
+        String nodeName,
+        String type,
+        String state,
+        String incomingFlowId,
+        UUID parentStepId,
+        Integer loopCounter,
+        Object loopItem,
+        Instant startDate,
         Instant endDate) {
 
     /**

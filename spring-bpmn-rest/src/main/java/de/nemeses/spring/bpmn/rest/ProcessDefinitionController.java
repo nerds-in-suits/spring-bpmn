@@ -5,7 +5,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 
 import org.slf4j.LoggerFactory;
@@ -65,7 +64,7 @@ class ProcessDefinitionController {
     }
 
     @GetMapping
-    List<ProcessDefinitionSummaryDto> list() {
+    Collection<ProcessDefinitionSummaryDto> list() {
         final Map<String, ProcessInstanceCount> counts = this.instances.countByDefinition();
         return this.definitions.retrieveLatestAll().stream()
                 .map(definition -> ProcessDefinitionSummaryDto.from(definition, counts.get(definition.name())))
@@ -78,7 +77,7 @@ class ProcessDefinitionController {
     }
 
     @GetMapping("/{name}/versions")
-    List<ProcessDefinitionDto> versions(@PathVariable final String name) throws NoSuchProcessDefinitionException {
+    Collection<ProcessDefinitionDto> versions(@PathVariable final String name) throws NoSuchProcessDefinitionException {
         final Collection<ProcessDefinition> versions = this.definitions.retrieveAll(name);
         if (versions.isEmpty()) {
             throw new NoSuchProcessDefinitionException(name);
@@ -92,7 +91,7 @@ class ProcessDefinitionController {
     }
 
     @PostMapping(consumes = { MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE })
-    List<DeployedProcessDefinitionDto> deploy(@RequestBody final byte[] content)
+    Collection<DeployedProcessDefinitionDto> deploy(@RequestBody final byte[] content)
             throws BpmnParseException, NoSuchProcessDefinitionException {
         if (!this.properties.deploymentEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
@@ -100,7 +99,7 @@ class ProcessDefinitionController {
         }
         final String xml = new String(content, StandardCharsets.UTF_8);
         final Definitions document = this.parser.parse(new ByteArrayInputStream(content));
-        final List<DeployedProcessDefinitionDto> deployed = new ArrayList<>();
+        final Collection<DeployedProcessDefinitionDto> deployed = new ArrayList<>();
         for (final JAXBElement<? extends RootElement> element : document.getRootElement()) {
             if (element.getValue() instanceof final Process process) {
                 final String name = ProcessDefinitionRegistrar.processName(process);
@@ -137,7 +136,9 @@ class ProcessDefinitionController {
      * @param name the process definition name
      * @param bpmnXml the whole BPMN document
      */
-    private record DeployedDefinition(String name, String bpmnXml) implements ProcessDefinition {
+    private record DeployedDefinition(
+            String name,
+            String bpmnXml) implements ProcessDefinition {
 
         @Override
         public Date createdDate() {

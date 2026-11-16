@@ -67,6 +67,8 @@ class ProcessNodes {
      * @param type the local name of the BPMN element, e.g. {@code userTask}
      * @param name the {@code name} attribute, {@code null} if it has none
      */
-    record Node(String type, String name) {
+    record Node(
+            String type,
+            String name) {
     }
 }

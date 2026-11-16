@@ -17,8 +17,15 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * @param loopItem the loop item of a multi-instance user task, else {@code null}
  * @param startDate the time the task was created
  */
-public record UserTaskDto(UUID id, UUID processInstanceId, String nodeId, String nodeName, UUID parentStepId,
-        Integer loopCounter, Object loopItem, Instant startDate) {
+public record UserTaskDto(
+        UUID id,
+        UUID processInstanceId,
+        String nodeId,
+        String nodeName,
+        UUID parentStepId,
+        Integer loopCounter,
+        Object loopItem,
+        Instant startDate) {
 
     /**
      * @param step a pending user task step

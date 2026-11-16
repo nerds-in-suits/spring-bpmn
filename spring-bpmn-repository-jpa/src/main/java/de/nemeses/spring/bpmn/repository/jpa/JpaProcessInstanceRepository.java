@@ -2,6 +2,7 @@ package de.nemeses.spring.bpmn.repository.jpa;
 
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,7 +22,7 @@ import de.nemeses.spring.bpmn.repository.ProcessInstanceSort;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
-import jakarta.persistence.TypedQuery;
+import jakarta.persistence.criteria.CriteriaBuilder;
 
 /**
  * JPA backed {@link ProcessInstanceRepository}. Each variable is stored as one row with a JSON value
@@ -66,8 +67,11 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     @Override
     @Transactional(readOnly = true)
     public Optional<ProcessInstance> retrieveChild(final UUID parentStepId) {
-        return this.entityManager.createQuery("select i from ProcessInstanceEntity i where i.parentStepId = :stepId",
-                ProcessInstance.class)
+        return this.entityManager.createQuery("""
+                select i
+                from ProcessInstanceEntity i
+                where i.parentStepId = :stepId
+                """, ProcessInstance.class)
                 .setParameter("stepId", parentStepId)
                 .getResultStream()
                 .findFirst();
@@ -115,45 +119,34 @@ public class JpaProcessInstanceRepository implements ProcessInstanceRepository {
     }
 
     /**
-     * Runs one query for the page and one for the total count. Sorting by end date puts running instances (no end
-     * date) last in ascending and first in descending order.
+     * Runs one criteria query for the page and one for the total count ({@link ProcessInstanceCriteria}). Sorting by
+     * end date puts running instances (no end date) last in ascending and first in descending order.
      */
     @Override
     @Transactional(readOnly = true)
     public ProcessInstancePage query(final String definitionName, final Boolean running,
             final ProcessInstanceSort sort, final boolean ascending, final int offset, final int limit) {
-        final String state;
-        if (running == null) {
-            state = "";
-        } else {
-            state = running ? " and i.end is null" : " and i.end is not null";
-        }
-        final String where = " where 1 = 1" + (definitionName == null
-                ? ""
-                : " and i.definition.processDefinitionName = :name") + state;
-        final String direction = ascending ? " asc" : " desc";
-        final String order = sort == ProcessInstanceSort.END_DATE
-                ? " order by i.end" + direction + (ascending ? " nulls last" : " nulls first")
-                : " order by i.start" + direction;
-        final TypedQuery<ProcessInstance> items = this.entityManager.createQuery(
-                "select i from ProcessInstanceEntity i" + where + order + ", i.uuid" + direction,
-                ProcessInstance.class);
-        final TypedQuery<Long> total = this.entityManager.createQuery(
-                "select count(i) from ProcessInstanceEntity i" + where, Long.class);
-        if (definitionName != null) {
-            items.setParameter("name", definitionName);
-            total.setParameter("name", definitionName);
-        }
-        return new ProcessInstancePage(items.setFirstResult(offset).setMaxResults(limit).getResultList(),
-                total.getSingleResult());
+        final CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
+        final List<ProcessInstanceEntity> items = this.entityManager
+                .createQuery(ProcessInstanceCriteria.items(builder, definitionName, running, sort, ascending))
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList();
+        final long total = this.entityManager
+                .createQuery(ProcessInstanceCriteria.total(builder, definitionName, running))
+                .getSingleResult();
+        return new ProcessInstancePage(List.copyOf(items), total);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Map<String, ProcessInstanceCount> countByDefinition() {
         final Map<String, ProcessInstanceCount> counts = new LinkedHashMap<>();
-        this.entityManager.createQuery("select i.definition.processDefinitionName, count(i), count(i.end)"
-                + " from ProcessInstanceEntity i group by i.definition.processDefinitionName", Object[].class)
+        this.entityManager.createQuery("""
+                select i.definition.processDefinitionName, count(i), count(i.end)
+                from ProcessInstanceEntity i
+                group by i.definition.processDefinitionName
+                """, Object[].class)
                 .getResultList()
                 .forEach(row -> {
                     final long all = ((Number) row[1]).longValue();

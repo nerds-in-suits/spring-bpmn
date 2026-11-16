@@ -101,6 +101,10 @@ class ProcessInstanceController {
         return ResponseEntity.created(location).body(ProcessInstanceDto.from(instance));
     }
 
+    /**
+     * @return the matching steps as a {@link List}, because they are in the order requested by {@code sort} and
+     *         {@code direction}
+     */
     @GetMapping("/{id}/steps")
     List<ProcessStepDto> listSteps(@PathVariable final UUID id, @RequestParam(required = false) final String state,
             @RequestParam(required = false) final String type, @RequestParam(required = false) final String sort,

@@ -46,6 +46,9 @@ class UserTaskController {
         this.nodes = nodes;
     }
 
+    /**
+     * @return the open user tasks as a {@link List}, because they are ordered by start date, oldest first
+     */
     @GetMapping
     List<UserTaskDto> list(@RequestParam final UUID processInstance)
             throws ProcessEngineException, NoSuchProcessInstanceException {

@@ -11,7 +11,11 @@ import java.util.List;
  * @param size the page size used, at most {@code spring.bpmn.rest.max-page-size}
  * @param total the number of items on all pages
  */
-public record PageDto<T>(List<T> items, int page, int size, long total) {
+public record PageDto<T>(
+        List<T> items,
+        int page,
+        int size,
+        long total) {
 
     /**
      * Copies the items.

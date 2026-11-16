@@ -19,8 +19,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *            ({@code spring.bpmn.rest.max-page-size}); not less than {@code defaultPageSize}.
  */
 @ConfigurationProperties(prefix = "spring.bpmn.rest")
-public record BpmnRestProperties(@DefaultValue("/api/bpmn/v1") String basePath,
-        @DefaultValue("false") boolean deploymentEnabled, @DefaultValue("20") int defaultPageSize,
+public record BpmnRestProperties(
+        @DefaultValue("/api/bpmn/v1") String basePath,
+        @DefaultValue("false") boolean deploymentEnabled,
+        @DefaultValue("20") int defaultPageSize,
         @DefaultValue("100") int maxPageSize) {
 
     /**

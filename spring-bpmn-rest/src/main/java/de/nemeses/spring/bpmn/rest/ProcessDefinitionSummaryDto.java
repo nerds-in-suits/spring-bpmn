@@ -15,7 +15,11 @@ import de.nemeses.spring.bpmn.repository.ProcessInstanceCount;
  * @param runningInstances the number of running instances of all versions
  * @param finishedInstances the number of finished instances of all versions
  */
-public record ProcessDefinitionSummaryDto(String name, Instant createdDate, String md5Hash, long runningInstances,
+public record ProcessDefinitionSummaryDto(
+        String name,
+        Instant createdDate,
+        String md5Hash,
+        long runningInstances,
         long finishedInstances) {
 
     /**

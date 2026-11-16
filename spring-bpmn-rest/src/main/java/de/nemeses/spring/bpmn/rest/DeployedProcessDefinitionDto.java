@@ -13,7 +13,11 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinition;
  * @param registered {@code true} if the deployment registered a new version, {@code false} if the latest version was
  *            unchanged
  */
-public record DeployedProcessDefinitionDto(String name, Instant createdDate, String md5Hash, boolean registered) {
+public record DeployedProcessDefinitionDto(
+        String name,
+        Instant createdDate,
+        String md5Hash,
+        boolean registered) {
 
     /**
      * @param definition the latest version of the process definition after the deployment
