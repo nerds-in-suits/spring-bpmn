@@ -1,7 +1,10 @@
 package de.nemeses.spring.bpmn.exec;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -14,38 +17,49 @@ import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
 import de.nemeses.spring.bpmn.model.bpmn20.RootElement;
 import de.nemeses.spring.bpmn.model.bpmn20.StartEvent;
+import de.nemeses.spring.bpmn.model.bpmn20.UserTask;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
+import de.nemeses.spring.bpmn.repository.NoSuchProcessInstanceException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import de.nemeses.spring.bpmn.repository.ProcessInstance;
 import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
 import de.nemeses.spring.bpmn.repository.ProcessStep;
+import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
 import jakarta.xml.bind.JAXBElement;
 
 /**
- * Core service of the process engine: starts process instances.
+ * Core service of the process engine: starts process instances and lists and completes their open user tasks.
  * <p>
  * Starting an instance creates it and triggers each start event of the process ({@link Invoker#trigger}, which
  * creates a {@link ProcessStep} and a {@code bpmnNodeTask} for it), in one transaction. Failures (unknown definition,
  * parse error, no matching process, no start event) throw {@link ProcessEngineException} and roll back.
  * <p>
- * The {@link InvokerRegistry} is looked up when an instance is started, because the invoker of {@code callActivity}
- * depends on this service.
+ * An open user task is a pending step at a {@code userTask} node ({@link #openUserTasks}); it is identified by the id
+ * of its step and completed with {@link #completeUserTask}.
+ * <p>
+ * The {@link InvokerRegistry} is looked up when an instance is started and the {@link BpmnNodeExecutor} when a user
+ * task is completed, because the invoker of {@code callActivity} depends on this service.
  */
 @Component
 public class ProcessEngineService {
 
     private final ProcessDefinitionService definitions;
     private final ProcessInstanceRepository instances;
+    private final ProcessStepRepository steps;
     private final ProcessDefinitionModelCache models;
     private final ObjectProvider<InvokerRegistry> invokers;
+    private final ObjectProvider<BpmnNodeExecutor> executor;
 
     ProcessEngineService(final ProcessDefinitionService definitions, final ProcessInstanceRepository instances,
-            final ProcessDefinitionModelCache models, final ObjectProvider<InvokerRegistry> invokers) {
+            final ProcessStepRepository steps, final ProcessDefinitionModelCache models,
+            final ObjectProvider<InvokerRegistry> invokers, final ObjectProvider<BpmnNodeExecutor> executor) {
         this.definitions = definitions;
         this.instances = instances;
+        this.steps = steps;
         this.models = models;
         this.invokers = invokers;
+        this.executor = executor;
     }
 
     /**
@@ -107,6 +121,50 @@ public class ProcessEngineService {
         LoggerFactory.getLogger(this.getClass()).info("Started process instance {} of {} at start nodes {}",
                 instance.id(), definition.name(), startNodes.stream().map(FlowNode::getId).toList());
         return instance;
+    }
+
+    /**
+     * Lists the open user tasks of a process instance: its pending steps at {@code userTask} nodes, including those
+     * inside embedded sub-processes.
+     *
+     * @param processInstanceId the id of the process instance
+     * @return the pending user task steps, in no particular order; empty if the instance has ended
+     * @throws ProcessEngineException if the instance does not exist or its definition cannot be read
+     */
+    @Transactional(readOnly = true, rollbackFor = ProcessEngineException.class)
+    public Collection<ProcessStep> openUserTasks(final UUID processInstanceId) throws ProcessEngineException {
+        try {
+            final ProcessInstance instance = this.instances.retrieve(processInstanceId);
+            if (instance.endDate() != null) {
+                return List.of();
+            }
+            final Process process = ProcessEngineService.process(this.models.document(instance.processDefinition()),
+                    instance.processDefinition());
+            final Set<String> userTasks = ProcessNavigator.flowNodeIds(process, UserTask.class);
+            return this.steps.steps(processInstanceId).stream()
+                    .filter(step -> step.endDate() == null && userTasks.contains(step.nodeId()))
+                    .toList();
+        } catch (final NoSuchProcessInstanceException e) {
+            throw new ProcessEngineException("Cannot list the user tasks of process instance " + processInstanceId
+                    + ".", e);
+        }
+    }
+
+    /**
+     * Completes an open user task: merges the given variables into the process variables, completes its step and
+     * takes the outgoing flows of the {@code userTask}, in one transaction under the lock of the instance (see
+     * {@link BpmnNodeExecutor#completeUserTask}). Failures roll back, so the user task stays open.
+     *
+     * @param stepId the id of the pending user task step (see {@link #openUserTasks})
+     * @param variables the variables to set (added or replaced, none removed); {@code null} means none; values must
+     *            not be {@code null}
+     * @throws ProcessEngineException if the step does not exist, is already completed, is not at a {@code userTask},
+     *             its instance has ended, a value is {@code null}, or the outgoing flows cannot be taken
+     */
+    @Transactional(rollbackFor = ProcessEngineException.class)
+    public void completeUserTask(final UUID stepId, final Map<String, Object> variables)
+            throws ProcessEngineException {
+        this.executor.getObject().completeUserTask(stepId, variables);
     }
 
     private static Collection<FlowNode> startNodes(final Process process, final ProcessDefinition definition)

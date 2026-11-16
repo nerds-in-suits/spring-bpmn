@@ -50,18 +50,18 @@ Package-private helpers are listed when they hold engine behaviour.
 ### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
 
 - `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `task.NodeContext`).
-- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with `Invoker.execute` for the node type and triggers the target nodes of the flows taken.
+- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with `Invoker.execute` for the node type and triggers the target nodes of the flows taken; `completeUserTask` executes a waiting `userTask` step the same way with the variables passed from outside.
 - `BpmnNodeImplementation`: application code bound to a `serviceTask` by bean name.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
 - `Invoker`: triggers (`trigger()`, when a node is reached: creates its steps and schedules their tasks) and executes (`execute()`, runs a pending step) the flow nodes of one type (`nodeType()`, exact class); at most one bean per type. The implementations live in the sub-packages below.
 - `InvokerEnhancer`: wraps invokers in another `Invoker` of the same node type where needed (e.g. a loop around an activity); all enhancer beans are injected into `InvokerRegistry`, which passes every invoker through each of them.
 - `InvokerRegistry`: collects the `Invoker` beans by node type, enhanced by all `InvokerEnhancer` beans, and triggers nodes through them; used by `BpmnNodeExecutor`, `ProcessEngineService` and `NodeTrigger`.
-- `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language, flow scope, loop instance); completes steps.
+- `NodeExecution`: the step an `Invoker` executes (instance, step, flows, expression language, flow scope, loop instance, completion variables of a user task); completes steps.
 - `NodeTrigger`: how an `Invoker` reaches its node (instance, incoming flow, scope, loop data); creates and schedules steps and triggers other nodes.
 - `ProcessDefinitionModelCache`: keeps the parsed BPMN document of each process definition, keyed by name and creation date, held softly; used by `ProcessEngineService` and `BpmnNodeExecutor` instead of parsing `bpmnXml` again.
 - `ProcessEngineException`: checked exception of all engine operations.
-- `ProcessEngineService`: public entry to start process instances.
+- `ProcessEngineService`: public entry to start process instances and to list and complete their open user tasks.
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
 - `SubProcessScopes`: triggers the target nodes of the flows taken in their scope and schedules leaving embedded sub-processes.
 
@@ -79,6 +79,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `task.ScriptTaskInvoker`, `task.ServiceTaskInvoker`, `task.TaskInvoker`: execute `scriptTask`, `serviceTask` and plain `task`.
 - `task.SpelScriptRunner`: runs the SpEL script of a `scriptTask`.
 - `task.TaskRunner`: runs the work of a task (with its loop) and stores the variables it changed.
+- `task.UserTaskInvoker`: creates a `userTask` step without task and, when `ProcessEngineService.completeUserTask` executes it, merges the given variables, completes it and selects its flows.
 
 ### `de.nemeses.spring.bpmn.model.*` (module `spring-bpmn`, generated)
 
