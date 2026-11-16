@@ -5,9 +5,11 @@ Single page web UI of [`spring-bpmn`](../spring-bpmn/README.md) on the REST API 
 - Process definitions with the number of their running and finished instances, linking to the filtered instance list.
 - Process definitions have a play button that asks for the variables as a JSON object and starts an instance, then shows it.
 - Process instances filtered by definition and state, sorted by start or end date, paged.
-- Process instance details with variables and its steps, filtered by state and task type, sorted by start date, end date or task type.
+- Process instance details with the BPMN diagram of its definition version, nodes with running and finished steps highlighted, its variables and its steps, filtered by state and task type, sorted by start date, end date or task type.
+- Without diagram interchange (BPMN DI) in the document, or if it cannot be rendered, a message replaces the diagram; there is no automatic layout.
 - Open it at `/bpmn-ui/` of the application (below the servlet context path); `/bpmn-ui` redirects there.
 - Static HTML and JavaScript with [Alpine.js](https://alpinejs.dev/) from its WebJar, no Node build; the pages only call the REST API.
+- Diagrams are rendered by the viewer of [bpmn-js](https://bpmn.io/toolkit/bpmn-js/) (WebJar `org.webjars.npm:bpmn-js`, prebuilt `bpmn-viewer.production.min.js`), whose [bpmn.io license](https://bpmn.io/license/) requires the bpmn.io watermark to stay fully visible and not overlapped; do not hide it.
 - `GET /bpmn-ui/config.json` tells the pages the REST base path (context path plus `spring.bpmn.rest.base-path`), so a changed base path needs no UI configuration.
 - Auto-configured in a servlet web application with the REST API; the module brings no security, so the application secures `/bpmn-ui/` together with the REST base path.
 

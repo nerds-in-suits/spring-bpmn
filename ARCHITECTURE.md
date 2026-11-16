@@ -126,14 +126,14 @@ Package-private helpers are listed when they hold engine behaviour.
 - `BpmnRestExceptionHandler`: maps the exceptions of the controllers to RFC 9457 problem details (404 for unknown entities, 422 for other `ProcessEngineException`s, 400 for invalid requests).
 - `BpmnRestProperties`: the `spring.bpmn.rest.*` settings.
 - `ProcessDefinitionController`: `/process-definitions`, addressed by name; lists the latest versions with instance counts, reads versions and BPMN XML, deploys BPMN documents if enabled; no deletion.
-- `ProcessInstanceController`: `/process-instances`; pages, reads and starts instances and lists their steps, filtered and sorted, with the node type from the model.
+- `ProcessInstanceController`: `/process-instances`; pages, reads and starts instances, serves the BPMN XML of their definition version and lists their steps, filtered and sorted, with the node type from the model.
 - `ProcessNodes`: reads the type (BPMN element name) and name of the flow nodes of a definition from the `ProcessDefinitionModelCache`.
 - `ProcessVariableController`: `/process-instances/{id}/variables`; reads, merges, replaces, sets and removes the variables of a running instance through `ProcessEngineService.updateVariables`, without locking the instance.
 - `UserTaskController`: `/user-tasks`; lists and completes the open user tasks of an instance through `ProcessEngineService`.
 
 ### `de.nemeses.spring.bpmn.ui` (module `spring-bpmn-ui`)
 
-- `BpmnUiAutoConfiguration`: in a servlet web application with the REST API, redirects `/bpmn-ui` to `/bpmn-ui/` and forwards that to the static `index.html` of `META-INF/resources/bpmn-ui/` (Alpine.js from its WebJar, hash routes, no Node build).
+- `BpmnUiAutoConfiguration`: in a servlet web application with the REST API, redirects `/bpmn-ui` to `/bpmn-ui/` and forwards that to the static `index.html` of `META-INF/resources/bpmn-ui/` (Alpine.js and the bpmn-js viewer from their WebJars, hash routes, no Node build).
 - `BpmnUiConfigController`: `GET /bpmn-ui/config.json`; tells the pages the REST base path (servlet context path plus `spring.bpmn.rest.base-path`).
 
 ### `de.nemeses.spring.tasks` (module `spring-tasks`)

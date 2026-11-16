@@ -4,12 +4,17 @@
  * Hash routes:
  *   #/definitions                                                   process definitions with instance counts
  *   #/instances?definition=&state=&sort=&direction=&page=           process instances (paged by the API)
- *   #/instances/{id}?state=&type=&sort=&direction=                  one instance with its steps
+ *   #/instances/{id}?state=&type=&sort=&direction=                  one instance with its diagram and steps
  *
  * The play button of a process definition asks for the variables in a dialog, starts an instance and shows it.
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
+ * The diagram is rendered by the bpmn-js viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
  */
 document.addEventListener('alpine:init', () => {
+  // the bpmn-js viewer and the id of the instance it shows; kept out of the Alpine data, which would proxy them
+  let viewer = null;
+  let diagramOf = null;
+
   Alpine.data('bpmnUi', () => ({
     api: null,
     route: { page: 'definitions', id: null, query: {} },
@@ -20,6 +25,7 @@ document.addEventListener('alpine:init', () => {
     instance: null,
     steps: [],
     stepTypes: [],
+    diagram: { shown: false, message: null },
     start: { definition: null, variables: '{}', error: null, busy: false },
 
     async init() {
@@ -92,11 +98,90 @@ document.addEventListener('alpine:init', () => {
       this.instance = instance;
       this.stepTypes = [...new Set(all.map((step) => step.type).filter((type) => type))].sort();
       this.steps = steps;
+      await this.showDiagram(all);
+    },
+
+    /**
+     * Shows the diagram of the definition version the instance was started from (loaded once per instance) and marks
+     * the nodes of its steps. A document without diagram interchange (BPMN DI) or a failure shows a message instead.
+     */
+    async showDiagram(steps) {
+      const id = this.route.id;
+      try {
+        if (diagramOf !== id) {
+          diagramOf = null;
+          this.diagram = { shown: true, message: null };
+          await this.$nextTick();
+          if (!viewer) {
+            viewer = new BpmnJS({ container: this.$refs.diagram });
+          }
+          const xml = await this.getXml(this.api + '/process-instances/' + encodeURIComponent(id) + '/bpmn');
+          if (this.route.id !== id) {
+            return;
+          }
+          await viewer.importXML(xml);
+          await this.openDiagramOf(this.instance.processDefinition);
+          viewer.get('canvas').zoom('fit-viewport', 'auto');
+          diagramOf = id;
+        }
+        if (this.diagram.shown) {
+          this.markSteps(steps);
+        }
+      } catch (e) {
+        // not retried on every filter change of the same instance
+        diagramOf = id;
+        if (viewer) {
+          viewer.clear();
+        }
+        this.diagram = {
+          shown: false,
+          message: /no diagram to display/.test(e.message)
+            ? 'The process definition has no diagram layout (BPMN DI).'
+            : 'Cannot show the diagram: ' + e.message,
+        };
+      }
+    },
+
+    /** Opens the diagram of the process named name, if the document has several diagrams. */
+    async openDiagramOf(name) {
+      const diagrams = viewer.getDefinitions().diagrams || [];
+      const shows = (element) => Boolean(element) && ((element.name || element.id) === name
+        || (element.participants || []).some((participant) => shows(participant.processRef)));
+      const diagram = diagrams.find((candidate) => candidate.plane && shows(candidate.plane.bpmnElement));
+      if (diagram && diagram !== diagrams[0]) {
+        await viewer.open(diagram);
+      }
+    },
+
+    /** Marks the nodes with a running step as running, the other nodes with steps as finished. */
+    markSteps(steps) {
+      const canvas = viewer.get('canvas');
+      const running = new Set(steps.filter((step) => step.state === 'running').map((step) => step.nodeId));
+      const reached = new Set(steps.map((step) => step.nodeId));
+      viewer.get('elementRegistry').forEach((element) => {
+        canvas.removeMarker(element, 'step-running');
+        canvas.removeMarker(element, 'step-finished');
+        if (running.has(element.id)) {
+          canvas.addMarker(element, 'step-running');
+        } else if (reached.has(element.id)) {
+          canvas.addMarker(element, 'step-finished');
+        }
+      });
     },
 
     /** GETs JSON; rejects with the detail of a problem response. */
     async get(url) {
-      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      return (await this.fetchOk(url, 'application/json')).json();
+    },
+
+    /** GETs XML as text; rejects with the detail of a problem response. */
+    async getXml(url) {
+      return (await this.fetchOk(url, 'application/xml, application/problem+json')).text();
+    },
+
+    /** GETs url; rejects with the detail of a problem response. */
+    async fetchOk(url, accept) {
+      const response = await fetch(url, { headers: { Accept: accept } });
       if (!response.ok) {
         let detail = response.status + ' ' + response.statusText;
         try {
@@ -107,7 +192,7 @@ document.addEventListener('alpine:init', () => {
         }
         throw new Error(detail);
       }
-      return response.json();
+      return response;
     },
 
     /** POSTs body as JSON and returns the JSON response; rejects with the detail of a problem response. */
