@@ -61,6 +61,20 @@ th {
   background: #f2f4f7;
 }
 
+th .sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: bold;
+  color: inherit;
+  cursor: pointer;
+}
+
+th .sort:hover {
+  text-decoration: underline;
+}
+
 .number {
   text-align: right;
 }
