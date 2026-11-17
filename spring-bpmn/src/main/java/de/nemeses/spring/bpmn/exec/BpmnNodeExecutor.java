@@ -8,6 +8,7 @@ import java.util.UUID;
 import javax.xml.namespace.QName;
 
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,10 @@ import de.nemeses.spring.tasks.TaskException;
  * ({@link Invoker#trigger}) all happen in that transaction; a {@link ProcessEngineException} rolls all of it back and
  * fails the task as a {@link TaskException}; whether it is retried depends on the task backend. The supported node
  * types are listed at {@link #executeNode} and in {@code docs/bpmn-support.md}.
+ * <p>
+ * While a step is executed ({@link #executeNode}, {@link #completeUserTask}), the SLF4J {@link MDC} holds the id of its
+ * process instance under {@value #MDC_PROCESS_INSTANCE_ID} and its own id under {@value #MDC_STEP_ID}; afterwards both
+ * keys are removed, also if the step fails.
  */
 @Component(BpmnNodeExecutor.BEAN_NAME)
 public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
@@ -48,6 +53,12 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
 
     /** Extension attribute of a {@code serviceTask} naming its {@link BpmnNodeImplementation} bean. */
     public static final QName BEAN_ATTRIBUTE = new QName(BpmnNodeExecutor.NAMESPACE, "bean");
+
+    /** {@link MDC} key of the id of the process instance whose step is executed. */
+    public static final String MDC_PROCESS_INSTANCE_ID = "pid";
+
+    /** {@link MDC} key of the id of the process step that is executed. */
+    public static final String MDC_STEP_ID = "step";
 
     private final ProcessInstanceRepository instances;
     private final ProcessStepRepository steps;
@@ -186,56 +197,63 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
     }
 
     /**
-     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside.
+     * Executes a step; with {@code completion}, completes a waiting {@code userTask} step from outside. Meanwhile the
+     * step id and the process instance id are in the {@link MDC}; both keys are removed afterwards. The step is
+     * retrieved before the keys are put, since the process instance id comes from it; a missing step or process
+     * instance fails as a {@link ProcessEngineException}.
      */
     private void executeStep(final UUID stepId, final Map<String, Object> completion) throws ProcessEngineException {
         try {
             final ProcessStep step = this.steps.retrieve(stepId);
-            final ProcessInstance instance = this.instances.lock(step.processInstanceId());
-            // read after locking, so steps completed by a concurrent execution are seen
-            final List<ProcessStep> pendingAtNode = this.steps.pending(instance.id(), step.nodeId());
-            if (pendingAtNode.stream().noneMatch(pending -> pending.id().equals(stepId))) {
-                if (completion != null) {
-                    throw new ProcessEngineException("Cannot complete user task step " + stepId
-                            + ", which is already completed.");
+            try (MDC.MDCCloseable _ = MDC.putCloseable(BpmnNodeExecutor.MDC_STEP_ID, stepId.toString());
+                    MDC.MDCCloseable _ = MDC.putCloseable(BpmnNodeExecutor.MDC_PROCESS_INSTANCE_ID,
+                            step.processInstanceId().toString())) {
+                final ProcessInstance instance = this.instances.lock(step.processInstanceId());
+                // read after locking, so steps completed by a concurrent execution are seen
+                final List<ProcessStep> pendingAtNode = this.steps.pending(instance.id(), step.nodeId());
+                if (pendingAtNode.stream().noneMatch(pending -> pending.id().equals(stepId))) {
+                    if (completion != null) {
+                        throw new ProcessEngineException("Cannot complete user task step " + stepId
+                                + ", which is already completed.");
+                    }
+                    LoggerFactory.getLogger(this.getClass()).info(
+                            "Skipping step {} (node {}) of process instance {}, which is already completed.",
+                            stepId, step.nodeId(), instance.id());
+                    return;
                 }
-                LoggerFactory.getLogger(this.getClass()).info(
-                        "Skipping step {} (node {}) of process instance {}, which is already completed.",
-                        stepId, step.nodeId(), instance.id());
-                return;
-            }
-            if (instance.endDate() != null) {
-                if (completion != null) {
-                    throw new ProcessEngineException("Cannot complete user task step " + stepId
-                            + " of process instance " + instance.id() + ", which has ended.");
+                if (instance.endDate() != null) {
+                    if (completion != null) {
+                        throw new ProcessEngineException("Cannot complete user task step " + stepId
+                                + " of process instance " + instance.id() + ", which has ended.");
+                    }
+                    LoggerFactory.getLogger(this.getClass()).warn(
+                            "Skipping step {} (node {}) of process instance {}, which has ended.",
+                            stepId, step.nodeId(), instance.id());
+                    return;
                 }
-                LoggerFactory.getLogger(this.getClass()).warn(
-                        "Skipping step {} (node {}) of process instance {}, which has ended.",
-                        stepId, step.nodeId(), instance.id());
-                return;
+                final Definitions document = this.models.document(instance.processDefinition());
+                final Process process = ProcessEngineService.process(document, instance.processDefinition());
+                final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
+                if (completion != null && node.getClass() != UserTask.class) {
+                    throw new ProcessEngineException("Cannot complete step " + stepId + ", node '" + node.getId()
+                            + "' is a " + node.getClass().getSimpleName() + ", not a UserTask.");
+                }
+                final Invoker<?> invoker = this.invokers.invoker(node);
+                final NodeExecution execution = new NodeExecution(this.invokers, instance, step, process, node,
+                        document.getExpressionLanguage(), pendingAtNode.stream()
+                                .filter(pending -> SubProcessScopes.inSameScope(pending, step))
+                                .toList());
+                if (completion != null) {
+                    execution.completion(completion);
+                }
+                final Collection<SequenceFlow> taken = BpmnNodeExecutor.run(invoker, node, execution);
+                this.subProcesses.take(instance.id(), process, document.getExpressionLanguage(), taken,
+                        execution.scope());
+                this.subProcesses.leaveCompleted(instance.id(), execution.scope());
+                LoggerFactory.getLogger(this.getClass()).debug(
+                        "Executed step {} (node {}) of process instance {}, taken flows {}",
+                        stepId, step.nodeId(), instance.id(), taken.stream().map(SequenceFlow::getId).toList());
             }
-            final Definitions document = this.models.document(instance.processDefinition());
-            final Process process = ProcessEngineService.process(document, instance.processDefinition());
-            final FlowNode node = ProcessNavigator.flowNode(process, step.nodeId());
-            if (completion != null && node.getClass() != UserTask.class) {
-                throw new ProcessEngineException("Cannot complete step " + stepId + ", node '" + node.getId()
-                        + "' is a " + node.getClass().getSimpleName() + ", not a UserTask.");
-            }
-            final Invoker<?> invoker = this.invokers.invoker(node);
-            final NodeExecution execution = new NodeExecution(this.invokers, instance, step, process, node,
-                    document.getExpressionLanguage(), pendingAtNode.stream()
-                            .filter(pending -> SubProcessScopes.inSameScope(pending, step))
-                            .toList());
-            if (completion != null) {
-                execution.completion(completion);
-            }
-            final Collection<SequenceFlow> taken = BpmnNodeExecutor.run(invoker, node, execution);
-            this.subProcesses.take(instance.id(), process, document.getExpressionLanguage(), taken,
-                    execution.scope());
-            this.subProcesses.leaveCompleted(instance.id(), execution.scope());
-            LoggerFactory.getLogger(this.getClass()).debug(
-                    "Executed step {} (node {}) of process instance {}, taken flows {}",
-                    stepId, step.nodeId(), instance.id(), taken.stream().map(SequenceFlow::getId).toList());
         } catch (final NoSuchProcessStepException | NoSuchProcessInstanceException e) {
             throw new ProcessEngineException("Cannot execute process step " + stepId + ".", e);
         }

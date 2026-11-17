@@ -9,6 +9,7 @@
  * The play button of a process definition asks for the variables in a dialog, starts an instance and shows it.
  * The Upload button (only if config.json says deploymentEnabled) deploys the BPMN file chosen in the file picker.
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
+ * The headers of the columns the API can sort by are buttons that sort by them (see sortBy).
  * The diagram is rendered by the bpmn-js viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
  */
 document.addEventListener('alpine:init', () => {
@@ -177,17 +178,36 @@ document.addEventListener('alpine:init', () => {
 
     /** GETs JSON; rejects with the detail of a problem response. */
     async get(url) {
-      return (await this.fetchOk(url, 'application/json')).json();
+      return (await this.request(url)).json();
     },
 
     /** GETs XML as text; rejects with the detail of a problem response. */
     async getXml(url) {
-      return (await this.fetchOk(url, 'application/xml, application/problem+json')).text();
+      return (await this.request(url, { headers: { Accept: 'application/xml, application/problem+json' } })).text();
     },
 
-    /** GETs url; rejects with the detail of a problem response. */
-    async fetchOk(url, accept) {
-      const response = await fetch(url, { headers: { Accept: accept } });
+    /**
+     * fetch() with the session cookie for all requests of the UI; resolves with the response if it is ok.
+     * Modifying requests send the CSRF token of the cookie XSRF-TOKEN in the header X-XSRF-TOKEN.
+     * On 401 the page is reloaded once, so the login of the application takes over; 403 rejects with "Not permitted".
+     * Other errors reject with the detail of the problem response.
+     */
+    async request(url, options = {}) {
+      const method = (options.method || 'GET').toUpperCase();
+      const headers = { Accept: 'application/json', ...options.headers };
+      const token = document.cookie.split('; ').find((cookie) => cookie.startsWith('XSRF-TOKEN='));
+      if (token && method !== 'GET' && method !== 'HEAD') {
+        headers['X-XSRF-TOKEN'] = decodeURIComponent(token.substring('XSRF-TOKEN='.length));
+      }
+      const response = await fetch(url, { ...options, method, headers });
+      if (response.status === 401) {
+        if (!sessionStorage.getItem('bpmnUiReloaded')) {
+          sessionStorage.setItem('bpmnUiReloaded', 'true');
+          window.location.reload();
+        }
+        throw new Error('Not authenticated: please log in.');
+      }
+      sessionStorage.removeItem('bpmnUiReloaded');
       if (!response.ok) {
         let detail = response.status + ' ' + response.statusText;
         try {
@@ -196,49 +216,27 @@ document.addEventListener('alpine:init', () => {
         } catch (ignored) {
           // no problem details
         }
-        throw new Error(detail);
+        throw new Error(response.status === 403 ? 'Not permitted: ' + detail : detail);
       }
       return response;
     },
 
     /** POSTs body as JSON and returns the JSON response; rejects with the detail of a problem response. */
     async post(url, body) {
-      const response = await fetch(url, {
+      return (await this.request(url, {
         method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        let detail = response.status + ' ' + response.statusText;
-        try {
-          const problem = await response.json();
-          detail = problem.detail || problem.title || detail;
-        } catch (ignored) {
-          // no problem details
-        }
-        throw new Error(detail);
-      }
-      return response.json();
+      })).json();
     },
 
     /** POSTs file as application/xml and returns the JSON response; rejects with the detail of a problem response. */
     async postXml(url, file) {
-      const response = await fetch(url, {
+      return (await this.request(url, {
         method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/xml' },
+        headers: { 'Content-Type': 'application/xml' },
         body: file,
-      });
-      if (!response.ok) {
-        let detail = response.status + ' ' + response.statusText;
-        try {
-          const problem = await response.json();
-          detail = problem.detail || problem.title || detail;
-        } catch (ignored) {
-          // no problem details
-        }
-        throw new Error(detail);
-      }
-      return response.json();
+      })).json();
     },
 
     /**
@@ -331,6 +329,42 @@ document.addEventListener('alpine:init', () => {
     /** Changes a filter or sort parameter and goes back to the first page. */
     filter(name, value) {
       this.navigate({ [name]: value, page: '' });
+    },
+
+    /**
+     * Sorts by column, a sort value of the API, on a click on its header and goes back to the first page:
+     * the sorted column again reverses the direction, another column is sorted ascending.
+     * Without sort and direction in the URL the API sorts by start date ascending, so that column shows as sorted.
+     */
+    sortBy(column) {
+      const direction = this.sortColumn() === column && this.sortDirection() === 'asc' ? 'desc' : 'asc';
+      this.navigate({ sort: column, direction, page: '' });
+    },
+
+    /** @return the sorted column, the default of the API if the URL has none */
+    sortColumn() {
+      return this.route.query.sort || 'startDate';
+    },
+
+    /** @return the sort direction, asc or desc, the default of the API if the URL has none */
+    sortDirection() {
+      return this.route.query.direction === 'desc' ? 'desc' : 'asc';
+    },
+
+    /** @return the aria-sort value of the header of column; null removes it from the unsorted columns */
+    ariaSort(column) {
+      if (this.sortColumn() !== column) {
+        return null;
+      }
+      return this.sortDirection() === 'desc' ? 'descending' : 'ascending';
+    },
+
+    /** @return the arrow shown in the header of column: up ascending, down descending, none if not sorted */
+    sortMark(column) {
+      if (this.sortColumn() !== column) {
+        return '';
+      }
+      return this.sortDirection() === 'desc' ? ' ▼' : ' ▲';
     },
 
     instancesLink(definition, state) {

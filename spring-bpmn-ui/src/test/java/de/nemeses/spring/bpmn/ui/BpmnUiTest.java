@@ -85,6 +85,21 @@ class BpmnUiTest {
     }
 
     @Test
+    void testEntryPageSortsByColumnHeader() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "<th :aria-sort=\"ariaSort('startDate')\">")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "@click=\"sortBy('type')\"")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.not(Matchers.containsString("filter('sort'"))));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("sortBy(column)")));
+    }
+
+    @Test
     void testServesAlpineWebJar() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/webjars/alpinejs/dist/cdn.min.js"))
                 .andExpect(MockMvcResultMatchers.status().isOk())

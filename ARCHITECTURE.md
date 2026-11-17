@@ -32,7 +32,7 @@ The application chooses the concrete backends by adding implementation modules t
 | `spring-bpmn` | Parses BPMN documents, registers process definitions and executes process instances on `spring-tasks`; contains the repository API. |
 | `spring-bpmn-demo` | Runnable demo application (executable jar) with all modules except `spring-tasks-jms`, H2 and sample processes; not a library. |
 | `spring-bpmn-repository-jpa` | JPA implementation of the repository API of `spring-bpmn`. |
-| `spring-bpmn-rest` | REST API (JSON) for process definitions, process instances with their steps, and user tasks. |
+| `spring-bpmn-rest` | REST API (JSON) for process definitions, process instances with their steps, and user tasks, secured with Spring Security. |
 | `spring-bpmn-ui` | Single page web UI (Alpine.js, static resources) on the REST API of `spring-bpmn-rest`. |
 | `spring-tasks` | API and core to schedule and execute tasks (`TaskService`, `TaskImplementation`, `TaskPersistence`). |
 | `spring-tasks-jms` | `TaskPersistence` on a JMS queue. |
@@ -55,12 +55,13 @@ Package-private helpers are listed when they hold engine behaviour.
 
 - `CheckOrder`, `Greet`: the `BpmnNodeImplementation` beans `checkOrder` and `greet` of the sample processes.
 - `DemoApplication`: the `@SpringBootApplication` main class; imports `TaskConfiguration`.
+- `DemoUsers`: the in-memory users `viewer` (read only) and `admin` (all authorities) of the REST API and the UI.
 - `UiUrlLogger`: logs the UI and REST URLs once the web server listens.
 
 ### `de.nemeses.spring.bpmn.exec` (module `spring-bpmn`)
 
 - `BpmnNodeContext`: what a `BpmnNodeImplementation` sees of its node; collects variable changes (implemented by `task.NodeContext`).
-- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with `Invoker.execute` for the node type and triggers the target nodes of the flows taken; `completeUserTask` executes a waiting `userTask` step the same way with the variables passed from outside.
+- `BpmnNodeExecutor`: the `bpmnNodeTask` task bean (payload: the step id); executes one `ProcessStep` per task in one transaction under a lock on the instance with `Invoker.execute` for the node type and triggers the target nodes of the flows taken; `completeUserTask` executes a waiting `userTask` step the same way with the variables passed from outside; while a step runs, the MDC holds `pid` (process instance id) and `step` (step id).
 - `BpmnNodeImplementation`: application code bound to a `serviceTask` by bean name.
 - `ConditionEvaluator`: evaluates `conditionExpression`s and loop conditions as SpEL.
 - `FlowSelector`: selects the outgoing sequence flows of a node.
@@ -122,9 +123,12 @@ Package-private helpers are listed when they hold engine behaviour.
 ### `de.nemeses.spring.bpmn.rest` (module `spring-bpmn-rest`)
 
 - `*Dto`, `StartProcessRequest`: JSON records of the requests and responses; dates are ISO-8601 instants.
-- `BpmnRestAutoConfiguration`: registers the controllers in a servlet web application with a `ProcessEngineService` and prefixes their paths with `spring.bpmn.rest.base-path`; brings no security of its own.
+- `BpmnRestAutoConfiguration`: registers the controllers in a servlet web application with a `ProcessEngineService` and prefixes their paths with `spring.bpmn.rest.base-path`; fails the startup if Spring Security is missing, unless `spring.bpmn.rest.security.enabled=false` is set explicitly (then it logs a warning).
 - `BpmnRestExceptionHandler`: maps the exceptions of the controllers to RFC 9457 problem details (404 for unknown entities, 422 for other `ProcessEngineException`s, 400 for invalid requests).
+- `BpmnRestHttpSecurityCustomizer`: beans that adapt the chain `bpmnRestSecurityFilterChain` before it is built, e.g. to add bearer tokens.
 - `BpmnRestProperties`: the `spring.bpmn.rest.*` settings.
+- `BpmnRestSecurityConfiguration`: the replaceable chain `bpmnRestSecurityFilterChain` for `<base-path>/**` (session or HTTP Basic, one authority property per operation, CSRF for cookie sessions), ordered before the application's chains and Spring Boot's default chain.
+- `BpmnRestSecurityProblems`: answers rejected requests with `401` or `403` problem details instead of a login redirect.
 - `ProcessDefinitionController`: `/process-definitions`, addressed by name; lists the latest versions with instance counts, reads versions and BPMN XML, deploys BPMN documents if enabled; no deletion.
 - `ProcessInstanceController`: `/process-instances`; pages, reads and starts instances, serves the BPMN XML of their definition version and lists their steps, filtered and sorted, with the node type from the model.
 - `ProcessNodes`: reads the type (BPMN element name) and name of the flow nodes of a definition from the `ProcessDefinitionModelCache`.
@@ -202,6 +206,14 @@ Bind them with one `@ConfigurationProperties` record per module and `@DefaultVal
 | `spring.bpmn.rest.default-page-size` | `spring-bpmn-rest` | `20` | Page size of paged lists (`GET /process-instances`) without `size` parameter; positive (`BpmnRestProperties`). |
 | `spring.bpmn.rest.deployment-enabled` | `spring-bpmn-rest` | `false` | Whether `POST /process-definitions` deploys BPMN documents at runtime; if `false` it answers `403 Forbidden` (`BpmnRestProperties`). |
 | `spring.bpmn.rest.max-page-size` | `spring-bpmn-rest` | `100` | Largest page size; larger `size` parameters are reduced to it; not less than the default page size (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.authority.complete-user-task` | `spring-bpmn-rest` | empty | Authority required for `POST /user-tasks/{id}/complete`; empty means any authenticated user (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.authority.deploy` | `spring-bpmn-rest` | empty | Authority required for `POST /process-definitions`; empty means any authenticated user (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.authority.read-definitions` | `spring-bpmn-rest` | empty | Authority required for `GET /process-definitions/**`; empty means any authenticated user (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.authority.read-instances` | `spring-bpmn-rest` | empty | Authority required for `GET /process-instances/**` (with steps and variables) and `GET /user-tasks/**`; empty means any authenticated user (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.authority.start-instance` | `spring-bpmn-rest` | empty | Authority required for `POST /process-instances`; empty means any authenticated user (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.authority.update-variables` | `spring-bpmn-rest` | empty | Authority required for `PATCH`, `PUT` and `DELETE` of `/process-instances/{id}/variables/**`; empty means any authenticated user (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.enabled` | `spring-bpmn-rest` | `true` | Whether the module secures the REST API with `bpmnRestSecurityFilterChain`; if `true` without Spring Security on the classpath the startup fails, only an explicit `false` leaves the API unsecured (`BpmnRestProperties`). |
+| `spring.bpmn.rest.security.http-basic` | `spring-bpmn-rest` | `true` | Whether the REST API accepts HTTP Basic authentication besides the session of the application's login (`BpmnRestProperties`). |
 | `spring.tasks.error-backoff` | `spring-tasks` | `1s` | `Duration` a worker pauses after `TaskPersistence.next()` failed, to avoid a busy loop (`TaskProperties`). |
 | `spring.tasks.jms.queue` | `spring-tasks-jms` | `spring.tasks` | Name of the JMS queue tasks are sent to and received from (`JmsTaskProperties`). |
 | `spring.tasks.jpa.max-results` | `spring-tasks-jpa` | `20` | Maximum number of due tasks claimed (`RUNNING`) per database query and served from memory (`JpaTaskProperties`). |
