@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sample process with diagram (BPMN DI): an insurance claim is assessed (service task assessClaim); a claim the policy
+  does not cover is rejected at once. Otherwise its documents are checked in an embedded sub-process (a parallel
+  multi-instance script task over the variable documents) while, in parallel, a claim above the expert review limit
+  waits for the user task "Review claim", which may set approved to false. An approved claim gets its payout
+  calculated and transferred, a rejected one a payout of 0; either way the customer is notified (service task
+  notifyCustomer).
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+    xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+    xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:spring="https://nemeses.de/spring-bpmn"
+    id="claimHandlingDefinitions" targetNamespace="https://nemeses.de/spring-bpmn/demo">
+  <bpmn:process id="claimHandling" isExecutable="true">
+    <bpmn:startEvent id="claimReceived" name="Claim received"/>
+    <bpmn:serviceTask id="assessClaim" name="Assess claim" spring:bean="assessClaim"/>
+    <bpmn:exclusiveGateway id="coveredGateway" name="Covered by policy?" default="coveredFlow"/>
+    <bpmn:parallelGateway id="forkChecks"/>
+    <bpmn:subProcess id="verifyDocuments" name="Verify documents">
+      <bpmn:startEvent id="documentsReceived" name="Documents received"/>
+      <bpmn:scriptTask id="checkDocument" name="Check document">
+        <bpmn:multiInstanceLoopCharacteristics>
+          <bpmn:loopDataInputRef>documents</bpmn:loopDataInputRef>
+          <bpmn:loopDataOutputRef>checkedDocuments</bpmn:loopDataOutputRef>
+          <bpmn:inputDataItem id="document"/>
+          <bpmn:outputDataItem id="checked"/>
+        </bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:script>checked = document + ': checked'</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:task id="fileDocuments" name="File documents"/>
+      <bpmn:endEvent id="documentsVerified" name="Documents verified"/>
+      <bpmn:sequenceFlow id="toCheckDocument" sourceRef="documentsReceived" targetRef="checkDocument"/>
+      <bpmn:sequenceFlow id="toFileDocuments" sourceRef="checkDocument" targetRef="fileDocuments"/>
+      <bpmn:sequenceFlow id="toDocumentsVerified" sourceRef="fileDocuments" targetRef="documentsVerified"/>
+    </bpmn:subProcess>
+    <bpmn:exclusiveGateway id="expertGateway" name="Expert review required?" default="noExpertFlow"/>
+    <bpmn:userTask id="reviewClaim" name="Review claim"/>
+    <bpmn:exclusiveGateway id="expertMerge"/>
+    <bpmn:parallelGateway id="joinChecks"/>
+    <bpmn:exclusiveGateway id="approvedGateway" name="Approved?" default="rejectedFlow"/>
+    <bpmn:scriptTask id="calculatePayout" name="Calculate payout">
+      <bpmn:script>payout = (amount > 100 ? amount - 100 : 0); decision = 'approved'</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:manualTask id="transferPayout" name="Transfer payout"/>
+    <bpmn:scriptTask id="rejectClaim" name="Reject claim">
+      <bpmn:script>payout = 0; decision = 'rejected'</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:exclusiveGateway id="decisionMerge"/>
+    <bpmn:serviceTask id="notifyCustomer" name="Notify customer" spring:bean="notifyCustomer"/>
+    <bpmn:endEvent id="claimClosed" name="Claim closed"/>
+    <bpmn:sequenceFlow id="toAssessClaim" sourceRef="claimReceived" targetRef="assessClaim"/>
+    <bpmn:sequenceFlow id="toCoveredGateway" sourceRef="assessClaim" targetRef="coveredGateway"/>
+    <bpmn:sequenceFlow id="notCoveredFlow" name="no" sourceRef="coveredGateway" targetRef="rejectClaim">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!covered}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="coveredFlow" name="yes" sourceRef="coveredGateway" targetRef="forkChecks"/>
+    <bpmn:sequenceFlow id="toVerifyDocuments" sourceRef="forkChecks" targetRef="verifyDocuments"/>
+    <bpmn:sequenceFlow id="toExpertGateway" sourceRef="forkChecks" targetRef="expertGateway"/>
+    <bpmn:sequenceFlow id="expertFlow" name="yes" sourceRef="expertGateway" targetRef="reviewClaim">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${expertReviewRequired}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="noExpertFlow" name="no" sourceRef="expertGateway" targetRef="expertMerge"/>
+    <bpmn:sequenceFlow id="reviewedFlow" sourceRef="reviewClaim" targetRef="expertMerge"/>
+    <bpmn:sequenceFlow id="documentsDoneFlow" sourceRef="verifyDocuments" targetRef="joinChecks"/>
+    <bpmn:sequenceFlow id="reviewDoneFlow" sourceRef="expertMerge" targetRef="joinChecks"/>
+    <bpmn:sequenceFlow id="toApprovedGateway" sourceRef="joinChecks" targetRef="approvedGateway"/>
+    <bpmn:sequenceFlow id="approvedFlow" name="yes" sourceRef="approvedGateway" targetRef="calculatePayout">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="rejectedFlow" name="no" sourceRef="approvedGateway" targetRef="rejectClaim"/>
+    <bpmn:sequenceFlow id="toTransferPayout" sourceRef="calculatePayout" targetRef="transferPayout"/>
+    <bpmn:sequenceFlow id="paidFlow" sourceRef="transferPayout" targetRef="decisionMerge"/>
+    <bpmn:sequenceFlow id="rejectedDoneFlow" sourceRef="rejectClaim" targetRef="decisionMerge"/>
+    <bpmn:sequenceFlow id="toNotifyCustomer" sourceRef="decisionMerge" targetRef="notifyCustomer"/>
+    <bpmn:sequenceFlow id="toClaimClosed" sourceRef="notifyCustomer" targetRef="claimClosed"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="claimHandlingDiagram">
+    <bpmndi:BPMNPlane id="claimHandlingPlane" bpmnElement="claimHandling">
+      <bpmndi:BPMNShape id="claimReceived_di" bpmnElement="claimReceived">
+        <dc:Bounds x="152" y="182" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="assessClaim_di" bpmnElement="assessClaim">
+        <dc:Bounds x="240" y="160" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="coveredGateway_di" bpmnElement="coveredGateway" isMarkerVisible="true">
+        <dc:Bounds x="395" y="175" width="50" height="50"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="360" y="145" width="120" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="forkChecks_di" bpmnElement="forkChecks">
+        <dc:Bounds x="495" y="175" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="verifyDocuments_di" bpmnElement="verifyDocuments" isExpanded="true">
+        <dc:Bounds x="600" y="40" width="440" height="170"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="documentsReceived_di" bpmnElement="documentsReceived">
+        <dc:Bounds x="632" y="107" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="checkDocument_di" bpmnElement="checkDocument">
+        <dc:Bounds x="710" y="85" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="fileDocuments_di" bpmnElement="fileDocuments">
+        <dc:Bounds x="860" y="85" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="documentsVerified_di" bpmnElement="documentsVerified">
+        <dc:Bounds x="982" y="107" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="expertGateway_di" bpmnElement="expertGateway" isMarkerVisible="true">
+        <dc:Bounds x="625" y="305" width="50" height="50"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="580" y="275" width="140" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reviewClaim_di" bpmnElement="reviewClaim">
+        <dc:Bounds x="760" y="380" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="expertMerge_di" bpmnElement="expertMerge" isMarkerVisible="true">
+        <dc:Bounds x="945" y="305" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="joinChecks_di" bpmnElement="joinChecks">
+        <dc:Bounds x="1095" y="175" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvedGateway_di" bpmnElement="approvedGateway" isMarkerVisible="true">
+        <dc:Bounds x="1195" y="175" width="50" height="50"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1190" y="145" width="60" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="calculatePayout_di" bpmnElement="calculatePayout">
+        <dc:Bounds x="1300" y="160" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="transferPayout_di" bpmnElement="transferPayout">
+        <dc:Bounds x="1450" y="160" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="rejectClaim_di" bpmnElement="rejectClaim">
+        <dc:Bounds x="1450" y="500" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decisionMerge_di" bpmnElement="decisionMerge" isMarkerVisible="true">
+        <dc:Bounds x="1605" y="175" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyCustomer_di" bpmnElement="notifyCustomer">
+        <dc:Bounds x="1710" y="160" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="claimClosed_di" bpmnElement="claimClosed">
+        <dc:Bounds x="1862" y="182" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toAssessClaim_di" bpmnElement="toAssessClaim">
+        <di:waypoint x="188" y="200"/>
+        <di:waypoint x="240" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCoveredGateway_di" bpmnElement="toCoveredGateway">
+        <di:waypoint x="340" y="200"/>
+        <di:waypoint x="395" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="notCoveredFlow_di" bpmnElement="notCoveredFlow">
+        <di:waypoint x="420" y="225"/>
+        <di:waypoint x="420" y="560"/>
+        <di:waypoint x="1450" y="560"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="coveredFlow_di" bpmnElement="coveredFlow">
+        <di:waypoint x="445" y="200"/>
+        <di:waypoint x="495" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toVerifyDocuments_di" bpmnElement="toVerifyDocuments">
+        <di:waypoint x="520" y="175"/>
+        <di:waypoint x="520" y="125"/>
+        <di:waypoint x="600" y="125"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toExpertGateway_di" bpmnElement="toExpertGateway">
+        <di:waypoint x="520" y="225"/>
+        <di:waypoint x="520" y="330"/>
+        <di:waypoint x="625" y="330"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCheckDocument_di" bpmnElement="toCheckDocument">
+        <di:waypoint x="668" y="125"/>
+        <di:waypoint x="710" y="125"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toFileDocuments_di" bpmnElement="toFileDocuments">
+        <di:waypoint x="810" y="125"/>
+        <di:waypoint x="860" y="125"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDocumentsVerified_di" bpmnElement="toDocumentsVerified">
+        <di:waypoint x="960" y="125"/>
+        <di:waypoint x="982" y="125"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="expertFlow_di" bpmnElement="expertFlow">
+        <di:waypoint x="650" y="355"/>
+        <di:waypoint x="650" y="420"/>
+        <di:waypoint x="760" y="420"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="noExpertFlow_di" bpmnElement="noExpertFlow">
+        <di:waypoint x="675" y="330"/>
+        <di:waypoint x="945" y="330"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="reviewedFlow_di" bpmnElement="reviewedFlow">
+        <di:waypoint x="860" y="420"/>
+        <di:waypoint x="970" y="420"/>
+        <di:waypoint x="970" y="355"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="documentsDoneFlow_di" bpmnElement="documentsDoneFlow">
+        <di:waypoint x="1040" y="125"/>
+        <di:waypoint x="1120" y="125"/>
+        <di:waypoint x="1120" y="175"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="reviewDoneFlow_di" bpmnElement="reviewDoneFlow">
+        <di:waypoint x="995" y="330"/>
+        <di:waypoint x="1120" y="330"/>
+        <di:waypoint x="1120" y="225"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovedGateway_di" bpmnElement="toApprovedGateway">
+        <di:waypoint x="1145" y="200"/>
+        <di:waypoint x="1195" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="approvedFlow_di" bpmnElement="approvedFlow">
+        <di:waypoint x="1245" y="200"/>
+        <di:waypoint x="1300" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="rejectedFlow_di" bpmnElement="rejectedFlow">
+        <di:waypoint x="1220" y="225"/>
+        <di:waypoint x="1220" y="520"/>
+        <di:waypoint x="1450" y="520"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toTransferPayout_di" bpmnElement="toTransferPayout">
+        <di:waypoint x="1400" y="200"/>
+        <di:waypoint x="1450" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="paidFlow_di" bpmnElement="paidFlow">
+        <di:waypoint x="1550" y="200"/>
+        <di:waypoint x="1605" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="rejectedDoneFlow_di" bpmnElement="rejectedDoneFlow">
+        <di:waypoint x="1550" y="540"/>
+        <di:waypoint x="1630" y="540"/>
+        <di:waypoint x="1630" y="225"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toNotifyCustomer_di" bpmnElement="toNotifyCustomer">
+        <di:waypoint x="1655" y="200"/>
+        <di:waypoint x="1710" y="200"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toClaimClosed_di" bpmnElement="toClaimClosed">
+        <di:waypoint x="1810" y="200"/>
+        <di:waypoint x="1862" y="200"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -39,6 +39,9 @@ To log out, open <http://localhost:8080/logout>.
 
 Registered on startup from `src/main/resources/process-definitions/`:
 
+- `claimHandling`: a larger insurance claim process with diagram (BPMN DI), shown by the UI; the service task `assessClaim` (`AssessClaim`) rejects a claim if `policyActive` is `false`.
+  Otherwise an embedded sub-process checks every entry of `documents` (parallel multi-instance script task) while, in parallel, a claim with an `amount` above 1000 waits for the user task `Review claim`, which may set `approved` to `false`.
+  An approved claim gets `payout = amount - 100`, a rejected one `0`; the service task `notifyCustomer` (`NotifyCustomer`) ends both.
 - `helloWorld`: the service task `greet` (`Greet`) sets `greeting` to `Hello, <name>!`; runs to its end.
 - `orderApproval`: the service task `checkOrder` (`CheckOrder`) sets `approvalRequired` when `amount` exceeds 100; then the user task `Approve order` waits, otherwise a script task sets `approved = true`.
 
@@ -46,6 +49,7 @@ Start one with the REST API, e.g.:
 
 ```text
 curl -u admin:admin -H "Content-Type: application/json" -d "{\"processDefinition\":\"orderApproval\",\"variables\":{\"amount\":500}}" http://localhost:8080/api/bpmn/v1/process-instances
+curl -u admin:admin -H "Content-Type: application/json" -d "{\"processDefinition\":\"claimHandling\",\"variables\":{\"amount\":2500,\"documents\":[\"invoice\",\"photo\"]}}" http://localhost:8080/api/bpmn/v1/process-instances
 ```
 
 Further BPMN files can be deployed at runtime, as `spring.bpmn.rest.deployment-enabled` is `true`:

@@ -82,7 +82,55 @@ class DemoApplicationTest {
         this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/process-definitions"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$[*].name").value(
-                        Matchers.containsInAnyOrder("helloWorld", "orderApproval")));
+                        Matchers.containsInAnyOrder("claimHandling", "helloWorld", "orderApproval")));
+    }
+
+    @Test
+    void testClaimHandlingHasDiagram() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/process-definitions/claimHandling/bpmn"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("bpmndi:BPMNDiagram")));
+    }
+
+    @Test
+    void testSmallClaimIsPaidOutAutomatically() throws Exception {
+        final String id = this.start("{\"processDefinition\":\"claimHandling\",\"variables\":"
+                + "{\"amount\":300,\"documents\":[\"invoice\",\"photo\"]}}");
+        this.awaitFinished(id);
+        this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/process-instances/" + id))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.expertReviewRequired").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.checkedDocuments").value(
+                        Matchers.contains("invoice: checked", "photo: checked")))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.decision").value("approved"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.payout").value(200))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.customerNotified").value(true));
+    }
+
+    @Test
+    void testUncoveredClaimIsRejected() throws Exception {
+        final String id = this.start("{\"processDefinition\":\"claimHandling\",\"variables\":"
+                + "{\"amount\":5000,\"policyActive\":false}}");
+        this.awaitFinished(id);
+        this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/process-instances/" + id))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.decision").value("rejected"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.payout").value(0))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.customerNotified").value(true));
+    }
+
+    @Test
+    void testLargeClaimRejectedByExpert() throws Exception {
+        final String id = this.start("{\"processDefinition\":\"claimHandling\",\"variables\":"
+                + "{\"amount\":5000,\"documents\":[\"report\"]}}");
+        final String taskId = this.awaitUserTask(id, "Review claim");
+        this.mvc.perform(MockMvcRequestBuilders.post(BASE + "/user-tasks/" + taskId + "/complete")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"approved\":false}"))
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
+        this.awaitFinished(id);
+        this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/process-instances/" + id))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.checkedDocuments").value(
+                        Matchers.contains("report: checked")))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.decision").value("rejected"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.variables.payout").value(0));
     }
 
     @Test
@@ -105,17 +153,22 @@ class DemoApplicationTest {
     @Test
     void testLargeOrderWaitsForApproval() throws Exception {
         final String id = this.start("{\"processDefinition\":\"orderApproval\",\"variables\":{\"amount\":500}}");
+        final String taskId = this.awaitUserTask(id, "Approve order");
+        this.mvc.perform(MockMvcRequestBuilders.post(BASE + "/user-tasks/" + taskId + "/complete")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"approved\":true}"))
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
+        this.awaitFinished(id);
+    }
+
+    private String awaitUserTask(final String id, final String nodeName) throws Exception {
         Awaitility.await().atMost(Duration.ofSeconds(20)).until(() -> JsonPath.<List<?>>read(this.mvc
                 .perform(MockMvcRequestBuilders.get(BASE + "/user-tasks").param("processInstance", id))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8), "$").size() == 1);
         final String tasks = this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/user-tasks")
                 .param("processInstance", id))
-                .andExpect(MockMvcResultMatchers.jsonPath("$[0].nodeName").value("Approve order"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$[0].nodeName").value(nodeName))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        this.mvc.perform(MockMvcRequestBuilders.post(BASE + "/user-tasks/" + JsonPath.read(tasks, "$[0].id")
-                + "/complete").contentType(MediaType.APPLICATION_JSON).content("{\"approved\":true}"))
-                .andExpect(MockMvcResultMatchers.status().isNoContent());
-        this.awaitFinished(id);
+        return JsonPath.read(tasks, "$[0].id");
     }
 
     private MockMvc withoutUser() {
