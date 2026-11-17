@@ -126,6 +126,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `BpmnRestAutoConfiguration`: registers the controllers in a servlet web application with a `ProcessEngineService` and prefixes their paths with `spring.bpmn.rest.base-path`; fails the startup if Spring Security is missing, unless `spring.bpmn.rest.security.enabled=false` is set explicitly (then it logs a warning).
 - `BpmnRestExceptionHandler`: maps the exceptions of the controllers to RFC 9457 problem details (404 for unknown entities, 422 for other `ProcessEngineException`s, 400 for invalid requests).
 - `BpmnRestHttpSecurityCustomizer`: beans that adapt the chain `bpmnRestSecurityFilterChain` before it is built, e.g. to add bearer tokens.
+- `BpmnRestMdcUserFilter`: in `bpmnRestSecurityFilterChain` before the authorization, puts the name of the authenticated user into the MDC key `user` for the rest of the request.
 - `BpmnRestProperties`: the `spring.bpmn.rest.*` settings.
 - `BpmnRestSecurityConfiguration`: the replaceable chain `bpmnRestSecurityFilterChain` for `<base-path>/**` (session or HTTP Basic, one authority property per operation, CSRF for cookie sessions), ordered before the application's chains and Spring Boot's default chain.
 - `BpmnRestSecurityProblems`: answers rejected requests with `401` or `403` problem details instead of a login redirect.
