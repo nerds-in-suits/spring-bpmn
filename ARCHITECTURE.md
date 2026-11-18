@@ -53,7 +53,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 ### `de.nemeses.spring.bpmn.demo` (module `spring-bpmn-demo`)
 
-- `CheckOrder`, `Greet`: the `BpmnNodeImplementation` beans `checkOrder` and `greet` of the sample processes.
+- `AssessClaim`, `CheckOrder`, `Greet`, `NotifyCustomer`: the `BpmnNodeImplementation` beans `assessClaim`, `checkOrder`, `greet` and `notifyCustomer` of the sample processes.
 - `DemoApplication`: the `@SpringBootApplication` main class; imports `TaskConfiguration`.
 - `DemoUsers`: the in-memory users `viewer` (read only) and `admin` (all authorities) of the REST API and the UI.
 - `UiUrlLogger`: logs the UI and REST URLs once the web server listens.
