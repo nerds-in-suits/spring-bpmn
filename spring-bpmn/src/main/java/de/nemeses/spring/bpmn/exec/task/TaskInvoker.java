@@ -3,8 +3,6 @@ package de.nemeses.spring.bpmn.exec.task;
 import java.util.Collection;
 import java.util.Map;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
@@ -17,7 +15,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.Task;
  * condition; then completes the step and takes the outgoing flows like for every activity
  * ({@link FlowSelector#activity}).
  */
-@Component
 class TaskInvoker implements Invoker<Task> {
 
     private final TaskRunner runner;

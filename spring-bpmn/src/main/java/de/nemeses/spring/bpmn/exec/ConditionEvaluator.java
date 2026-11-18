@@ -11,7 +11,6 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.DataBindingPropertyAccessor;
 import org.springframework.expression.spel.support.MapAccessor;
 import org.springframework.expression.spel.support.SimpleEvaluationContext;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.model.bpmn20.Expression;
 import de.nemeses.spring.bpmn.model.bpmn20.FormalExpression;
@@ -31,7 +30,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
  * getters or map keys. The evaluation context is a read-only {@link SimpleEvaluationContext}: no assignment, type
  * references, constructors, bean references or method calls. The result must be a {@link Boolean}.
  */
-@Component
 public class ConditionEvaluator {
 
     /** Expression language URI selecting Spring SpEL for conditions. */

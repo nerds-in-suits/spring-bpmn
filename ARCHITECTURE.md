@@ -47,7 +47,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 - `BpmnParser`: unmarshals and schema-validates BPMN documents into the generated JAXB model (`BpmnParseException`).
 - `ConfiguredLocationsProcessDefinitionSource`: the default `ProcessDefinitionSource`, reading `spring.bpmn.process-definition-locations`.
-- `ProcessDefinitionAutoConfiguration`: component-scans the package and `exec` with its invoker sub-packages, but not the sub-packages of other modules (`repository.jpa`, `rest`); needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
+- `ProcessDefinitionAutoConfiguration`: registers the beans of the package and `exec` with its invoker sub-packages explicitly (`@Bean` methods of one configuration class per package, no component scan), so beans of other modules (`repository.jpa`, `rest`, `ui`) are never picked up; needs a `ProcessDefinitionService`, `ProcessInstanceRepository`, `ProcessStepRepository` and `TaskService` bean.
 - `ProcessDefinitionRegistrar`: registers every `process` of every `ProcessDefinitionSource` document on startup, skipping unchanged ones.
 - `ProcessDefinitionSource`: contributes BPMN documents to register.
 
@@ -182,7 +182,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 ## Extension points
 
-- New BPMN element: an `Invoker` bean for its node type in a sub-package of `de.nemeses.spring.bpmn.exec`, plus its line in `docs/bpmn-support.md`.
+- New BPMN element: an `Invoker` bean for its node type in a sub-package of `de.nemeses.spring.bpmn.exec`, registered by a `@Bean` method in the configuration class of that package (see `ProcessDefinitionAutoConfiguration`), plus its line in `docs/bpmn-support.md`.
 - New repository backend: new module `spring-bpmn-repository-<name>` implementing the repository interfaces, registered by auto-configuration.
 - New task backend: new module `spring-tasks-<name>` providing a `TaskPersistence` bean via auto-configuration (`@ConditionalOnMissingBean(TaskPersistence.class)`).
 - New task type: a Spring bean implementing `TaskImplementation`, referenced by bean name.

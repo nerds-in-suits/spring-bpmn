@@ -1,7 +1,5 @@
 package de.nemeses.spring.bpmn.exec.loop;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
@@ -15,7 +13,6 @@ import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
  * Enhances the invoker of every activity type with a {@link MultiInstanceLoop}, which runs the activities with
  * {@code multiInstanceLoopCharacteristics} once per instance and passes all other activities on unchanged.
  */
-@Component
 class MultiInstanceLoopEnhancer implements InvokerEnhancer {
 
     private final ProcessInstanceRepository instances;

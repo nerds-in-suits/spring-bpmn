@@ -3,8 +3,6 @@ package de.nemeses.spring.bpmn.exec.task;
 import java.util.Collection;
 import java.util.Map;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.exec.BpmnNodeContext;
 import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
 import de.nemeses.spring.bpmn.exec.BpmnNodeImplementation;
@@ -22,7 +20,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.ServiceTask;
  * takes the outgoing flows like for every activity ({@link FlowSelector#activity}), evaluating their conditions
  * against the changed variables.
  */
-@Component
 class ServiceTaskInvoker implements Invoker<ServiceTask> {
 
     private final TaskRunner runner;

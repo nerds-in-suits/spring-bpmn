@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 
+import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
+import de.nemeses.spring.bpmn.exec.Invoker;
+import de.nemeses.spring.bpmn.exec.InvokerEnhancer;
 import de.nemeses.spring.bpmn.repository.NoSuchProcessDefinitionException;
 import de.nemeses.spring.bpmn.repository.ProcessDefinition;
 import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
@@ -139,6 +143,30 @@ class ProcessDefinitionRegistrarTest {
                 .run(context -> {
                     context.getBean(ApplicationRunner.class).run(null);
                     Assertions.assertEquals(List.of("p1"), this.service.all.stream().map(ProcessDefinition::name).toList());
+                });
+    }
+
+    @Test
+    void autoConfigurationRegistersEngineBeansUnderTheirNames() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(ProcessDefinitionAutoConfiguration.class))
+                .withUserConfiguration(TaskConfiguration.class)
+                .withBean(ProcessDefinitionService.class, () -> this.service)
+                .withBean(ProcessInstanceRepository.class, InMemoryProcessInstanceRepository::new)
+                .withBean(ProcessStepRepository.class,
+                        () -> new InMemoryProcessStepRepository(new InMemoryProcessInstanceRepository()))
+                .withBean(TaskPersistence.class, RecordingTaskPersistence::new)
+                .run(context -> {
+                    Assertions.assertInstanceOf(BpmnNodeExecutor.class, context.getBean(BpmnNodeExecutor.BEAN_NAME));
+                    Assertions.assertEquals(Set.of("callActivityInvoker", "endEventInvoker", "exclusiveGatewayInvoker",
+                            "manualTaskInvoker", "parallelGatewayInvoker", "scriptTaskInvoker", "serviceTaskInvoker",
+                            "startEventInvoker", "subProcessInvoker", "taskInvoker", "userTaskInvoker"),
+                            Set.of(context.getBeanNamesForType(Invoker.class)));
+                    Assertions.assertEquals(Set.of("multiInstanceLoopEnhancer"),
+                            Set.of(context.getBeanNamesForType(InvokerEnhancer.class)));
+                    Assertions.assertTrue(context.containsBean("bpmnParser"));
+                    Assertions.assertTrue(context.containsBean("processDefinitionRegistrar"));
+                    Assertions.assertTrue(context.containsBean("processEngineService"));
                 });
     }
 

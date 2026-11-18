@@ -9,7 +9,6 @@ import javax.xml.namespace.QName;
 
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
@@ -42,7 +41,6 @@ import de.nemeses.spring.tasks.TaskException;
  * process instance under {@value #MDC_PROCESS_INSTANCE_ID} and its own id under {@value #MDC_STEP_ID}; afterwards both
  * keys are removed, also if the step fails.
  */
-@Component(BpmnNodeExecutor.BEAN_NAME)
 public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
 
     /** Bean name under which the task is scheduled with the {@code TaskService}; persisted tasks refer to it. */

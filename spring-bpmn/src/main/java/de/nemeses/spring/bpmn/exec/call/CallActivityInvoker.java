@@ -10,7 +10,6 @@ import java.util.Optional;
 import javax.xml.namespace.QName;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 import org.w3c.dom.Element;
 
 import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
@@ -52,7 +51,6 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * Not handled yet: a child that fails or never ends leaves the parent waiting, and ending a parent does not end its
  * children.
  */
-@Component
 class CallActivityInvoker implements Invoker<CallActivity> {
 
     /** Extension element mapping a parent variable to a variable of the called instance. */

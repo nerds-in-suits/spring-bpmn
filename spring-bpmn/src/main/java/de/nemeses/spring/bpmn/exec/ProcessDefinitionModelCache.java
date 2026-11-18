@@ -7,8 +7,6 @@ import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.BpmnParseException;
 import de.nemeses.spring.bpmn.BpmnParser;
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
@@ -25,7 +23,6 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinition;
  * may drop them under memory pressure; a dropped document is parsed again on its next use. Parse errors are not
  * cached. The cached model is shared between threads and must be treated as read-only.
  */
-@Component
 public class ProcessDefinitionModelCache {
 
     private final BpmnParser parser;

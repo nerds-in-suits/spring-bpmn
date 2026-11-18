@@ -5,8 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.FlowNode;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
@@ -22,7 +20,6 @@ import de.nemeses.spring.tasks.TaskService;
  * {@link InvokerEnhancer} beans in turn. Used by the {@link BpmnNodeExecutor}, the {@link ProcessEngineService} and
  * {@link NodeTrigger#trigger(String, String, UUID)}, so invokers trigger other nodes without depending on this bean.
  */
-@Component
 class InvokerRegistry {
 
     private final ProcessInstanceRepository instanceRepository;

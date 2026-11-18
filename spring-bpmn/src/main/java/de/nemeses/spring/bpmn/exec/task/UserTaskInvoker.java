@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
@@ -34,7 +33,6 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * <p>
  * Loop characteristics fail when the user task is reached, which fails the triggering step (#100).
  */
-@Component
 class UserTaskInvoker implements Invoker<UserTask> {
 
     private final ProcessInstanceRepository instances;

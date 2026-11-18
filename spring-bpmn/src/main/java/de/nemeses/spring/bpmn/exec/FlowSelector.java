@@ -5,8 +5,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
 import de.nemeses.spring.bpmn.model.bpmn20.ExclusiveGateway;
 import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
@@ -15,7 +13,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
  * Selects the outgoing sequence flows of a node to take, evaluating their conditions with the
  * {@link ConditionEvaluator}.
  */
-@Component
 public class FlowSelector {
 
     private final ConditionEvaluator conditions;

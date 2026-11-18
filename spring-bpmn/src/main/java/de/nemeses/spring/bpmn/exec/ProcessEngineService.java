@@ -9,7 +9,6 @@ import java.util.UUID;
 
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import de.nemeses.spring.bpmn.ProcessDefinitionRegistrar;
@@ -45,7 +44,6 @@ import jakarta.xml.bind.JAXBElement;
  * The {@link InvokerRegistry} is looked up when an instance is started and the {@link BpmnNodeExecutor} when a user
  * task is completed, because the invoker of {@code callActivity} depends on this service.
  */
-@Component
 public class ProcessEngineService {
 
     private final ProcessDefinitionService definitions;

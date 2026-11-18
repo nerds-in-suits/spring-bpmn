@@ -5,7 +5,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.model.bpmn20.FlowElement;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
@@ -28,7 +27,6 @@ import de.nemeses.spring.tasks.TaskService;
  * steps of its own scope ({@link #inSameScope}). Like a task without outgoing flow, a top-level sub-process without
  * outgoing flow does not end the instance; only a top-level end event does.
  */
-@Component
 class SubProcessScopes {
 
     private final ProcessStepRepository steps;

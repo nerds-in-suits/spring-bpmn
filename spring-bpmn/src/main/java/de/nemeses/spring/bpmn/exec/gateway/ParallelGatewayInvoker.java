@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
@@ -26,7 +25,6 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * task delivered again, or a set already joined by another step), the step stays pending and no flow is taken. The
  * outgoing flows must not have a condition.
  */
-@Component
 class ParallelGatewayInvoker implements Invoker<ParallelGateway> {
 
     @Override

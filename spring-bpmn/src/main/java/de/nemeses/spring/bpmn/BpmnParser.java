@@ -7,7 +7,6 @@ import javax.xml.XMLConstants;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
-import org.springframework.stereotype.Component;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
@@ -23,7 +22,6 @@ import jakarta.xml.bind.Unmarshaller;
  * loaded once per parser. Extension attributes
  * and elements in other namespaces (such as {@code spring:bean}) are allowed by the schema.
  */
-@Component
 public class BpmnParser {
 
     private static final String CONTEXT_PATH = "de.nemeses.spring.bpmn.model.bpmn20"

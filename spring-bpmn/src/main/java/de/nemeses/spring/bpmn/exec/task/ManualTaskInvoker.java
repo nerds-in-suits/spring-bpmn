@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.Map;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
@@ -19,7 +18,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
  * evaluating the loop condition; then it completes the step and takes the outgoing flows like for every activity
  * ({@link FlowSelector#activity}). Passing the task is logged on info level.
  */
-@Component
 class ManualTaskInvoker implements Invoker<ManualTask> {
 
     private final TaskRunner runner;

@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.Resource;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.model.bpmn20.Definitions;
 import de.nemeses.spring.bpmn.model.bpmn20.Process;
@@ -26,7 +25,6 @@ import jakarta.xml.bind.JAXBElement;
  * {@code name} (or its {@code id} if it has no name); the whole document is stored as XML. A process is skipped if
  * the latest registered version has the same MD5 hash.
  */
-@Component
 public class ProcessDefinitionRegistrar implements ApplicationRunner {
 
     private final BpmnParser parser;

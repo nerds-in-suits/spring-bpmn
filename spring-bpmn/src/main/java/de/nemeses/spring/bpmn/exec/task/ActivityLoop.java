@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
@@ -28,7 +27,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.StandardLoopCharacteristics;
  * An activity with {@code multiInstanceLoopCharacteristics} runs once per call: the multi-instance loop wraps the
  * invoker ({@code exec.loop.MultiInstanceLoop}) and executes it once per instance, each in a step of its own.
  */
-@Component
 class ActivityLoop {
 
     /** Name of the variable holding the number of completed iterations in a {@code loopCondition}. */

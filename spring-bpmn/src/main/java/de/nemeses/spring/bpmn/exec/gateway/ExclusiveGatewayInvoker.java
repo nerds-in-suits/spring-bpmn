@@ -3,8 +3,6 @@ package de.nemeses.spring.bpmn.exec.gateway;
 import java.util.Collection;
 import java.util.List;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.exec.FlowSelector;
 import de.nemeses.spring.bpmn.exec.Invoker;
 import de.nemeses.spring.bpmn.exec.NodeExecution;
@@ -17,7 +15,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.SequenceFlow;
  * order) without condition or whose condition is true, else the {@code default} flow ({@link FlowSelector#exclusive});
  * fails if there is none.
  */
-@Component
 class ExclusiveGatewayInvoker implements Invoker<ExclusiveGateway> {
 
     private final FlowSelector flows;

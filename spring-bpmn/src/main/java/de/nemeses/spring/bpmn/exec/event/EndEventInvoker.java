@@ -5,7 +5,6 @@ import java.util.Date;
 import java.util.List;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
 import de.nemeses.spring.bpmn.exec.Invoker;
@@ -27,7 +26,6 @@ import de.nemeses.spring.tasks.TaskService;
  * step runs in its own task, which locks the parent instance. Inside a sub-process the end event only completes its
  * step.
  */
-@Component
 class EndEventInvoker implements Invoker<EndEvent> {
 
     private final ProcessInstanceRepository instances;

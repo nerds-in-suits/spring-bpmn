@@ -22,7 +22,6 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.DataBindingPropertyAccessor;
 import org.springframework.expression.spel.support.MapAccessor;
 import org.springframework.expression.spel.support.SimpleEvaluationContext;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.BpmnNodeContext;
 import de.nemeses.spring.bpmn.exec.ConditionEvaluator;
@@ -47,7 +46,6 @@ import de.nemeses.spring.bpmn.model.bpmn20.ScriptTask;
  * {@code order.items = 1}), assigning {@code null} and removing variables are not supported. The evaluation context is
  * a {@link SimpleEvaluationContext}: no type references, constructors, bean references or method calls.
  */
-@Component
 class SpelScriptRunner {
 
     private static final char SEPARATOR = ';';

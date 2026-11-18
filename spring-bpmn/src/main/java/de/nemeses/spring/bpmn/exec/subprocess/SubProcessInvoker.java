@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.List;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import de.nemeses.spring.bpmn.exec.BpmnNodeExecutor;
 import de.nemeses.spring.bpmn.exec.FlowSelector;
@@ -30,7 +29,6 @@ import jakarta.xml.bind.JAXBElement;
  * characteristics are not supported and fail when the sub-process is reached (transactions and ad-hoc sub-processes
  * are other node types).
  */
-@Component
 class SubProcessInvoker implements Invoker<SubProcess> {
 
     private final ProcessStepRepository steps;

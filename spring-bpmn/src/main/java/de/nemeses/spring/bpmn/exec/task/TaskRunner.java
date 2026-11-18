@@ -2,8 +2,6 @@ package de.nemeses.spring.bpmn.exec.task;
 
 import java.util.Map;
 
-import org.springframework.stereotype.Component;
-
 import de.nemeses.spring.bpmn.exec.NodeExecution;
 import de.nemeses.spring.bpmn.exec.ProcessEngineException;
 import de.nemeses.spring.bpmn.model.bpmn20.Activity;
@@ -17,7 +15,6 @@ import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
  * changed through its {@link NodeContext} ({@link ProcessInstanceRepository#updateVariables}, once after the last
  * iteration and only if something changed).
  */
-@Component
 class TaskRunner {
 
     private final ProcessInstanceRepository instances;
