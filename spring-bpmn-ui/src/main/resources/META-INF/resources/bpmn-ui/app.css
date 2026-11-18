@@ -213,3 +213,37 @@ dialog .buttons {
   gap: 8px;
   justify-content: flex-end;
 }
+
+.variables input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: monospace;
+}
+
+.variables input[readonly] {
+  border: 0;
+  background: none;
+}
+
+.icon {
+  padding: 0 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f2f4f7;
+  cursor: pointer;
+}
+
+.icon.remove {
+  color: #842029;
+}
+
+.icon.add {
+  color: #1f7a3a;
+  font-weight: bold;
+}
+
+.variables .buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

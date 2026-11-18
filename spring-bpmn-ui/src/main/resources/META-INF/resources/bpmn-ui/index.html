@@ -170,10 +170,55 @@
             <template x-if="instance.parentInstanceId">
               <dd><a :href="instanceLink(instance.parentInstanceId)" x-text="instance.parentInstanceId"></a></dd>
             </template>
-            <dt>Variables</dt>
-            <dd><pre x-text="formatJson(instance.variables)"></pre></dd>
           </dl>
         </div>
+      </template>
+      <!-- variables: values as JSON, text that is not JSON is a string; edits of a running instance in one PATCH -->
+      <template x-if="instance">
+        <form class="variables" @submit.prevent="saveVariables()">
+          <h2>Variables</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th><th>Value</th>
+                <th class="action" x-show="instance.state === 'running'"><span class="visually-hidden">Remove</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(row, index) in variables.rows" :key="row.key">
+                <tr>
+                  <td>
+                    <input type="text" x-model="row.name" aria-label="Name" spellcheck="false"
+                      :readonly="instance.state !== 'running'">
+                  </td>
+                  <td>
+                    <input type="text" x-model="row.value" aria-label="Value" spellcheck="false"
+                      :readonly="instance.state !== 'running'">
+                  </td>
+                  <td class="action" x-show="instance.state === 'running'">
+                    <button type="button" class="icon remove" @click="removeVariable(index)"
+                      :title="'Remove ' + row.name" :aria-label="'Remove ' + row.name">&#128465;</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="variables.rows.length === 0"><td colspan="3">No variables.</td></tr>
+              <tr x-show="instance.state === 'running'">
+                <td colspan="2"></td>
+                <td class="action">
+                  <button type="button" class="icon add" @click="addVariable()" title="Add a variable"
+                    aria-label="Add a variable">+</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="success" x-show="variables.message" x-text="variables.message"></p>
+          <p class="error" x-show="variables.error" x-text="variables.error"></p>
+          <p class="buttons" x-show="instance.state === 'running'">
+            <button type="button" :disabled="variables.busy"
+              @click="resetVariables(instance.variables)">Reset</button>
+            <button type="submit" :disabled="variables.busy">Save</button>
+          </p>
+        </form>
       </template>
       <h2>Steps</h2>
       <form class="filters" @submit.prevent>
