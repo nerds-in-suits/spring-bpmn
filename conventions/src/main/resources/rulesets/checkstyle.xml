@@ -126,7 +126,10 @@
         <module name="VisibilityModifier"/>
         <module name="FinalClass"/>
         <module name="InterfaceIsType"/>
-        <module name="HideUtilityClassConstructor"/>
+        <!-- a Spring Boot application class has only a static main, but Spring instantiates it as a configuration bean -->
+        <module name="HideUtilityClassConstructor">
+            <property name="ignoreAnnotatedBy" value="SpringBootApplication, org.springframework.boot.autoconfigure.SpringBootApplication"/>
+        </module>
         <!--
         pohl: I think this rule is questionable...
         <module name="DesignForExtension"/>
@@ -400,7 +403,10 @@
             <property name="format" value="(TODO)|(HACK)|(NOPMD)|(FIXME)"/>
         </module>-->
         <!-- see above <module name="Translation"/>-->
-        <module name="UncommentedMain"/>
+        <!-- the main method of a Spring Boot application class (package.NameApplication) is the entry point of the jar -->
+        <module name="UncommentedMain">
+            <property name="excludedClasses" value="\.\w+Application$"/>
+        </module>
         <module name="UpperEll"/>
         <module name="ArrayTypeStyle"/>
         <module name="FinalParameters"/>

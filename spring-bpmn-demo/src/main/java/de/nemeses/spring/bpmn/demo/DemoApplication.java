@@ -18,7 +18,6 @@ import de.nemeses.spring.tasks.TaskConfiguration;
  */
 @SpringBootApplication
 @Import(TaskConfiguration.class)
-@SuppressWarnings("checkstyle:HideUtilityClassConstructor") // a configuration class, instantiated by Spring
 public class DemoApplication {
 
     /**
@@ -26,7 +25,6 @@ public class DemoApplication {
      *
      * @param args the command line arguments, e.g. {@code --server.port=9090}
      */
-    @SuppressWarnings("checkstyle:UncommentedMain")
     public static void main(final String[] args) {
         SpringApplication.run(DemoApplication.class, args);
     }
