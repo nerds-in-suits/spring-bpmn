@@ -29,7 +29,16 @@
 
     <!-- process definitions -->
     <section x-show="route.page === 'definitions'">
-      <h1>Process definitions</h1>
+      <div class="heading">
+        <h1>Process definitions</h1>
+        <!-- upload a BPMN document; the hidden file input is opened by the button -->
+        <button type="button" class="upload" x-show="deploymentEnabled" :disabled="upload.busy"
+          @click="$refs.uploadFile.click()" title="Upload a BPMN document">Upload</button>
+        <input type="file" id="upload-file" x-ref="uploadFile" hidden
+          accept=".bpmn,.xml,application/xml,text/xml" @change="uploadDefinition($event.target)">
+      </div>
+      <p class="success" x-show="upload.message" x-text="upload.message"></p>
+      <p class="error" x-show="upload.error" x-text="upload.error"></p>
       <table>
         <thead>
           <tr>

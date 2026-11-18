@@ -117,6 +117,26 @@ th .sort:hover {
   color: #842029;
 }
 
+.success {
+  padding: 8px;
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.upload {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f2f4f7;
+  cursor: pointer;
+}
+
 .pager {
   display: flex;
   gap: 12px;

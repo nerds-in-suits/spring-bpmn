@@ -13,9 +13,11 @@ import jakarta.servlet.http.HttpServletRequest;
  * {@code spring.bpmn.rest.base-path} and the servlet context path:
  * <pre>
  * { "apiBasePath": "&lt;context path&gt;&lt;spring.bpmn.rest.base-path&gt;",
+ *   "deploymentEnabled": &lt;spring.bpmn.rest.deployment-enabled&gt;,
  *   "logoutPath": "&lt;context path&gt;&lt;spring.bpmn.ui.logout-path&gt;" }
  * </pre>
- * The pages send all REST requests to {@code apiBasePath}; the UI has no other server-side endpoint.
+ * The pages send all REST requests to {@code apiBasePath}; the UI has no other server-side endpoint. They offer the
+ * upload of BPMN documents ({@code POST /process-definitions}) only if {@code deploymentEnabled} is {@code true}.
  * The header of the pages links to {@code logoutPath}; it is empty, and the link hidden, if
  * {@code spring.bpmn.ui.logout-path} is empty.
  */
@@ -32,9 +34,11 @@ class BpmnUiConfigController {
     }
 
     @GetMapping(BpmnUiAutoConfiguration.PATH + "/config.json")
-    Map<String, String> config(final HttpServletRequest request) {
+    Map<String, Object> config(final HttpServletRequest request) {
         final String logoutPath = this.uiProperties.logoutPath();
-        return Map.of("apiBasePath", request.getContextPath() + this.properties.basePath(),
+        return Map.of(
+                "apiBasePath", request.getContextPath() + this.properties.basePath(),
+                "deploymentEnabled", this.properties.deploymentEnabled(),
                 "logoutPath", logoutPath.isEmpty() ? "" : request.getContextPath() + logoutPath);
     }
 }
