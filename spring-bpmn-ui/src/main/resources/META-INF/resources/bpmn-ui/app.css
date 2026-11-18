@@ -30,6 +30,12 @@ header nav a.active {
   font-weight: bold;
 }
 
+/* the logout link sits at the right end of the header */
+header a.logout {
+  margin-left: auto;
+  color: #cfd8e3;
+}
+
 main {
   padding: 0 16px 16px;
 }

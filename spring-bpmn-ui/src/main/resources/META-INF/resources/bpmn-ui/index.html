@@ -21,6 +21,7 @@
       <a href="#/instances" :class="{ active: route.page !== 'definitions' }">Process instances</a>
     </nav>
     <span class="loading" x-show="loading">Loading&hellip;</span>
+    <a class="logout" :href="logoutPath" x-show="logoutPath">Log out</a>
   </header>
 
   <main>

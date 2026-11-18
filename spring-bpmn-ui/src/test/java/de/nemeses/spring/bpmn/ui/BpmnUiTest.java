@@ -134,6 +134,26 @@ class BpmnUiTest {
     void testConfigHasContextPath() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/app/bpmn-ui/config.json").contextPath("/app"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.apiBasePath").value("/app/bpmn"));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.apiBasePath").value("/app/bpmn"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.logoutPath").value("/app/logout"));
+    }
+
+    @Test
+    void testConfigHasDefaultLogoutPath() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/config.json"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.logoutPath").value("/logout"));
+    }
+
+    @Test
+    void testEntryPageHasLogoutLink() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "<a class=\"logout\" :href=\"logoutPath\" x-show=\"logoutPath\">")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("this.logoutPath = config.logoutPath || '';")));
     }
 }

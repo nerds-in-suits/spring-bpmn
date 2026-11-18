@@ -3,6 +3,7 @@ package de.nemeses.spring.bpmn.ui;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -21,10 +22,12 @@ import de.nemeses.spring.bpmn.rest.BpmnRestProperties;
  * {@link BpmnUiConfigController}, which tells the pages where the REST API is. The UI is not
  * secured by this module: the application's login (or Spring Boot's default one) protects {@code /bpmn-ui/}, and the
  * REST API of {@code spring-bpmn-rest} accepts that session.
+ * The header links to the application's logout ({@link BpmnUiProperties#logoutPath()}).
  */
 @AutoConfiguration(after = BpmnRestAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnBean(BpmnRestProperties.class)
+@EnableConfigurationProperties(BpmnUiProperties.class)
 @Import(BpmnUiConfigController.class)
 public class BpmnUiAutoConfiguration implements WebMvcConfigurer {
 
