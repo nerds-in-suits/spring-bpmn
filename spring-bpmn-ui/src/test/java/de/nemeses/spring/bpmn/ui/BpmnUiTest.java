@@ -124,19 +124,38 @@ class BpmnUiTest {
     }
 
     @Test
-    void testServesBpmnJsViewerWebJar() throws Exception {
+    void testServesBpmnJsNavigatedViewerWebJar() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
                 .andExpect(MockMvcResultMatchers.content().string(
-                        Matchers.containsString("../webjars/bpmn-js/dist/bpmn-viewer.production.min.js")))
+                        Matchers.containsString("../webjars/bpmn-js/dist/bpmn-navigated-viewer.production.min.js")))
                 .andExpect(MockMvcResultMatchers.content().string(
                         Matchers.containsString("../webjars/bpmn-js/dist/assets/bpmn-js.css")));
-        this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/bpmn-viewer.production.min.js"))
+        this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/bpmn-navigated-viewer.production.min.js"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("BpmnJS")));
         this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/assets/diagram-js.css"))
                 .andExpect(MockMvcResultMatchers.status().isOk());
         this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/assets/bpmn-js.css"))
                 .andExpect(MockMvcResultMatchers.status().isOk());
+    }
+
+    @Test
+    void testEntryPageCanZoomAndFitDiagram() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("@click=\"zoomDiagram(1)\"")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("@click=\"zoomDiagram(-1)\"")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("@click=\"fitDiagram()\"")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("fitDiagram() {")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("viewer.get('zoomScroll').stepZoom(direction)")));
+        // the navigated viewer has the wheel scroll and zoom (ZoomScroll) that the zoom buttons use
+        this.mvc.perform(MockMvcRequestBuilders.get("/webjars/bpmn-js/dist/bpmn-navigated-viewer.production.min.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("zoomScroll")));
     }
 
     @Test

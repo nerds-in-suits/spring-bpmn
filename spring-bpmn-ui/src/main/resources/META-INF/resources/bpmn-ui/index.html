@@ -24,8 +24,8 @@
       }
     }
   </script>
-  <!-- bpmn-js viewer (bpmn.io license: its watermark must stay visible) -->
-  <script defer src="../webjars/bpmn-js/dist/bpmn-viewer.production.min.js"></script>
+  <!-- bpmn-js navigated viewer: wheel scroll, Ctrl+wheel zoom, drag (bpmn.io license: watermark stays visible) -->
+  <script defer src="../webjars/bpmn-js/dist/bpmn-navigated-viewer.production.min.js"></script>
   <!-- app.js registers the component on alpine:init, so it is loaded before Alpine -->
   <script defer src="app.js"></script>
   <script defer src="../webjars/alpinejs/dist/cdn.min.js"></script>
@@ -161,8 +161,18 @@
     <!-- process instance detail -->
     <section x-show="route.page === 'instance'">
       <h1>Process instance <span x-text="route.id"></span></h1>
-      <!-- bpmn-js renders into this element; Alpine only shows or hides it -->
-      <div class="diagram" x-ref="diagram" x-show="diagram.shown"></div>
+      <!-- bpmn-js renders into the element diagram; Alpine only shows or hides the pane -->
+      <div class="diagram-pane" x-show="diagram.shown">
+        <div class="diagram" x-ref="diagram"></div>
+        <div class="diagram-tools">
+          <button type="button" class="icon" @click="zoomDiagram(1)" title="Zoom in (Ctrl + mouse wheel)"
+            aria-label="Zoom in">+</button>
+          <button type="button" class="icon" @click="zoomDiagram(-1)" title="Zoom out (Ctrl + mouse wheel)"
+            aria-label="Zoom out">&minus;</button>
+          <button type="button" class="icon" @click="fitDiagram()" title="Fit and centre the diagram"
+            aria-label="Fit and centre the diagram">&#x2922;</button>
+        </div>
+      </div>
       <p x-show="diagram.shown">
         Nodes with steps: <span class="state finished">finished</span> <span class="state running">running</span>
       </p>

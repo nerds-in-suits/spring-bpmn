@@ -157,10 +157,30 @@ pre {
   margin: 0;
 }
 
+/* the zoom and fit buttons float over the top right corner of the diagram */
+.diagram-pane {
+  position: relative;
+  margin-bottom: 8px;
+}
+
 .diagram {
   height: 360px;
-  margin-bottom: 8px;
+  overflow: hidden;
   border: 1px solid #ddd;
+}
+
+.diagram-tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.diagram-tools .icon {
+  min-width: 28px;
+  height: 28px;
+  font-size: 16px;
 }
 
 .diagram .step-finished:not(.djs-connection) .djs-visual > :nth-child(1) {

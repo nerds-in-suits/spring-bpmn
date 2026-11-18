@@ -12,7 +12,9 @@
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
  * The header links to the logout path of config.json; an empty path hides the link.
  * The headers of the columns the API can sort by are buttons that sort by them (see sortBy).
- * The diagram is rendered by the bpmn-js viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
+ * The diagram is rendered by the bpmn-js navigated viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
+ * In the diagram the mouse wheel scrolls (Shift+wheel horizontally), Ctrl+wheel zooms and dragging moves it;
+ * the buttons over the diagram zoom in and out and fit it into the pane (see zoomDiagram and fitDiagram).
  * A document without diagram interchange (BPMN DI) is laid out by bpmn-auto-layout (import map of index.html).
  */
 document.addEventListener('alpine:init', () => {
@@ -21,6 +23,8 @@ document.addEventListener('alpine:init', () => {
   let diagramOf = null;
   // the last key of a row of the variables table
   let rowKey = 0;
+  // the margin in screen pixels between the fitted diagram and the border of its pane
+  const DIAGRAM_PADDING = 24;
 
   Alpine.data('bpmnUi', () => ({
     api: null,
@@ -151,7 +155,7 @@ document.addEventListener('alpine:init', () => {
             ? 'The process definition has no diagram layout (BPMN DI); the layout was generated automatically.'
             : null;
           await this.openDiagramOf(this.instance.processDefinition);
-          viewer.get('canvas').zoom('fit-viewport', 'auto');
+          this.fitDiagram();
           diagramOf = id;
         }
         if (this.diagram.shown) {
@@ -191,6 +195,38 @@ document.addEventListener('alpine:init', () => {
       const diagram = diagrams.find((candidate) => candidate.plane && shows(candidate.plane.bpmnElement));
       if (diagram && diagram !== diagrams[0]) {
         await viewer.open(diagram);
+      }
+    },
+
+    /**
+     * Fits the whole diagram into the pane and centres it, with a margin of DIAGRAM_PADDING screen pixels so that no
+     * element touches the border; a diagram that fits at its natural size is centred without being enlarged.
+     */
+    fitDiagram() {
+      if (!viewer) {
+        return;
+      }
+      const canvas = viewer.get('canvas');
+      const { inner, outer } = canvas.viewbox();
+      if (!inner.width || !inner.height) {
+        return;
+      }
+      const scale = Math.min(1, (outer.width - 2 * DIAGRAM_PADDING) / inner.width,
+        (outer.height - 2 * DIAGRAM_PADDING) / inner.height);
+      const width = outer.width / scale;
+      const height = outer.height / scale;
+      canvas.viewbox({
+        x: inner.x + (inner.width - width) / 2,
+        y: inner.y + (inner.height - height) / 2,
+        width,
+        height,
+      });
+    },
+
+    /** Zooms the diagram one step in (direction 1) or out (direction -1) around the centre of the pane. */
+    zoomDiagram(direction) {
+      if (viewer) {
+        viewer.get('zoomScroll').stepZoom(direction);
       }
     },
 
