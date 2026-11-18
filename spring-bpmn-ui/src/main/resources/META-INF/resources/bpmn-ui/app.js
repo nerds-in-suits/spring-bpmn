@@ -7,6 +7,7 @@
  *   #/instances/{id}?state=&type=&sort=&direction=                  one instance with its diagram and steps
  *
  * The play button of a process definition asks for the variables in a dialog, starts an instance and shows it.
+ * The Upload button (only if config.json says deploymentEnabled) deploys the BPMN file chosen in the file picker.
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
  * The headers of the columns the API can sort by are buttons that sort by them (see sortBy).
  * The diagram is rendered by the bpmn-js viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
@@ -18,6 +19,7 @@ document.addEventListener('alpine:init', () => {
 
   Alpine.data('bpmnUi', () => ({
     api: null,
+    deploymentEnabled: false,
     route: { page: 'definitions', id: null, query: {} },
     loading: false,
     error: null,
@@ -28,10 +30,13 @@ document.addEventListener('alpine:init', () => {
     stepTypes: [],
     diagram: { shown: false, message: null },
     start: { definition: null, variables: '{}', error: null, busy: false },
+    upload: { message: null, error: null, busy: false },
 
     async init() {
       try {
-        this.api = (await this.get('config.json')).apiBasePath;
+        const config = await this.get('config.json');
+        this.api = config.apiBasePath;
+        this.deploymentEnabled = config.deploymentEnabled === true;
       } catch (e) {
         this.error = 'Cannot load the UI configuration: ' + e.message;
         return;
@@ -59,6 +64,7 @@ document.addEventListener('alpine:init', () => {
     async load() {
       this.route = this.parseRoute();
       this.error = null;
+      this.upload = { message: null, error: null, busy: false };
       this.loading = true;
       try {
         if (this.route.page === 'definitions') {
@@ -222,6 +228,49 @@ document.addEventListener('alpine:init', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })).json();
+    },
+
+    /** POSTs file as application/xml and returns the JSON response; rejects with the detail of a problem response. */
+    async postXml(url, file) {
+      return (await this.request(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/xml' },
+        body: file,
+      })).json();
+    },
+
+    /**
+     * Deploys the BPMN file chosen in the file input, then reloads the definitions and names the deployed ones;
+     * shows the detail of a problem response if the API rejects it (e.g. 403 if deployment is disabled).
+     */
+    async uploadDefinition(input) {
+      const file = input.files[0];
+      // reset, so choosing the same file again fires another change event
+      input.value = '';
+      if (!file) {
+        return;
+      }
+      this.upload = { message: null, error: null, busy: true };
+      try {
+        const deployed = await this.postXml(this.api + '/process-definitions', file);
+        const names = (state) => deployed.filter((definition) => definition.registered === state)
+          .map((definition) => definition.name).join(', ');
+        const changed = names(true);
+        const unchanged = names(false);
+        this.upload.message = 'Uploaded ' + file.name + '.'
+          + (changed ? ' Deployed: ' + changed + '.' : '')
+          + (unchanged ? ' Unchanged: ' + unchanged + '.' : '');
+      } catch (e) {
+        this.upload.error = 'Cannot upload ' + file.name + ': ' + e.message;
+        return;
+      } finally {
+        this.upload.busy = false;
+      }
+      try {
+        this.definitions = await this.get(this.api + '/process-definitions');
+      } catch (e) {
+        this.error = e.message;
+      }
     },
 
     /** Opens the dialog that asks for the variables to start an instance of the process definition. */
