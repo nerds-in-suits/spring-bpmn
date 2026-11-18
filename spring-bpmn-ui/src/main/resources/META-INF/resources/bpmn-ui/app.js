@@ -12,6 +12,7 @@
  * The header links to the logout path of config.json; an empty path hides the link.
  * The headers of the columns the API can sort by are buttons that sort by them (see sortBy).
  * The diagram is rendered by the bpmn-js viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
+ * A document without diagram interchange (BPMN DI) is laid out by bpmn-auto-layout (import map of index.html).
  */
 document.addEventListener('alpine:init', () => {
   // the bpmn-js viewer and the id of the instance it shows; kept out of the Alpine data, which would proxy them
@@ -114,7 +115,8 @@ document.addEventListener('alpine:init', () => {
 
     /**
      * Shows the diagram of the definition version the instance was started from (loaded once per instance) and marks
-     * the nodes of its steps. A document without diagram interchange (BPMN DI) or a failure shows a message instead.
+     * the nodes of its steps. A document without diagram interchange (BPMN DI) is laid out in the browser first (see
+     * layout) and the page says so; the stored definition is not changed. A failure shows a message instead.
      */
     async showDiagram(steps) {
       const id = this.route.id;
@@ -126,11 +128,18 @@ document.addEventListener('alpine:init', () => {
           if (!viewer) {
             viewer = new BpmnJS({ container: this.$refs.diagram });
           }
-          const xml = await this.getXml(this.api + '/process-instances/' + encodeURIComponent(id) + '/bpmn');
+          let xml = await this.getXml(this.api + '/process-instances/' + encodeURIComponent(id) + '/bpmn');
+          const generated = !this.hasDiagram(xml);
+          if (generated) {
+            xml = await this.layout(xml);
+          }
           if (this.route.id !== id) {
             return;
           }
           await viewer.importXML(xml);
+          this.diagram.message = generated
+            ? 'The process definition has no diagram layout (BPMN DI); the layout was generated automatically.'
+            : null;
           await this.openDiagramOf(this.instance.processDefinition);
           viewer.get('canvas').zoom('fit-viewport', 'auto');
           diagramOf = id;
@@ -144,13 +153,24 @@ document.addEventListener('alpine:init', () => {
         if (viewer) {
           viewer.clear();
         }
-        this.diagram = {
-          shown: false,
-          message: /no diagram to display/.test(e.message)
-            ? 'The process definition has no diagram layout (BPMN DI).'
-            : 'Cannot show the diagram: ' + e.message,
-        };
+        this.diagram = { shown: false, message: 'Cannot show the diagram: ' + e.message };
       }
+    },
+
+    /** @return whether the BPMN document xml has a diagram (bpmndi:BPMNDiagram in any namespace prefix) */
+    hasDiagram(xml) {
+      const document = new DOMParser().parseFromString(xml, 'application/xml');
+      return document.getElementsByTagNameNS('http://www.omg.org/spec/BPMN/20100524/DI', 'BPMNDiagram').length > 0;
+    },
+
+    /**
+     * Generates the diagram interchange of the BPMN document xml with bpmn-auto-layout 2.x, loaded on first use
+     * through the import map of index.html (sub-processes are drawn collapsed with a drill-down plane).
+     * @return the document with the generated diagram
+     */
+    async layout(xml) {
+      const { layoutProcess } = await import('bpmn-auto-layout');
+      return (await layoutProcess(xml)).xml;
     },
 
     /** Opens the diagram of the process named name, if the document has several diagrams. */

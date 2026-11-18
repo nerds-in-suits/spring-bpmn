@@ -123,6 +123,35 @@ class BpmnUiTest {
     }
 
     @Test
+    void testEntryPageMapsAutoLayoutModules() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("<script type=\"importmap\">")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "\"bpmn-auto-layout\": \"./vendor/bpmn-auto-layout/index.js\"")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("await import('bpmn-auto-layout')")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/vendor/bpmn-auto-layout/index.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("export { LayoutError, LayoutWarning, layoutProcess };")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/vendor/bpmn-auto-layout/LICENSE"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        // the bare specifiers imported by bpmn-auto-layout and its dependencies
+        for (final String module : new String[] {"bpmn-moddle", "min-dash", "moddle", "moddle-xml", "saxen"}) {
+            this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                    .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                            "\"" + module + "\": \"../webjars/" + module + "/dist/index.js\"")));
+            this.mvc.perform(MockMvcRequestBuilders.get("/webjars/" + module + "/dist/index.js"))
+                    .andExpect(MockMvcResultMatchers.status().isOk())
+                    .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("export ")));
+        }
+    }
+
+    @Test
     void testConfigHasBasePath() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/config.json"))
                 .andExpect(MockMvcResultMatchers.status().isOk())

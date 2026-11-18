@@ -138,7 +138,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 ### `de.nemeses.spring.bpmn.ui` (module `spring-bpmn-ui`)
 
-- `BpmnUiAutoConfiguration`: in a servlet web application with the REST API, redirects `/bpmn-ui` to `/bpmn-ui/` and forwards that to the static `index.html` of `META-INF/resources/bpmn-ui/` (Alpine.js and the bpmn-js viewer from their WebJars, hash routes, no Node build).
+- `BpmnUiAutoConfiguration`: in a servlet web application with the REST API, redirects `/bpmn-ui` to `/bpmn-ui/` and forwards that to the static `index.html` of `META-INF/resources/bpmn-ui/` (Alpine.js and the bpmn-js viewer from their WebJars, hash routes, no Node build); documents without BPMN DI are laid out in the browser by the vendored bpmn-auto-layout 2.x.
 - `BpmnUiConfigController`: `GET /bpmn-ui/config.json`; tells the pages the REST base path (servlet context path plus `spring.bpmn.rest.base-path`) and whether deployment is enabled (`spring.bpmn.rest.deployment-enabled`).
 - `BpmnUiProperties`: the `spring.bpmn.ui.*` settings; `config.json` passes the logout path to the pages, which link it in the header.
 

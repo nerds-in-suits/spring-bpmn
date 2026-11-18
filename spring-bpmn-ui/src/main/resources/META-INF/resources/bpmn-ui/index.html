@@ -7,6 +7,23 @@
   <link rel="stylesheet" href="../webjars/bpmn-js/dist/assets/diagram-js.css">
   <link rel="stylesheet" href="../webjars/bpmn-js/dist/assets/bpmn-js.css">
   <link rel="stylesheet" href="app.css">
+  <!--
+    ES modules that app.js imports lazily to lay out a document without diagram interchange (BPMN DI):
+    bpmn-auto-layout 2.0.0-alpha.2 (MIT, vendor/bpmn-auto-layout/LICENSE) is vendored, as no WebJar of 2.x exists;
+    its npm dependencies come from their WebJars. The import map must precede any module loading.
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "bpmn-auto-layout": "./vendor/bpmn-auto-layout/index.js",
+        "bpmn-moddle": "../webjars/bpmn-moddle/dist/index.js",
+        "min-dash": "../webjars/min-dash/dist/index.js",
+        "moddle": "../webjars/moddle/dist/index.js",
+        "moddle-xml": "../webjars/moddle-xml/dist/index.js",
+        "saxen": "../webjars/saxen/dist/index.js"
+      }
+    }
+  </script>
   <!-- bpmn-js viewer (bpmn.io license: its watermark must stay visible) -->
   <script defer src="../webjars/bpmn-js/dist/bpmn-viewer.production.min.js"></script>
   <!-- app.js registers the component on alpine:init, so it is loaded before Alpine -->
