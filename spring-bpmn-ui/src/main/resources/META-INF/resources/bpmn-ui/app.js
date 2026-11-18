@@ -8,6 +8,7 @@
  *
  * The play button of a process definition asks for the variables in a dialog, starts an instance and shows it.
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
+ * The header links to the logout path of config.json; an empty path hides the link.
  * The headers of the columns the API can sort by are buttons that sort by them (see sortBy).
  * The diagram is rendered by the bpmn-js viewer (global BpmnJS), which keeps the bpmn.io watermark visible.
  */
@@ -18,6 +19,8 @@ document.addEventListener('alpine:init', () => {
 
   Alpine.data('bpmnUi', () => ({
     api: null,
+    // the logout link of the header; empty hides it
+    logoutPath: '',
     route: { page: 'definitions', id: null, query: {} },
     loading: false,
     error: null,
@@ -31,7 +34,9 @@ document.addEventListener('alpine:init', () => {
 
     async init() {
       try {
-        this.api = (await this.get('config.json')).apiBasePath;
+        const config = await this.get('config.json');
+        this.api = config.apiBasePath;
+        this.logoutPath = config.logoutPath || '';
       } catch (e) {
         this.error = 'Cannot load the UI configuration: ' + e.message;
         return;
