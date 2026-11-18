@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{status}} {{reason}} - BPMN</title>
+  <link rel="stylesheet" href="{{contextPath}}/bpmn-ui/app.css">
+</head>
+<body>
+  <!-- error page of the UI, rendered by BpmnUiErrorViewResolver; the header matches index.html -->
+  <header>
+    <strong>BPMN</strong>
+    <nav>
+      <a href="{{contextPath}}/bpmn-ui/#/definitions">Process definitions</a>
+      <a href="{{contextPath}}/bpmn-ui/#/instances">Process instances</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>{{status}} {{reason}}</h1>
+    <p>{{description}}</p>
+    <p><a href="{{contextPath}}/bpmn-ui/">Back to the BPMN UI</a></p>
+  </main>
+</body>
+</html>
