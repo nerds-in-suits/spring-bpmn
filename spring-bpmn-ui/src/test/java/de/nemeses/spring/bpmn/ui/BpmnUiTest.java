@@ -85,6 +85,23 @@ class BpmnUiTest {
     }
 
     @Test
+    void testEntryPageCanEditVariables() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("@submit.prevent=\"saveVariables()\"")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("@click=\"removeVariable(index)\"")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("@click=\"addVariable()\"")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("async saveVariables()")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("'Content-Type': 'application/merge-patch+json'")));
+    }
+
+    @Test
     void testEntryPageSortsByColumnHeader() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
                 .andExpect(MockMvcResultMatchers.status().isOk())

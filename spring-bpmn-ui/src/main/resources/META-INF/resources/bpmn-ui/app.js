@@ -7,6 +7,7 @@
  *   #/instances/{id}?state=&type=&sort=&direction=                  one instance with its diagram and steps
  *
  * The play button of a process definition asks for the variables in a dialog, starts an instance and shows it.
+ * The variables of a running instance are edited in a table and saved with one PATCH (see saveVariables).
  * The Upload button (only if config.json says deploymentEnabled) deploys the BPMN file chosen in the file picker.
  * Filters and sorting are passed to the REST API as query parameters; the URL of the API comes from config.json.
  * The header links to the logout path of config.json; an empty path hides the link.
@@ -18,6 +19,8 @@ document.addEventListener('alpine:init', () => {
   // the bpmn-js viewer and the id of the instance it shows; kept out of the Alpine data, which would proxy them
   let viewer = null;
   let diagramOf = null;
+  // the last key of a row of the variables table
+  let rowKey = 0;
 
   Alpine.data('bpmnUi', () => ({
     api: null,
@@ -35,6 +38,9 @@ document.addEventListener('alpine:init', () => {
     diagram: { shown: false, message: null },
     start: { definition: null, variables: '{}', error: null, busy: false },
     upload: { message: null, error: null, busy: false },
+    // the variables table of the instance: rows of { key, name, value (JSON text), original name or null if new },
+    // and the original names of the removed rows
+    variables: { rows: [], removed: [], message: null, error: null, busy: false },
 
     async init() {
       try {
@@ -107,6 +113,10 @@ document.addEventListener('alpine:init', () => {
         this.get(base + '/steps'),
         this.get(base + '/steps' + this.search(this.route.query, ['state', 'type', 'sort', 'direction'])),
       ]);
+      // unsaved edits of the same instance survive a change of the step filters
+      if (!this.instance || this.instance.id !== instance.id || !this.variablesChanged()) {
+        this.resetVariables(instance.variables);
+      }
       this.instance = instance;
       this.stepTypes = [...new Set(all.map((step) => step.type).filter((type) => type))].sort();
       this.steps = steps;
@@ -254,6 +264,15 @@ document.addEventListener('alpine:init', () => {
       })).json();
     },
 
+    /** PATCHes body as JSON Merge Patch and returns the JSON response; rejects with the detail of a problem response. */
+    async patch(url, body) {
+      return (await this.request(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/merge-patch+json' },
+        body: JSON.stringify(body),
+      })).json();
+    },
+
     /** POSTs file as application/xml and returns the JSON response; rejects with the detail of a problem response. */
     async postXml(url, file) {
       return (await this.request(url, {
@@ -333,6 +352,111 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    /** Fills the variables table with the variables of the instance, sorted by name, and discards the edits. */
+    resetVariables(variables) {
+      const rows = Object.keys(variables || {}).sort()
+        .map((name) => ({ key: ++rowKey, name, value: JSON.stringify(variables[name]), original: name }));
+      this.variables = { rows, removed: [], message: null, error: null, busy: false };
+    },
+
+    /** Adds an empty row to the variables table. */
+    addVariable() {
+      this.variables.rows.push({ key: ++rowKey, name: '', value: '', original: null });
+      this.variables.message = null;
+    },
+
+    /** Removes the row at index from the variables table; a stored variable is removed on save. */
+    removeVariable(index) {
+      const [row] = this.variables.rows.splice(index, 1);
+      if (row.original !== null) {
+        this.variables.removed.push(row.original);
+      }
+      this.variables.message = null;
+    },
+
+    /**
+     * Parses the text of a value: valid JSON (a number, true, an object, an array, a "quoted string") is taken as
+     * typed, any other text as a string, so plain text needs no quotes.
+     */
+    parseValue(text) {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return text;
+      }
+    },
+
+    /**
+     * @return the JSON Merge Patch of the edits of the variables table: null for removed and renamed variables, the
+     *         parsed value for new, renamed and changed rows; empty if nothing changed
+     */
+    variablesPatch() {
+      const stored = this.instance ? this.instance.variables || {} : {};
+      const patch = {};
+      this.variables.removed.forEach((name) => {
+        patch[name] = null;
+      });
+      this.variables.rows.filter((row) => row.original !== null && row.original !== row.name.trim())
+        .forEach((row) => {
+          patch[row.original] = null;
+        });
+      this.variables.rows.forEach((row) => {
+        const name = row.name.trim();
+        if (row.original !== name || row.value !== JSON.stringify(stored[row.original])) {
+          patch[name] = this.parseValue(row.value);
+        }
+      });
+      return patch;
+    },
+
+    /** @return whether the variables table has unsaved edits */
+    variablesChanged() {
+      return Object.keys(this.variablesPatch()).length > 0;
+    },
+
+    /**
+     * Saves the edits of the variables table with one PATCH (JSON Merge Patch, so all edits are stored in one
+     * transaction) and shows the resulting variables. Keeps the edits with the error if a name is empty or repeated,
+     * a value is null, or the API rejects the change (e.g. 403 without the authority update-variables, 422 for an
+     * ended instance).
+     */
+    async saveVariables() {
+      const names = this.variables.rows.map((row) => row.name.trim());
+      if (names.includes('')) {
+        this.variables.error = 'Every variable needs a name.';
+        return;
+      }
+      const repeated = names.find((name, index) => names.indexOf(name) !== index);
+      if (repeated !== undefined) {
+        this.variables.error = 'The variable ' + repeated + ' is listed twice.';
+        return;
+      }
+      const empty = this.variables.rows.find((row) => this.parseValue(row.value) === null);
+      if (empty) {
+        this.variables.error = 'The variable ' + empty.name.trim() + ' cannot be null; remove it with the bin.';
+        return;
+      }
+      const patch = this.variablesPatch();
+      this.variables.error = null;
+      if (Object.keys(patch).length === 0) {
+        this.variables.message = 'No changes to save.';
+        return;
+      }
+      this.variables.message = null;
+      this.variables.busy = true;
+      try {
+        const variables = await this.patch(this.api + '/process-instances/' + encodeURIComponent(this.instance.id)
+          + '/variables', patch);
+        this.instance.variables = variables;
+        this.resetVariables(variables);
+        this.variables.message = 'Variables saved.';
+      } catch (e) {
+        this.variables.error = 'Cannot save the variables: ' + e.message;
+      } finally {
+        this.variables.busy = false;
+      }
+    },
+
     /** @return the query string of the non-empty parameters of query named in names */
     search(query, names) {
       const params = new URLSearchParams();
@@ -405,10 +529,6 @@ document.addEventListener('alpine:init', () => {
 
     formatDate(value) {
       return value ? new Date(value).toLocaleString() : '';
-    },
-
-    formatJson(value) {
-      return JSON.stringify(value, null, 2);
     },
   }));
 });
