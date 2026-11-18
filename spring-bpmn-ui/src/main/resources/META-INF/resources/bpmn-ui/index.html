@@ -161,6 +161,8 @@
     <!-- process instance detail -->
     <section x-show="route.page === 'instance'">
       <h1>Process instance <span x-text="route.id"></span></h1>
+      <!-- a running instance reloads its data in the interval of config.json; see refreshInstance in app.js -->
+      <p class="refresh" x-show="refresh.active" x-text="refreshHint()"></p>
       <!-- bpmn-js renders into the element diagram; Alpine only shows or hides the pane -->
       <div class="diagram-pane" x-show="diagram.shown">
         <div class="diagram" x-ref="diagram"></div>

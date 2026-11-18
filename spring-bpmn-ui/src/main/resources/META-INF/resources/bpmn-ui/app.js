@@ -16,6 +16,7 @@
  * In the diagram the mouse wheel scrolls (Shift+wheel horizontally), Ctrl+wheel zooms and dragging moves it;
  * the buttons over the diagram zoom in and out and fit it into the pane (see zoomDiagram and fitDiagram).
  * A document without diagram interchange (BPMN DI) is laid out by bpmn-auto-layout (import map of index.html).
+ * The detail page of a running instance reloads its data every refreshInterval of config.json (see refreshInstance).
  */
 document.addEventListener('alpine:init', () => {
   // the bpmn-js viewer and the id of the instance it shows; kept out of the Alpine data, which would proxy them
@@ -25,12 +26,24 @@ document.addEventListener('alpine:init', () => {
   let rowKey = 0;
   // the margin in screen pixels between the fitted diagram and the border of its pane
   const DIAGRAM_PADDING = 24;
+  // the pending timer of the auto-refresh, and whether a refresh is in flight
+  let refreshTimer = null;
+  let refreshing = false;
+  // counts the loads of a route; a load overtaken by a navigation discards its data
+  let loads = 0;
+  // counts the saves of the variables; a load that overlaps a save keeps the saved variables
+  let variableSaves = 0;
 
   Alpine.data('bpmnUi', () => ({
     api: null,
     // the logout link of the header; empty hides it
     logoutPath: '',
     deploymentEnabled: false,
+    // the interval of the auto-refresh of a running instance in milliseconds; 0 disables it
+    refreshInterval: 0,
+    // the auto-refresh of the shown instance: active while it is running, the time of the last load, and stopped
+    // after the API answered 401 or 403
+    refresh: { active: false, updated: null, stopped: false },
     route: { page: 'definitions', id: null, query: {} },
     loading: false,
     error: null,
@@ -52,11 +65,13 @@ document.addEventListener('alpine:init', () => {
         this.api = config.apiBasePath;
         this.logoutPath = config.logoutPath || '';
         this.deploymentEnabled = config.deploymentEnabled === true;
+        this.refreshInterval = Math.max(0, Number(config.refreshInterval) || 0);
       } catch (e) {
         this.error = 'Cannot load the UI configuration: ' + e.message;
         return;
       }
       window.addEventListener('hashchange', () => this.load());
+      document.addEventListener('visibilitychange', () => this.visibilityChanged());
       await this.load();
     },
 
@@ -77,6 +92,9 @@ document.addEventListener('alpine:init', () => {
 
     /** Loads the data of the current route. */
     async load() {
+      loads++;
+      this.cancelRefresh();
+      this.refresh = { active: false, updated: null, stopped: false };
       this.route = this.parseRoute();
       this.error = null;
       this.upload = { message: null, error: null, busy: false };
@@ -93,6 +111,7 @@ document.addEventListener('alpine:init', () => {
         this.error = e.message;
       } finally {
         this.loading = false;
+        this.scheduleRefresh();
       }
     },
 
@@ -106,7 +125,16 @@ document.addEventListener('alpine:init', () => {
       this.instances = instances;
     },
 
+    /**
+     * Loads the instance of the route with its steps and shows them in the diagram. Data that arrives after a
+     * navigation to another route is discarded. On a reload of the same instance (a changed step filter or the
+     * auto-refresh) the variables table keeps its unsaved edits, and their base, the stored variables they are
+     * compared with, so a save changes only what the user edited; a save in progress or done meanwhile keeps the
+     * variables it saved. Unchanged variables do not reset the table, so its message stays.
+     */
     async loadInstance() {
+      const load = loads;
+      const saves = variableSaves;
       const base = this.api + '/process-instances/' + encodeURIComponent(this.route.id);
       if (this.instance && this.instance.id !== this.route.id) {
         this.instance = null;
@@ -117,14 +145,88 @@ document.addEventListener('alpine:init', () => {
         this.get(base + '/steps'),
         this.get(base + '/steps' + this.search(this.route.query, ['state', 'type', 'sort', 'direction'])),
       ]);
-      // unsaved edits of the same instance survive a change of the step filters
-      if (!this.instance || this.instance.id !== instance.id || !this.variablesChanged()) {
+      if (load !== loads) {
+        return;
+      }
+      const same = this.instance !== null && this.instance.id === instance.id;
+      if (same && (this.variables.busy || saves !== variableSaves || this.variablesChanged())) {
+        instance.variables = this.instance.variables;
+      } else if (!same || JSON.stringify(instance.variables) !== JSON.stringify(this.instance.variables)) {
         this.resetVariables(instance.variables);
       }
       this.instance = instance;
       this.stepTypes = [...new Set(all.map((step) => step.type).filter((type) => type))].sort();
       this.steps = steps;
       await this.showDiagram(all);
+      this.refresh.updated = new Date();
+    },
+
+    /**
+     * Reloads the shown instance (see loadInstance) without the loading indicator, then schedules the next refresh
+     * while the instance is running; the refresh that finds it ended shows the end state and is the last one.
+     * Skipped while a load or another refresh is in flight, which schedule the next refresh themselves.
+     * The diagram is not imported or fitted again, only its markers change, so zoom and scroll stay.
+     * A failure shows the error like other load errors and tries again after the interval, except 401 and 403,
+     * which stop the auto-refresh until the next navigation, so an expired login or missing permission does not
+     * repeat the request.
+     */
+    async refreshInstance() {
+      refreshTimer = null;
+      if (refreshing || this.loading || this.route.page !== 'instance') {
+        return;
+      }
+      refreshing = true;
+      const load = loads;
+      try {
+        await this.loadInstance();
+        if (load === loads) {
+          this.error = null;
+        }
+      } catch (e) {
+        if (load === loads) {
+          this.error = 'Cannot refresh the process instance: ' + e.message;
+          this.refresh.stopped = e.status === 401 || e.status === 403;
+        }
+      } finally {
+        refreshing = false;
+        this.scheduleRefresh();
+      }
+    },
+
+    /**
+     * Schedules the next auto-refresh if it is enabled and not stopped, the detail page of a running instance is
+     * shown and the browser tab is visible (see visibilityChanged).
+     */
+    scheduleRefresh() {
+      this.cancelRefresh();
+      this.refresh.active = this.refreshInterval > 0 && !this.refresh.stopped && this.route.page === 'instance'
+        && this.instance !== null && this.instance.id === this.route.id && this.instance.state === 'running';
+      if (this.refresh.active && document.visibilityState === 'visible') {
+        refreshTimer = setTimeout(() => this.refreshInstance(), this.refreshInterval);
+      }
+    },
+
+    /** Cancels the pending auto-refresh. */
+    cancelRefresh() {
+      if (refreshTimer !== null) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+    },
+
+    /** Pauses the auto-refresh while the browser tab is hidden and refreshes at once when it is visible again. */
+    visibilityChanged() {
+      if (document.visibilityState !== 'visible') {
+        this.cancelRefresh();
+      } else if (this.refresh.active) {
+        this.refreshInstance();
+      }
+    },
+
+    /** @return the hint of the active auto-refresh: its interval and the time of the last load */
+    refreshHint() {
+      const updated = this.refresh.updated ? ', last updated ' + this.refresh.updated.toLocaleTimeString() : '';
+      return 'Auto-refresh every ' + this.refreshInterval / 1000 + ' s' + updated;
     },
 
     /**
@@ -260,7 +362,7 @@ document.addEventListener('alpine:init', () => {
      * fetch() with the session cookie for all requests of the UI; resolves with the response if it is ok.
      * Modifying requests send the CSRF token of the cookie XSRF-TOKEN in the header X-XSRF-TOKEN.
      * On 401 the page is reloaded once, so the login of the application takes over; 403 rejects with "Not permitted".
-     * Other errors reject with the detail of the problem response.
+     * Other errors reject with the detail of the problem response. The errors carry the HTTP status as status.
      */
     async request(url, options = {}) {
       const method = (options.method || 'GET').toUpperCase();
@@ -275,7 +377,7 @@ document.addEventListener('alpine:init', () => {
           sessionStorage.setItem('bpmnUiReloaded', 'true');
           window.location.reload();
         }
-        throw new Error('Not authenticated: please log in.');
+        throw Object.assign(new Error('Not authenticated: please log in.'), { status: response.status });
       }
       sessionStorage.removeItem('bpmnUiReloaded');
       if (!response.ok) {
@@ -286,7 +388,8 @@ document.addEventListener('alpine:init', () => {
         } catch (ignored) {
           // no problem details
         }
-        throw new Error(response.status === 403 ? 'Not permitted: ' + detail : detail);
+        throw Object.assign(new Error(response.status === 403 ? 'Not permitted: ' + detail : detail),
+          { status: response.status });
       }
       return response;
     },
@@ -480,6 +583,7 @@ document.addEventListener('alpine:init', () => {
       }
       this.variables.message = null;
       this.variables.busy = true;
+      variableSaves++;
       try {
         const variables = await this.patch(this.api + '/process-instances/' + encodeURIComponent(this.instance.id)
           + '/variables', patch);
