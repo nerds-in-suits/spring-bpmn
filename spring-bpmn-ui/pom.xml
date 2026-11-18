@@ -14,6 +14,11 @@
     <properties>
         <alpinejs.version>3.17.5</alpinejs.version>
         <bpmn-js.version>18.31.1</bpmn-js.version>
+        <bpmn-moddle.version>10.3.1</bpmn-moddle.version>
+        <min-dash.version>5.1.0</min-dash.version>
+        <moddle.version>8.2.1</moddle.version>
+        <moddle-xml.version>12.3.2</moddle-xml.version>
+        <saxen.version>11.2.0</saxen.version>
     </properties>
 
     <dependencies>
@@ -35,6 +40,62 @@
             <groupId>org.webjars.npm</groupId>
             <artifactId>bpmn-js</artifactId>
             <version>${bpmn-js.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <!-- ES modules of the vendored bpmn-auto-layout and its npm dependencies, pinned to the versions it was checked with -->
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>bpmn-moddle</artifactId>
+            <version>${bpmn-moddle.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>min-dash</artifactId>
+            <version>${min-dash.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>moddle</artifactId>
+            <version>${moddle.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>moddle-xml</artifactId>
+            <version>${moddle-xml.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>saxen</artifactId>
+            <version>${saxen.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>*</groupId>

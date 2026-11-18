@@ -17,7 +17,10 @@ import de.nemeses.spring.bpmn.rest.BpmnRestProperties;
  * <p>
  * The pages themselves are static resources of this JAR in {@code META-INF/resources/bpmn-ui/}, served by Spring
  * Boot, with Alpine.js and the bpmn-js viewer from their WebJars ({@code /webjars/alpinejs/...},
- * {@code /webjars/bpmn-js/...}). This configuration only redirects
+ * {@code /webjars/bpmn-js/...}). A document without diagram interchange (BPMN DI) is laid out in the browser by the
+ * vendored ES module {@code vendor/bpmn-auto-layout/index.js} (bpmn-auto-layout 2.0.0-alpha.2, MIT, no WebJar of 2.x
+ * exists), whose npm dependencies come from their WebJars through the import map of {@code index.html}.
+ * This configuration only redirects
  * {@code /bpmn-ui} to {@code /bpmn-ui/}, forwards {@code /bpmn-ui/} to {@code index.html} and registers
  * {@link BpmnUiConfigController}, which tells the pages where the REST API is. The UI is not
  * secured by this module: the application's login (or Spring Boot's default one) protects {@code /bpmn-ui/}, and the
