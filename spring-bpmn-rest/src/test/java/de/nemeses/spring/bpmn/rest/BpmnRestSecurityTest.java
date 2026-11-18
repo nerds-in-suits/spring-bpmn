@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -55,6 +59,10 @@ class BpmnRestSecurityTest {
 
     @Autowired
     private RequestMappingHandlerMapping mappings;
+
+    @Autowired
+    @Qualifier(BpmnRestSecurityConfiguration.CHAIN)
+    private SecurityFilterChain chain;
 
     private MockMvc mvc;
 
@@ -188,6 +196,14 @@ class BpmnRestSecurityTest {
             }
         }
         Assertions.assertTrue(endpoints >= 14, "endpoints: " + endpoints);
+    }
+
+    @Test
+    void testMdcUserFilterAfterAuthenticationBeforeAuthorization() {
+        final List<Class<?>> filters = this.chain.getFilters().stream().<Class<?>>map(Object::getClass).toList();
+        final int mdc = filters.indexOf(BpmnRestMdcUserFilter.class);
+        Assertions.assertTrue(mdc > filters.indexOf(BasicAuthenticationFilter.class), filters::toString);
+        Assertions.assertTrue(mdc < filters.indexOf(AuthorizationFilter.class), filters::toString);
     }
 
     /**

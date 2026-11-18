@@ -15,6 +15,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.util.StringUtils;
 
 /**
@@ -35,6 +36,8 @@ import org.springframework.util.StringUtils;
  * <li>CSRF protection uses Spring Security's single page application setup: the cookie {@code XSRF-TOKEN} is echoed in
  * the header {@code X-XSRF-TOKEN} by modifying requests. Requests with an {@code Authorization} header are exempt, as
  * they do not rely on ambient cookie credentials.</li>
+ * <li>The name of the authenticated user is in the logging MDC while the request is handled
+ * ({@link BpmnRestMdcUserFilter}).</li>
  * </ul>
  * The chain is ordered before the application's unordered chains and Spring Boot's default chain, which keep securing
  * everything else (e.g. the UI). An application replaces it with its own bean named {@code bpmnRestSecurityFilterChain}.
@@ -106,7 +109,8 @@ class BpmnRestSecurityConfiguration {
                         .accessDeniedHandler(problems))
                 .requestCache(cache -> cache.disable())
                 .csrf(csrf -> csrf.spa()
-                        .ignoringRequestMatchers(request -> request.getHeader(HttpHeaders.AUTHORIZATION) != null));
+                        .ignoringRequestMatchers(request -> request.getHeader(HttpHeaders.AUTHORIZATION) != null))
+                .addFilterBefore(new BpmnRestMdcUserFilter(), AuthorizationFilter.class);
         if (properties.security().httpBasic()) {
             http.httpBasic(basic -> basic.authenticationEntryPoint(problems));
         }
