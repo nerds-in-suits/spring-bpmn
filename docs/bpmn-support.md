@@ -83,3 +83,4 @@ Do not invent Camunda-like APIs to fill a gap.
   From outside, `ProcessEngineService.updateVariables` merges or replaces the variables of a running instance in its own transaction without the instance lock, so it may interleave with executing steps.
 - Step failures: a step whose execution fails rolls back, and its time, message and stack trace are recorded on the step (`StepTransactions`, `ProcessStep.errorMessage()`) and listed by `GET /process-instances/{id}/steps`.
   Only the last failure is kept, also after a later attempt succeeds.
+  The UI marks the node of a pending step with a failure red in the diagram and shows the error of each step in its steps table.

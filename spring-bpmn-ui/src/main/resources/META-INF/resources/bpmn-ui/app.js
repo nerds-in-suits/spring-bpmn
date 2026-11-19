@@ -17,6 +17,8 @@
  * the buttons over the diagram zoom in and out and fit it into the pane (see zoomDiagram and fitDiagram).
  * A document without diagram interchange (BPMN DI) is laid out by bpmn-auto-layout (import map of index.html).
  * The detail page of a running instance reloads its data every refreshInterval of config.json (see refreshInstance).
+ * A pending step whose execution failed is shown as failed, in red in the diagram, with its error in the steps table
+ * (see stepState and markSteps).
  */
 document.addEventListener('alpine:init', () => {
   // the bpmn-js viewer and the id of the instance it shows; kept out of the Alpine data, which would proxy them
@@ -332,20 +334,36 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    /** Marks the nodes with a running step as running, the other nodes with steps as finished. */
+    /**
+     * Marks the nodes with a failed step (see stepState) as failed, the other nodes with a running step as running and
+     * the remaining nodes with steps as finished.
+     */
     markSteps(steps) {
       const canvas = viewer.get('canvas');
+      const failed = new Set(steps.filter((step) => this.stepState(step) === 'failed').map((step) => step.nodeId));
       const running = new Set(steps.filter((step) => step.state === 'running').map((step) => step.nodeId));
       const reached = new Set(steps.map((step) => step.nodeId));
       viewer.get('elementRegistry').forEach((element) => {
+        canvas.removeMarker(element, 'step-failed');
         canvas.removeMarker(element, 'step-running');
         canvas.removeMarker(element, 'step-finished');
-        if (running.has(element.id)) {
+        if (failed.has(element.id)) {
+          canvas.addMarker(element, 'step-failed');
+        } else if (running.has(element.id)) {
           canvas.addMarker(element, 'step-running');
         } else if (reached.has(element.id)) {
           canvas.addMarker(element, 'step-finished');
         }
       });
+    },
+
+    /**
+     * @return the state shown for step: failed if it is pending (running) and its execution failed, so it waits for a
+     *         retry or a fix; else its state, running or finished. A finished step keeps the error of an earlier
+     *         failed attempt, which the steps table shows, but is not failed.
+     */
+    stepState(step) {
+      return step.state === 'running' && step.errorDate ? 'failed' : step.state;
     },
 
     /** GETs JSON; rejects with the detail of a problem response. */

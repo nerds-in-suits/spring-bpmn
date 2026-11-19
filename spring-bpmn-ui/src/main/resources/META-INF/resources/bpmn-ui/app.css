@@ -111,6 +111,11 @@ th .sort:hover {
   background: #d1e7dd;
 }
 
+.state.failed {
+  background: #f8d7da;
+  color: #842029;
+}
+
 .error {
   padding: 8px;
   background: #f8d7da;
@@ -198,6 +203,11 @@ pre {
   fill: #fff3cd !important;
 }
 
+.diagram .step-failed:not(.djs-connection) .djs-visual > :nth-child(1) {
+  stroke: #dc3545 !important;
+  fill: #f8d7da !important;
+}
+
 .diagram-message {
   padding: 8px;
   background: #f2f4f7;
@@ -205,6 +215,21 @@ pre {
 
 .action {
   width: 1%;
+}
+
+/* the error message of a step opens its stack trace, which scrolls instead of widening the table */
+.step-error summary {
+  color: #842029;
+  cursor: pointer;
+}
+
+.step-error pre {
+  max-width: 60vw;
+  max-height: 320px;
+  overflow: auto;
+  padding: 8px;
+  background: #f2f4f7;
+  font-size: 12px;
 }
 
 .start {
