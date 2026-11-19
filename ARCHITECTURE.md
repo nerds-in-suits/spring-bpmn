@@ -113,6 +113,7 @@ Package-private helpers are listed when they hold engine behaviour.
 
 ### `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`)
 
+- `IsolationLevelCheck`: warns on startup if JPA transactions do not run with isolation `READ_COMMITTED`.
 - `JpaBpmnRepositoryAutoConfiguration`: registers the JPA repositories if there is an `EntityManagerFactory`.
 - `JpaProcessDefinitionService`, `JpaProcessInstanceRepository`, `JpaProcessStepRepository`: the JPA implementations of the repository API.
 - `ProcessDefinitionEntity`: table `spring_bpmn_process_definition`.

@@ -15,7 +15,7 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
- * Registers the JPA based repository implementations.
+ * Registers the JPA based repository implementations and the {@link IsolationLevelCheck}.
  */
 @AutoConfiguration(after = HibernateJpaAutoConfiguration.class)
 @AutoConfigurationPackage(basePackageClasses = ProcessDefinitionEntity.class)
@@ -29,6 +29,13 @@ public class JpaBpmnRepositoryAutoConfiguration {
             final PlatformTransactionManager transactionManager) {
         return new JpaProcessDefinitionService(
                 SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory),
+                new TransactionTemplate(transactionManager));
+    }
+
+    @Bean
+    IsolationLevelCheck isolationLevelCheck(final EntityManagerFactory entityManagerFactory,
+            final PlatformTransactionManager transactionManager) {
+        return new IsolationLevelCheck(SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory),
                 new TransactionTemplate(transactionManager));
     }
 }
