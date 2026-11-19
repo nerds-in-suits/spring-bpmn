@@ -1,16 +1,16 @@
 ---
 name: claude-issues
-description: Fetch all open GitHub issues labelled "claude" and start one agent per issue to solve it, ask questions in the issue, and open a PR that closes it; also start one agent per conflicting PR of those issues to merge origin/main into it. Use when the user runs /claude-issues or asks to work through the claude-labelled issues.
+description: Fetch all open GitHub issues labelled "agent-implement" and start one agent per issue to solve it, ask questions in the issue, and open a PR that closes it; also start one agent per conflicting PR of those issues to merge origin/main into it. Use when the user runs /claude-issues or asks to work through the agent-implement-labelled issues.
 ---
 
-# Work through `claude`-labelled GitHub issues
+# Work through `agent-implement`-labelled GitHub issues
 
 Follow the GitHub workflow in `AGENTS.md` (own branch and PR per task, never commit or push to `main`, never merge).
 
 ## 1. Collect candidate issues
 
 ```text
-gh issue list --label claude --state open --json number,title,body,author,comments,url --limit 100
+gh issue list --label agent-implement --state open --json number,title,body,author,comments,url --limit 100
 ```
 
 Skip an issue (and say why in the final summary) when any of these hold:
@@ -20,7 +20,7 @@ Skip an issue (and say why in the final summary) when any of these hold:
 - An open PR already exists for it: `gh pr list --state open --search "<number> in:body"` or a branch `feature/issue-<number>-*` / `bugfix/issue-<number>-*` exists on `origin`. Exception: the PR has unresolved review comments or the issue has newer human comments than the PR; then hand the issue to an agent as a **follow-up** (push to the existing branch, do not open a second PR).
 - The last comment on the issue is from Claude (a question was asked) and the user has not replied since. Compare comment authors with `gh api user --jq .login`; Claude posts as the user's account, so mark Claude comments with the prefix `🤖 Claude:` and treat comments starting with it as Claude's.
 
-Also collect the open PRs of `claude` issues that GitHub reports as conflicting: for each open PR found above, `gh pr view <n> --json mergeable,headRefName` returns `"mergeable": "CONFLICTING"` (`UNKNOWN` means GitHub has not computed it yet; query again once). Such a PR gets a **merge agent** (section 2b) instead of, or before, a follow-up agent for the same issue; do not start both for one branch in the same run.
+Also collect the open PRs of `agent-implement` issues that GitHub reports as conflicting: for each open PR found above, `gh pr view <n> --json mergeable,headRefName` returns `"mergeable": "CONFLICTING"` (`UNKNOWN` means GitHub has not computed it yet; query again once). Such a PR gets a **merge agent** (section 2b) instead of, or before, a follow-up agent for the same issue; do not start both for one branch in the same run.
 
 If no issues and no conflicting PRs remain, report that and stop.
 
@@ -72,4 +72,4 @@ When the agents finish, give the user one line per issue and per merged PR: numb
 
 ## 4. Housekeeping on each run
 
-Issues close automatically via `Closes #N` when the user merges the PR. If an open `claude` issue has a **merged** PR referencing it that did not close it, close it with `gh issue close N --comment "🤖 Claude: closed, fixed by <PR url>"`. Only do this for PRs that are actually merged (`gh pr view <n> --json mergedAt`).
+Issues close automatically via `Closes #N` when the user merges the PR. If an open `agent-implement` issue has a **merged** PR referencing it that did not close it, close it with `gh issue close N --comment "🤖 Claude: closed, fixed by <PR url>"`. Only do this for PRs that are actually merged (`gh pr view <n> --json mergedAt`).
