@@ -41,7 +41,7 @@ import jakarta.servlet.http.Cookie;
  * The security filter chain of the REST API: {@code 401} and {@code 403} problem details, the authority of each
  * operation, CSRF protection of cookie sessions and HTTP Basic.
  */
-@SpringBootTest(classes = { MockedEngineConfiguration.class, BpmnRestSecurityTest.Users.class }, properties = {
+@SpringBootTest(classes = { TestEngineConfiguration.class, BpmnRestSecurityTest.Users.class }, properties = {
     "spring.bpmn.rest.deployment-enabled=true",
     "spring.bpmn.rest.security.authority.read-definitions=BPMN_READ",
     "spring.bpmn.rest.security.authority.read-instances=BPMN_READ",
@@ -64,6 +64,9 @@ class BpmnRestSecurityTest {
     @Qualifier(BpmnRestSecurityConfiguration.CHAIN)
     private SecurityFilterChain chain;
 
+    @Autowired
+    private TestProcesses processes;
+
     private MockMvc mvc;
 
     @BeforeEach
@@ -72,8 +75,13 @@ class BpmnRestSecurityTest {
                 .build();
     }
 
-    private static String complete() {
-        return BASE + "/user-tasks/" + UUID.randomUUID() + "/complete";
+    /**
+     * @return the path that completes the open user task of a new process instance
+     */
+    private String complete() throws Exception {
+        final UUID instance = this.processes.waiting(this.processes.register("order", TestProcesses::order),
+                Map.of()).id();
+        return BASE + "/user-tasks/" + this.processes.userTasks(instance, 1).getFirst().id() + "/complete";
     }
 
     @Test
@@ -111,11 +119,11 @@ class BpmnRestSecurityTest {
 
     @Test
     void testEmptyAuthorityNeedsAuthenticationOnly() throws Exception {
-        this.mvc.perform(MockMvcRequestBuilders.post(BpmnRestSecurityTest.complete())
+        this.mvc.perform(MockMvcRequestBuilders.post(this.complete())
                 .with(SecurityMockMvcRequestPostProcessors.httpBasic("nobody", "nobody")))
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
         // exempt from CSRF by the Authorization header, but still not authenticated
-        this.mvc.perform(MockMvcRequestBuilders.post(BpmnRestSecurityTest.complete())
+        this.mvc.perform(MockMvcRequestBuilders.post(this.complete())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer unknown"))
                 .andExpect(MockMvcResultMatchers.status().isUnauthorized());
     }
@@ -137,15 +145,15 @@ class BpmnRestSecurityTest {
                 .andReturn();
         final Cookie token = read.getResponse().getCookie("XSRF-TOKEN");
 
-        this.mvc.perform(MockMvcRequestBuilders.post(BpmnRestSecurityTest.complete())
+        this.mvc.perform(MockMvcRequestBuilders.post(this.complete())
                 .with(SecurityMockMvcRequestPostProcessors.user("nobody")))
                 .andExpect(MockMvcResultMatchers.status().isForbidden())
                 .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
-        this.mvc.perform(MockMvcRequestBuilders.post(BpmnRestSecurityTest.complete())
+        this.mvc.perform(MockMvcRequestBuilders.post(this.complete())
                 .with(SecurityMockMvcRequestPostProcessors.user("nobody"))
                 .cookie(token).header("X-XSRF-TOKEN", "wrong"))
                 .andExpect(MockMvcResultMatchers.status().isForbidden());
-        this.mvc.perform(MockMvcRequestBuilders.post(BpmnRestSecurityTest.complete())
+        this.mvc.perform(MockMvcRequestBuilders.post(this.complete())
                 .with(SecurityMockMvcRequestPostProcessors.user("nobody"))
                 .cookie(token).header("X-XSRF-TOKEN", token.getValue()))
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
@@ -153,10 +161,10 @@ class BpmnRestSecurityTest {
 
     @Test
     void testHttpBasicNeedsNoCsrf() throws Exception {
-        this.mvc.perform(MockMvcRequestBuilders.post(BpmnRestSecurityTest.complete())
+        this.mvc.perform(MockMvcRequestBuilders.post(this.complete())
                 .with(SecurityMockMvcRequestPostProcessors.httpBasic("admin", "admin")))
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
-        this.mvc.perform(MockMvcRequestBuilders.post(BpmnRestSecurityTest.complete())
+        this.mvc.perform(MockMvcRequestBuilders.post(this.complete())
                 .with(SecurityMockMvcRequestPostProcessors.httpBasic("admin", "wrong")))
                 .andExpect(MockMvcResultMatchers.status().isUnauthorized())
                 .andExpect(MockMvcResultMatchers.header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));

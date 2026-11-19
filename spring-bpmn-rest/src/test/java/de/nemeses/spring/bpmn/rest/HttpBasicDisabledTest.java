@@ -13,7 +13,7 @@ import org.springframework.web.context.WebApplicationContext;
 /**
  * With {@code spring.bpmn.rest.security.http-basic=false} the REST API ignores HTTP Basic credentials.
  */
-@SpringBootTest(classes = { MockedEngineConfiguration.class, BpmnRestSecurityTest.Users.class },
+@SpringBootTest(classes = { TestEngineConfiguration.class, BpmnRestSecurityTest.Users.class },
         properties = "spring.bpmn.rest.security.http-basic=false")
 class HttpBasicDisabledTest {
 

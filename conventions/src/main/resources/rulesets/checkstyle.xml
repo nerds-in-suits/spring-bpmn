@@ -256,17 +256,14 @@
         <module name="AvoidStaticImport">
             <property name="excludes"
                       value="org.junit.Assert.*,
-                      org.mockito.Mockito.*,
-                      org.mockito.Matchers.*,
                       org.hamcrest.Matchers.*,
                       org.assertj.core.api.Assertions.*,
-                      org.mockito.BDDMockito,
                       java.lang.annotation" />
         </module>
         <module name="IllegalImport">
             <property name="illegalPkgs" value="sun, sunw, org.omg.CORBA,
                 org.apache.commons, org.apache.commons.lang3, org.apache.log4j,
-                com.google.common"/>
+                com.google.common, org.mockito"/>
             <property name="illegalClasses"
                       value="
                         com.amazonaws.services.route53.model.InvalidArgumentException,
@@ -277,7 +274,6 @@
                         org.apache.log4j.spi.LoggerFactory,
                         org.hibernate.annotations.common.util.impl.LoggerFactory,
                         org.hibernate.validator.internal.util.logging.LoggerFactory,
-                        org.mockito.Matchers,
                         org.springframework.web.bind.annotation.RequestMethod,
                         javassist.NotFoundException,
                         org.webjars.NotFoundException,
