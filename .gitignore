@@ -22,3 +22,7 @@ bin/
 
 # Worktrees for claude
 .claude/worktrees/*
+
+# Demo application runtime files
+spring-bpmn-demo/bpmn-db.mv.db
+spring-bpmn-demo/demo.log
