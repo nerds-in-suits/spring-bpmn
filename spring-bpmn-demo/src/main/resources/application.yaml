@@ -36,8 +36,8 @@ logging:
     # Log file below the working directory, rolled by Spring Boot's defaults; deleted by "mvn clean" when started via the scripts.
     name: ./target/demo-logs/spring-bpmn-demo.log
   level:
-    # DEBUG for the modules of this repository; everything else stays at Spring Boot's default INFO.
-    de.nemeses: DEBUG
+    # DEBUG for all loggers; the console threshold below keeps the console at INFO.
+    root: DEBUG
   threshold:
     # The console shows INFO and above, the log file everything down to DEBUG.
     console: INFO

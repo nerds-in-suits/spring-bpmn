@@ -4,7 +4,7 @@ Runnable demo application (`de.nemeses.spring:spring-bpmn-demo`): a local BPMN e
 
 - Pulls together [`spring-bpmn`](../spring-bpmn/README.md), [`spring-bpmn-repository-jpa`](../spring-bpmn-repository-jpa/README.md), [`spring-tasks`](../spring-tasks/README.md), [`spring-tasks-jpa`](../spring-tasks-jpa/README.md), [`spring-bpmn-rest`](../spring-bpmn-rest/README.md) and [`spring-bpmn-ui`](../spring-bpmn-ui/README.md); no JMS.
 - Stores process definitions, instances, steps and tasks in an H2 file database at `target/demo-db/` of the working directory; Hibernate creates the tables (`ddl-auto: update`).
-- Logs to `target/demo-logs/spring-bpmn-demo.log` of the working directory, with `DEBUG` for the `de.nemeses` packages; the console shows `INFO` and above only.
+- Logs to `target/demo-logs/spring-bpmn-demo.log` of the working directory, with `DEBUG` for all loggers; the console shows `INFO` and above only.
 - The only module packaged as an executable Spring Boot jar (`target/spring-bpmn-demo.jar`); the main class is `DemoApplication`.
 - Secured with Spring Security and two fixed in-memory users (see [Users](#users)); still meant for local use only.
 
