@@ -32,6 +32,17 @@ spring:
     pool-size: 4
 
 logging:
+  file:
+    # Log file below the working directory, rolled by Spring Boot's defaults; deleted by "mvn clean" when started via the scripts.
+    name: ./target/demo-logs/spring-bpmn-demo.log
+  level:
+    # DEBUG for the modules of this repository; everything else stays at Spring Boot's default INFO.
+    de.nemeses: DEBUG
+  threshold:
+    # The console shows INFO and above, the log file everything down to DEBUG.
+    console: INFO
+    file: DEBUG
   pattern:
-    # Console log pattern; [%mdc] shows all MDC entries of the logging thread.
+    # Console and file log pattern; [%mdc] shows all MDC entries of the logging thread.
     console: "%date{ISO8601} [%-5p][%t][%c][%mdc] %msg %n"
+    file: "%date{ISO8601} [%-5p][%t][%c][%mdc] %msg %n"
