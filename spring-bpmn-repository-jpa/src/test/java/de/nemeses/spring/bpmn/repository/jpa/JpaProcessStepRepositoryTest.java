@@ -111,6 +111,26 @@ class JpaProcessStepRepositoryTest {
     }
 
     @Test
+    void testFailRecordsLastError() throws NoSuchProcessInstanceException, NoSuchProcessStepException {
+        final ProcessStep step = this.repository.create(this.instance.id(), "st", "f", null);
+        Assertions.assertNull(this.repository.retrieve(step.id()).errorDate());
+        Assertions.assertNull(this.repository.retrieve(step.id()).errorMessage());
+        Assertions.assertNull(this.repository.retrieve(step.id()).errorStackTrace());
+
+        final String longTrace = "Exception: second\n" + "\tat Some.method(Some.java:1)\n".repeat(1000);
+        this.repository.fail(step.id(), new Date(1000), "first", "Exception: first\n");
+        this.repository.fail(step.id(), new Date(2000), "second", longTrace);
+
+        final ProcessStep failed = this.repository.retrieve(step.id());
+        Assertions.assertEquals(2000, failed.errorDate().getTime());
+        Assertions.assertEquals("second", failed.errorMessage());
+        Assertions.assertEquals(longTrace, failed.errorStackTrace());
+        Assertions.assertNull(failed.endDate(), "still pending");
+        Assertions.assertThrows(NoSuchProcessStepException.class,
+                () -> this.repository.fail(UUID.randomUUID(), new Date(), "x", "x"));
+    }
+
+    @Test
     void testCreateForUnknownInstanceFails() {
         Assertions.assertThrows(NoSuchProcessInstanceException.class,
                 () -> this.repository.create(UUID.randomUUID(), "t", null, null));

@@ -61,6 +61,17 @@ public class ProcessStepEntity implements ProcessStep {
     @Column(name = "end_date")
     private Date end;
 
+    @Column(name = "error_date")
+    private Date failed;
+
+    @Lob
+    @Column(name = "error_message")
+    private String failureMessage;
+
+    @Lob
+    @Column(name = "error_stack_trace")
+    private String failureStackTrace;
+
     ProcessStepEntity() {
         // JPA
     }
@@ -133,6 +144,34 @@ public class ProcessStepEntity implements ProcessStep {
     @Override
     public Date endDate() {
         return this.end;
+    }
+
+    @Override
+    public Date errorDate() {
+        return this.failed;
+    }
+
+    @Override
+    public String errorMessage() {
+        return this.failureMessage;
+    }
+
+    @Override
+    public String errorStackTrace() {
+        return this.failureStackTrace;
+    }
+
+    /**
+     * Sets the last failure, replacing an earlier one.
+     *
+     * @param errorDate the time the execution failed
+     * @param errorMessage the message, may be {@code null}
+     * @param errorStackTrace the stack trace
+     */
+    void fail(final Date errorDate, final String errorMessage, final String errorStackTrace) {
+        this.failed = errorDate;
+        this.failureMessage = errorMessage;
+        this.failureStackTrace = errorStackTrace;
     }
 
     /**

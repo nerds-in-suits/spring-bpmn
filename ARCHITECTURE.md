@@ -74,6 +74,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessEngineException`: checked exception of all engine operations.
 - `ProcessEngineService`: public entry to start process instances, to list and complete their open user tasks and to update their variables (merge or replace, without the instance lock).
 - `ProcessNavigator`: finds flow nodes and sequence flows in a process, including nested sub-processes.
+- `StepTransactions`: runs the execution of a step in a transaction of the application's transaction manager and records its failure on the step after the rollback.
 - `SubProcessScopes`: triggers the target nodes of the flows taken in their scope and schedules leaving embedded sub-processes.
 
 ### `de.nemeses.spring.bpmn.exec.*` invokers (module `spring-bpmn`)
@@ -108,8 +109,8 @@ Package-private helpers are listed when they hold engine behaviour.
 - `ProcessInstancePage`: one page of `ProcessInstanceRepository.query` with the total count.
 - `ProcessInstanceRepository`: stores instances; `lock` serializes the steps of one instance; `query` pages through the instances filtered by definition and state, `countByDefinition` counts them per definition name.
 - `ProcessInstanceSort`: sort order of `ProcessInstanceRepository.query` (start or end date).
-- `ProcessStep`: one execution of a flow node; pending while `endDate` is null; `parentStepId()` is the enclosing sub-process or multi-instance activity step; `loopCounter()`/`loopItem()` hold loop data.
-- `ProcessStepRepository`: stores steps, which are never deleted and form the trail of an instance.
+- `ProcessStep`: one execution of a flow node; pending while `endDate` is null; `parentStepId()` is the enclosing sub-process or multi-instance activity step; `loopCounter()`/`loopItem()` hold loop data; `errorDate()`/`errorMessage()`/`errorStackTrace()` hold its last failure.
+- `ProcessStepRepository`: stores steps, which are never deleted and form the trail of an instance; `fail` records the last failure of a step.
 
 ### `de.nemeses.spring.bpmn.repository.jpa` (module `spring-bpmn-repository-jpa`)
 
@@ -172,14 +173,14 @@ Package-private helpers are listed when they hold engine behaviour.
 1. A caller invokes `TaskService.trigger(beanName, payload)` or `schedule(beanName, payload, earliestExecution)`.
 2. `TaskService` looks up the `TaskImplementation` by Spring bean name and serializes the payload.
 3. The active `TaskPersistence` stores or sends it.
-4. Each worker thread loops on `TaskPersistence.next()`, executes the task with its `TaskImplementation` and reports `TaskInfo.complete()` or `TaskInfo.fail(e)`.
+4. Each worker thread loops on `TaskPersistence.next()`, executes the task with its `TaskImplementation` and reports `TaskInfo.complete()` or, after logging the exception as error, `TaskInfo.fail(e)`.
 
 ## Flow of a process instance
 
 1. `ProcessEngineService.startProcess` creates the instance and triggers each start event (`Invoker.trigger`), which creates a `ProcessStep` and a `bpmnNodeTask` with the step id.
 2. The `bpmnNodeTask` bean `BpmnNodeExecutor` locks the instance, runs the node (`Invoker.execute`) and completes the step.
 3. For each sequence flow taken, the executor triggers the target node (`Invoker.trigger`), which creates its step and, unless the node waits, a `bpmnNodeTask`, all in the same transaction.
-4. A failing step rolls back and its task fails; `JmsTaskPersistence` redelivers it, `JpaTaskPersistence` marks it `FAILED` without retry.
+4. A failing step rolls back, the executor records the failure on the step (shown by `GET /process-instances/{id}/steps`) and its task fails; `JmsTaskPersistence` redelivers it, `JpaTaskPersistence` marks it `FAILED` without retry.
 
 ## Extension points
 

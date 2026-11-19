@@ -29,7 +29,7 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
             throws NoSuchProcessInstanceException {
         this.instances.retrieve(instanceId);
         final ProcessStep step = new Step(UUID.randomUUID(), instanceId, nodeId, incomingFlowId, parentStepId,
-                loopCounter, loopItem, new Date(), null);
+                loopCounter, loopItem, new Date(), null, null, null, null);
         this.created.add(step);
         return step;
     }
@@ -65,7 +65,8 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
             final int index = this.index(id);
             final ProcessStep old = this.created.get(index);
             this.created.set(index, new Step(id, old.processInstanceId(), old.nodeId(), old.incomingFlowId(),
-                    old.parentStepId(), old.loopCounter(), old.loopItem(), old.startDate(), endDate));
+                    old.parentStepId(), old.loopCounter(), old.loopItem(), old.startDate(), endDate,
+                    old.errorDate(), old.errorMessage(), old.errorStackTrace()));
         }
     }
 
@@ -75,7 +76,18 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
         final int index = this.index(id);
         final ProcessStep old = this.created.get(index);
         this.created.set(index, new Step(id, old.processInstanceId(), old.nodeId(), old.incomingFlowId(),
-                old.parentStepId(), loopCounter, loopItem, old.startDate(), old.endDate()));
+                old.parentStepId(), loopCounter, loopItem, old.startDate(), old.endDate(),
+                old.errorDate(), old.errorMessage(), old.errorStackTrace()));
+    }
+
+    @Override
+    public void fail(final UUID id, final Date errorDate, final String errorMessage, final String errorStackTrace)
+            throws NoSuchProcessStepException {
+        final int index = this.index(id);
+        final ProcessStep old = this.created.get(index);
+        this.created.set(index, new Step(id, old.processInstanceId(), old.nodeId(), old.incomingFlowId(),
+                old.parentStepId(), old.loopCounter(), old.loopItem(), old.startDate(), old.endDate(),
+                errorDate, errorMessage, errorStackTrace));
     }
 
     @Override
@@ -104,8 +116,12 @@ public class InMemoryProcessStepRepository implements ProcessStepRepository {
      * @param loopItem the loop item
      * @param startDate the start date
      * @param endDate the end date
+     * @param errorDate the time of the last failure
+     * @param errorMessage the message of the last failure
+     * @param errorStackTrace the stack trace of the last failure
      */
     record Step(UUID id, UUID processInstanceId, String nodeId, String incomingFlowId, UUID parentStepId,
-            Integer loopCounter, Object loopItem, Date startDate, Date endDate) implements ProcessStep {
+            Integer loopCounter, Object loopItem, Date startDate, Date endDate, Date errorDate, String errorMessage,
+            String errorStackTrace) implements ProcessStep {
     }
 }

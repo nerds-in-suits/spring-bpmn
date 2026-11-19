@@ -34,8 +34,9 @@ import de.nemeses.spring.tasks.TaskException;
  * so the steps of one instance run one after the other, and the pending steps are read after locking. The node is run
  * by {@link Invoker#execute} of the {@link Invoker} for its type ({@link InvokerRegistry}). Running the node,
  * completing its step, storing changed variables and triggering the target nodes of the flows taken
- * ({@link Invoker#trigger}) all happen in that transaction; a {@link ProcessEngineException} rolls all of it back and
- * fails the task as a {@link TaskException}; whether it is retried depends on the task backend. The supported node
+ * ({@link Invoker#trigger}) all happen in that transaction; a {@link ProcessEngineException} or
+ * {@link RuntimeException} rolls all of it back, is recorded on the step ({@link ProcessStep#errorMessage()}) and fails
+ * the task as a {@link TaskException}; whether it is retried depends on the task backend. The supported node
  * types are listed at {@link #executeNode} and in {@code docs/bpmn-support.md}.
  * <p>
  * While a step is executed ({@link #executeNode}, {@link #completeUserTask}), the SLF4J {@link MDC} holds the id of its
@@ -43,6 +44,7 @@ import de.nemeses.spring.tasks.TaskException;
  * keys are removed, also if the step fails.
  */
 @Component(BpmnNodeExecutor.BEAN_NAME)
+@SuppressWarnings("PMD.CouplingBetweenObjects") // BPMN model, repositories, invokers, transactions, tasks
 public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
 
     /** Bean name under which the task is scheduled with the {@code TaskService}; persisted tasks refer to it. */
@@ -65,16 +67,18 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
     private final ProcessDefinitionModelCache models;
     private final SubProcessScopes subProcesses;
     private final InvokerRegistry invokers;
+    private final StepTransactions transactions;
 
     BpmnNodeExecutor(final ProcessInstanceRepository instances, final ProcessStepRepository steps,
             final ProcessDefinitionModelCache models, final SubProcessScopes subProcesses,
-            final InvokerRegistry invokers) {
+            final InvokerRegistry invokers, final StepTransactions transactions) {
         super();
         this.instances = instances;
         this.steps = steps;
         this.models = models;
         this.subProcesses = subProcesses;
         this.invokers = invokers;
+        this.transactions = transactions;
     }
 
     @Override
@@ -83,31 +87,20 @@ public class BpmnNodeExecutor extends JsonPayloadTaskImplementation<UUID> {
     }
 
     /**
-     * Entry point of the {@code TaskService}: deserializes the step id and executes the step like
-     * {@link #execute(UUID)}. Overridden only to be transactional, because the inherited default method calls
-     * {@link #execute(UUID)} on this object and so bypasses the transactional proxy.
-     *
-     * @param serializedPayload the step id as JSON
-     * @throws TaskException if the step failed; the transaction is rolled back
-     */
-    @Override
-    @Transactional(rollbackFor = TaskException.class)
-    public void executeSerialized(final String serializedPayload) throws TaskException {
-        this.execute(this.deserializePayload(serializedPayload));
-    }
-
-    /**
-     * Executes the step in one transaction through {@link #executeNode}.
+     * Executes the step in one transaction through {@link #executeNode}; the transaction is started by
+     * {@link StepTransactions}, not by a proxy, so the inherited entry point {@code executeSerialized} of the
+     * {@code TaskService} runs in it, too. If the step fails with a {@link ProcessEngineException} or a
+     * {@link RuntimeException}, the transaction is rolled back and then the failure is recorded on the step
+     * ({@link ProcessStep#errorDate()}, {@link ProcessStep#errorMessage()}, {@link ProcessStep#errorStackTrace()}).
      *
      * @param stepId the id of the process step
-     * @throws TaskException with the {@link ProcessEngineException} as cause if the step failed; the transaction is
-     *             rolled back
+     * @throws TaskException with the {@link ProcessEngineException} as cause if the step failed (with the
+     *             {@link RuntimeException} as its cause, if it was one); the transaction is rolled back
      */
     @Override
-    @Transactional(rollbackFor = TaskException.class)
     public void execute(final UUID stepId) throws TaskException {
         try {
-            this.executeNode(stepId);
+            this.transactions.execute(stepId, () -> this.executeNode(stepId));
         } catch (final ProcessEngineException e) {
             throw new TaskException("Cannot execute process step " + stepId + ".", e);
         }

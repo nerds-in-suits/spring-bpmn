@@ -20,6 +20,9 @@ import de.nemeses.spring.bpmn.repository.ProcessStep;
  * @param loopItem the loop item of a multi-instance activity, else {@code null}
  * @param startDate the time the step was created
  * @param endDate the time the step was completed, {@code null} while pending
+ * @param errorDate the time executing the step failed the last time, {@code null} if it never failed
+ * @param errorMessage the message of the last failure, {@code null} if there is none
+ * @param errorStackTrace the stack trace of the last failure with all its causes, {@code null} if it never failed
  */
 public record ProcessStepDto(
         UUID id,
@@ -32,7 +35,10 @@ public record ProcessStepDto(
         Integer loopCounter,
         Object loopItem,
         Instant startDate,
-        Instant endDate) {
+        Instant endDate,
+        Instant errorDate,
+        String errorMessage,
+        String errorStackTrace) {
 
     /**
      * @param step a step
@@ -51,6 +57,9 @@ public record ProcessStepDto(
                 step.loopCounter(),
                 step.loopItem(),
                 Dates.instant(step.startDate()),
-                Dates.instant(step.endDate()));
+                Dates.instant(step.endDate()),
+                Dates.instant(step.errorDate()),
+                step.errorMessage(),
+                step.errorStackTrace());
     }
 }

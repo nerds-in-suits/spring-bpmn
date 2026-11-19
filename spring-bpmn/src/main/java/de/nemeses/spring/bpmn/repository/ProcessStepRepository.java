@@ -95,6 +95,19 @@ public interface ProcessStepRepository {
     void complete(Collection<UUID> ids, Date endDate) throws NoSuchProcessStepException;
 
     /**
+     * Records a failed execution of a step ({@link ProcessStep#errorDate()}, {@link ProcessStep#errorMessage()},
+     * {@link ProcessStep#errorStackTrace()}), replacing an earlier failure. It is called after the transaction of the
+     * failed execution was rolled back.
+     *
+     * @param id the id of the step
+     * @param errorDate the time the execution failed
+     * @param errorMessage the message of the failure, may be {@code null}
+     * @param errorStackTrace the stack trace of the failure with all its causes
+     * @throws NoSuchProcessStepException if no step with that id exists
+     */
+    void fail(UUID id, Date errorDate, String errorMessage, String errorStackTrace) throws NoSuchProcessStepException;
+
+    /**
      * @param instanceId the id of the process instance
      * @return all steps of the instance, ordered by start date
      */

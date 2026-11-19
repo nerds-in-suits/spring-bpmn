@@ -81,3 +81,5 @@ Do not invent Camunda-like APIs to fill a gap.
 - Process variables: service tasks change them through `BpmnNodeContext.setVariable`/`removeVariable`, script tasks by assignment (`BpmnNodeContext`).
   The changes are stored after the node, in its transaction, so the conditions on its outgoing flows see them and parallel paths of one instance change variables one after the other.
   From outside, `ProcessEngineService.updateVariables` merges or replaces the variables of a running instance in its own transaction without the instance lock, so it may interleave with executing steps.
+- Step failures: a step whose execution fails rolls back, and its time, message and stack trace are recorded on the step (`StepTransactions`, `ProcessStep.errorMessage()`) and listed by `GET /process-instances/{id}/steps`.
+  Only the last failure is kept, also after a later attempt succeeds.
