@@ -141,7 +141,7 @@ Package-private helpers are listed when they hold engine behaviour.
 - `BpmnUiAutoConfiguration`: in a servlet web application with the REST API, redirects `/bpmn-ui` to `/bpmn-ui/` and forwards that to the static `index.html` of `META-INF/resources/bpmn-ui/` (Alpine.js and the bpmn-js navigated viewer from their WebJars, hash routes, no Node build); documents without BPMN DI are laid out in the browser by the vendored bpmn-auto-layout 2.x.
 - `BpmnUiConfigController`: `GET /bpmn-ui/config.json`; tells the pages the REST base path (servlet context path plus `spring.bpmn.rest.base-path`) and whether deployment is enabled (`spring.bpmn.rest.deployment-enabled`).
 - `BpmnUiErrorViewResolver`: shows the UI's own error page instead of Spring Boot's "Whitelabel Error Page" for HTML errors below `/bpmn-ui`, without changing the error handling of other paths.
-- `BpmnUiProperties`: the `spring.bpmn.ui.*` settings; `config.json` passes the logout path to the pages, which link it in the header.
+- `BpmnUiProperties`: the `spring.bpmn.ui.*` settings; `config.json` passes the logout path to the pages, which link it in the header, and the interval in which the detail page of a running instance refreshes.
 
 ### `de.nemeses.spring.tasks` (module `spring-tasks`)
 
@@ -218,6 +218,7 @@ Bind them with one `@ConfigurationProperties` record per module and `@DefaultVal
 | `spring.bpmn.rest.security.enabled` | `spring-bpmn-rest` | `true` | Whether the module secures the REST API with `bpmnRestSecurityFilterChain`; if `true` without Spring Security on the classpath the startup fails, only an explicit `false` leaves the API unsecured (`BpmnRestProperties`). |
 | `spring.bpmn.rest.security.http-basic` | `spring-bpmn-rest` | `true` | Whether the REST API accepts HTTP Basic authentication besides the session of the application's login (`BpmnRestProperties`). |
 | `spring.bpmn.ui.logout-path` | `spring-bpmn-ui` | `/logout` | Logout path below the servlet context path that the header of the UI links to; empty hides the link, otherwise it must start with `/` (`BpmnUiProperties`). |
+| `spring.bpmn.ui.refresh-interval` | `spring-bpmn-ui` | `10s` | `Duration` in which the detail page of a running process instance reloads its data; `0` disables the auto-refresh, negative values are rejected (`BpmnUiProperties`). |
 | `spring.tasks.error-backoff` | `spring-tasks` | `1s` | `Duration` a worker pauses after `TaskPersistence.next()` failed, to avoid a busy loop (`TaskProperties`). |
 | `spring.tasks.jms.queue` | `spring-tasks-jms` | `spring.tasks` | Name of the JMS queue tasks are sent to and received from (`JmsTaskProperties`). |
 | `spring.tasks.jpa.max-results` | `spring-tasks-jpa` | `20` | Maximum number of due tasks claimed (`RUNNING`) per database query and served from memory (`JpaTaskProperties`). |

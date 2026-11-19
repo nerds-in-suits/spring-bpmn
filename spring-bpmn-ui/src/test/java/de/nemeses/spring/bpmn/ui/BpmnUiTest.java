@@ -159,6 +159,22 @@ class BpmnUiTest {
     }
 
     @Test
+    void testEntryPageRefreshesRunningInstance() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("x-text=\"refreshHint()\"")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("async refreshInstance() {")))
+                .andExpect(MockMvcResultMatchers.content().string(
+                        Matchers.containsString("this.refreshInterval = Math.max(0, Number(config.refreshInterval)")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString("'visibilitychange'")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/config.json"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.refreshInterval").value(10_000));
+    }
+
+    @Test
     void testEntryPageMapsAutoLayoutModules() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
                 .andExpect(MockMvcResultMatchers.status().isOk())

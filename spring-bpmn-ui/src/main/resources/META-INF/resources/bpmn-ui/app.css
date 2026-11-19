@@ -123,6 +123,11 @@ th .sort:hover {
   color: #0f5132;
 }
 
+.refresh {
+  color: #6c757d;
+  font-size: 0.875em;
+}
+
 .heading {
   display: flex;
   gap: 16px;
