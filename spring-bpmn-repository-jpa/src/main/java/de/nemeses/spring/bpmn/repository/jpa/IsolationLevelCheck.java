@@ -5,6 +5,8 @@ import java.sql.Connection;
 import org.hibernate.Session;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionException;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -18,15 +20,17 @@ import jakarta.persistence.PersistenceException;
  * Any other level only logs a warning and does not stop the startup; neither does a failing check.
  * The level is read from the JDBC connection of a JPA transaction, so it reflects the database or connection pool
  * default (e.g. {@code spring.datasource.hikari.transaction-isolation}).
+ * Imported by {@link JpaBpmnRepositoryAutoConfiguration}.
  */
+@Component
 class IsolationLevelCheck implements SmartInitializingSingleton {
 
     private final EntityManager entityManager;
     private final TransactionTemplate transactions;
 
-    IsolationLevelCheck(final EntityManager entityManager, final TransactionTemplate transactions) {
+    IsolationLevelCheck(final EntityManager entityManager, final PlatformTransactionManager transactionManager) {
         this.entityManager = entityManager;
-        this.transactions = transactions;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -38,7 +42,7 @@ class IsolationLevelCheck implements SmartInitializingSingleton {
             } else {
                 LoggerFactory.getLogger(this.getClass()).warn(
                         "JPA transactions run with isolation {} instead of READ_COMMITTED;"
-                                + " process instances may not see the steps committed before them",
+                                + " the bpmn process engine is not designed to run in this mode",
                         IsolationLevelCheck.name(isolation));
             }
         } catch (final PersistenceException | TransactionException e) {

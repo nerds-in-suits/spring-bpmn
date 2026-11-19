@@ -20,7 +20,7 @@ import jakarta.persistence.EntityManagerFactory;
 @AutoConfiguration(after = HibernateJpaAutoConfiguration.class)
 @AutoConfigurationPackage(basePackageClasses = ProcessDefinitionEntity.class)
 @ConditionalOnBean(EntityManagerFactory.class)
-@Import({ JpaProcessInstanceRepository.class, JpaProcessStepRepository.class })
+@Import({ IsolationLevelCheck.class, JpaProcessInstanceRepository.class, JpaProcessStepRepository.class })
 public class JpaBpmnRepositoryAutoConfiguration {
 
     @Bean
@@ -29,13 +29,6 @@ public class JpaBpmnRepositoryAutoConfiguration {
             final PlatformTransactionManager transactionManager) {
         return new JpaProcessDefinitionService(
                 SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory),
-                new TransactionTemplate(transactionManager));
-    }
-
-    @Bean
-    IsolationLevelCheck isolationLevelCheck(final EntityManagerFactory entityManagerFactory,
-            final PlatformTransactionManager transactionManager) {
-        return new IsolationLevelCheck(SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory),
                 new TransactionTemplate(transactionManager));
     }
 }
