@@ -33,8 +33,16 @@ spring:
 
 logging:
   file:
-    # Log file below the working directory, rolled by Spring Boot's defaults; deleted by "mvn clean" when started via the scripts.
+    # Log file below the working directory; rolled over as configured under logging.logback.rollingpolicy.
     name: ./demo.log
+  logback:
+    rollingpolicy:
+      # Rolls demo.log over daily and whenever it reaches max-file-size into gzipped archives next to it.
+      file-name-pattern: "${logging.file.name}.%d{yyyy-MM-dd}.%i.gz"
+      max-file-size: 10MB
+      # Keeps the archives of the last 7 days, at most total-size-cap together.
+      max-history: 7
+      total-size-cap: 100MB
   level:
     de.nemeses: DEBUG
   threshold:
