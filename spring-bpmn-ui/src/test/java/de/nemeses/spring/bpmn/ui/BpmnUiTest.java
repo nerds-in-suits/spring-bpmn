@@ -159,6 +159,28 @@ class BpmnUiTest {
     }
 
     @Test
+    void testEntryPageShowsFailedSteps() throws Exception {
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        ":class=\"stepState(step)\"")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "<span class=\"state failed\">failed</span>")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "x-text=\"step.errorStackTrace\"")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.js"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "return step.state === 'running' && step.errorDate ? 'failed' : step.state;")))
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        "canvas.addMarker(element, 'step-failed');")));
+        this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/app.css"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(Matchers.containsString(
+                        ".diagram .step-failed:not(.djs-connection)")));
+    }
+
+    @Test
     void testEntryPageRefreshesRunningInstance() throws Exception {
         this.mvc.perform(MockMvcRequestBuilders.get("/bpmn-ui/index.html"))
                 .andExpect(MockMvcResultMatchers.status().isOk())

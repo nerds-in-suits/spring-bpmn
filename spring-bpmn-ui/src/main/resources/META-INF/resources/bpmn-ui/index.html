@@ -177,6 +177,7 @@
       </div>
       <p x-show="diagram.shown">
         Nodes with steps: <span class="state finished">finished</span> <span class="state running">running</span>
+        <span class="state failed">failed</span>
       </p>
       <p class="diagram-message" x-show="diagram.message" x-text="diagram.message"></p>
       <template x-if="instance">
@@ -285,20 +286,33 @@
               <button type="button" class="sort" @click="sortBy('endDate')">End date<span aria-hidden="true"
                 x-text="sortMark('endDate')"></span></button>
             </th>
+            <th>Error</th>
           </tr>
         </thead>
         <tbody>
+          <!-- the error is the last failure of the step; a failed step is pending, see stepState in app.js -->
           <template x-for="step in steps" :key="step.id">
             <tr>
               <td x-text="step.nodeName || step.nodeId" :title="step.nodeId"></td>
               <td x-text="step.type"></td>
-              <td><span class="state" :class="step.state" x-text="step.state"></span></td>
+              <td><span class="state" :class="stepState(step)" x-text="stepState(step)"></span></td>
               <td x-text="step.loopCounter ?? ''"></td>
               <td x-text="formatDate(step.startDate)"></td>
               <td x-text="formatDate(step.endDate)"></td>
+              <td class="step-error">
+                <template x-if="step.errorDate">
+                  <details>
+                    <summary>
+                      <span x-text="step.errorMessage || 'Failed'"></span>
+                      (<span x-text="formatDate(step.errorDate)"></span>)
+                    </summary>
+                    <pre x-text="step.errorStackTrace"></pre>
+                  </details>
+                </template>
+              </td>
             </tr>
           </template>
-          <tr x-show="steps.length === 0"><td colspan="6">No steps.</td></tr>
+          <tr x-show="steps.length === 0"><td colspan="7">No steps.</td></tr>
         </tbody>
       </table>
     </section>
