@@ -1,6 +1,6 @@
 ---
-name: claude-issues
-description: Fetch all open GitHub issues labelled "agent-implement" and start one agent per issue to solve it, ask questions in the issue, and open a PR that closes it; also start one agent per conflicting PR of those issues to merge origin/main into it. Use when the user runs /claude-issues or asks to work through the agent-implement-labelled issues.
+name: agent-implement
+description: Fetch all open GitHub issues labelled "agent-implement" and start one agent per issue to solve it, ask questions in the issue, and open a PR that closes it; also start one agent per conflicting PR of those issues to merge origin/main into it. Use when the user runs /agent-implement or asks to work through the agent-implement-labelled issues.
 ---
 
 # Work through `agent-implement`-labelled GitHub issues
