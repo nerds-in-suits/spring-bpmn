@@ -22,3 +22,5 @@ bin/
 
 # Worktrees for claude
 .claude/worktrees/*
+/spring-bpmn-demo/*.log
+/spring-bpmn-demo/bpmn-db.mv.db
