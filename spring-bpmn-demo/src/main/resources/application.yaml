@@ -36,8 +36,7 @@ logging:
     # Log file below the working directory, rolled by Spring Boot's defaults; deleted by "mvn clean" when started via the scripts.
     name: ./demo.log
   level:
-    # DEBUG for all loggers; the console threshold below keeps the console at INFO.
-    root: DEBUG
+    de.nemeses: DEBUG
   threshold:
     # The console shows INFO and above, the log file everything down to DEBUG.
     console: INFO
