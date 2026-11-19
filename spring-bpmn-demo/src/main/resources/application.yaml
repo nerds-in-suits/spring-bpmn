@@ -33,7 +33,7 @@ spring:
 
 logging:
   file:
-    # Log file below the working directory, rolled by Spring Boot's defaults; deleted by "mvn clean" when started via the scripts.
+    # Log file below the working directory, never rotated (see logback-spring.xml); deleted by "mvn clean" when started via the scripts.
     name: ./demo.log
   level:
     de.nemeses: DEBUG
