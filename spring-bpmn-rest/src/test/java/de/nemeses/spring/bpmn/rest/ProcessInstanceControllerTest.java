@@ -261,6 +261,26 @@ class ProcessInstanceControllerTest {
     }
 
     @Test
+    void testStepsWithError() throws Exception {
+        final UUID id = UUID.randomUUID();
+        Mockito.when(this.instances.retrieve(id)).thenReturn(ProcessInstanceControllerTest.instance(id, null));
+        Mockito.when(this.steps.steps(id)).thenReturn(List.of(
+                new MockedEngineConfiguration.Step(UUID.randomUUID(), id, "approve", null, null, null, null,
+                        new Date(2000), null, new Date(2500), "Service task failed.",
+                        "ProcessEngineException: Service task failed.\n\tat Some.method(Some.java:1)\n"),
+                new MockedEngineConfiguration.Step(id, "start", 1000, 1500L)));
+
+        this.mvc.perform(MockMvcRequestBuilders.get(BASE + "/" + id + "/steps"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$[0].nodeId").value("start"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$[0].errorDate").doesNotExist())
+                .andExpect(MockMvcResultMatchers.jsonPath("$[1].errorDate").value("1970-01-01T00:00:02.500Z"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$[1].errorMessage").value("Service task failed."))
+                .andExpect(MockMvcResultMatchers.jsonPath("$[1].errorStackTrace").value(
+                        "ProcessEngineException: Service task failed.\n\tat Some.method(Some.java:1)\n"));
+    }
+
+    @Test
     void testStepsOfUnknownInstanceIsNotFound() throws Exception {
         final UUID id = UUID.randomUUID();
         Mockito.when(this.instances.retrieve(id)).thenThrow(new NoSuchProcessInstanceException(id));

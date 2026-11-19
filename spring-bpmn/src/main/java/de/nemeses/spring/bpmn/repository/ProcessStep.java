@@ -11,6 +11,9 @@ import java.util.UUID;
  * A multi-instance activity ({@code multiInstanceLoopCharacteristics}) has one step for the activity, which stays
  * pending while its instances run, and one step per instance at the same node, whose {@link #parentStepId()} is the
  * step of the activity; {@link #loopCounter()} and {@link #loopItem()} hold the data of the loop.
+ * <p>
+ * If executing the step failed, {@link #errorDate()}, {@link #errorMessage()} and {@link #errorStackTrace()} describe
+ * the last failure; they are kept when a later attempt succeeds, so the trail shows that the step failed.
  */
 public interface ProcessStep {
 
@@ -64,4 +67,21 @@ public interface ProcessStep {
      * @return the time the step was completed, or {@code null} while it is pending
      */
     Date endDate();
+
+    /**
+     * @return the time executing the step failed the last time, or {@code null} if it never failed
+     */
+    Date errorDate();
+
+    /**
+     * @return the message of the last failure, or {@code null} if the step never failed or the exception had no
+     *         message
+     */
+    String errorMessage();
+
+    /**
+     * @return the stack trace of the last failure with all its causes, as printed by
+     *         {@link Throwable#printStackTrace()}, or {@code null} if the step never failed
+     */
+    String errorStackTrace();
 }

@@ -1091,6 +1091,31 @@ class BpmnNodeExecutorTest {
                     () -> task.executeSerialized(task.serializePayloadObj(failing.id())));
             Assertions.assertInstanceOf(ProcessEngineException.class, e.getCause());
             Assertions.assertEquals(List.of("commit", "rollback"), transactions.outcomes());
+            Assertions.assertNull(this.stored(ok).errorDate(), "no failure recorded");
+            final ProcessStep failed = this.stored(failing);
+            Assertions.assertNotNull(failed.errorDate(), "failure recorded");
+            Assertions.assertEquals(e.getCause().getMessage(), failed.errorMessage());
+            Assertions.assertTrue(failed.errorStackTrace().startsWith(ProcessEngineException.class.getName()),
+                    failed.errorStackTrace());
+        });
+    }
+
+    @Test
+    void failureOfRuntimeExceptionIsRecordedOnStep() {
+        final ProcessInstance instance = this.instance("<serviceTask id=\"st\" spring:bean=\"throwing\"/>");
+        this.engine().withBean("throwing", BpmnNodeImplementation.class, () -> _ -> {
+            throw new IllegalStateException("broken", new IllegalArgumentException("root cause"));
+        }).run(context -> {
+            final ProcessStep step = this.steps.create(instance.id(), "st", null, null);
+            final TaskException e = Assertions.assertThrows(TaskException.class,
+                    () -> BpmnNodeExecutorTest.execute(context, step));
+            Assertions.assertInstanceOf(IllegalStateException.class, e.getCause().getCause());
+            final ProcessStep failed = this.stored(step);
+            Assertions.assertNotNull(failed.errorDate(), "failure recorded");
+            Assertions.assertEquals("broken", failed.errorMessage());
+            Assertions.assertTrue(failed.errorStackTrace().contains("Caused by: java.lang.IllegalArgumentException:"
+                    + " root cause"), failed.errorStackTrace());
+            Assertions.assertNull(failed.endDate(), "still pending");
         });
     }
 

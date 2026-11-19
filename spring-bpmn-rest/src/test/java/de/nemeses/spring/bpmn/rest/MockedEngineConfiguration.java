@@ -118,6 +118,9 @@ class MockedEngineConfiguration {
      * @param loopItem the loop item
      * @param startDate the start date
      * @param endDate the end date
+     * @param errorDate the time of the last failure
+     * @param errorMessage the message of the last failure
+     * @param errorStackTrace the stack trace of the last failure
      */
     record Step(
             UUID id,
@@ -128,7 +131,10 @@ class MockedEngineConfiguration {
             Integer loopCounter,
             Object loopItem,
             Date startDate,
-            Date endDate) implements ProcessStep {
+            Date endDate,
+            Date errorDate,
+            String errorMessage,
+            String errorStackTrace) implements ProcessStep {
 
         /**
          * @param processInstanceId the instance id
@@ -146,7 +152,10 @@ class MockedEngineConfiguration {
                     null,
                     null,
                     new Date(start),
-                    end == null ? null : new Date(end));
+                    end == null ? null : new Date(end),
+                    null,
+                    null,
+                    null);
         }
     }
 }

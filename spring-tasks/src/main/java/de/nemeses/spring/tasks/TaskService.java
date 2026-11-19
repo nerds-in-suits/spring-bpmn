@@ -141,8 +141,8 @@ public class TaskService implements SmartLifecycle {
     }
 
     /**
-     * Executes the task and reports its outcome. Never throws: every exception of the task is reported via
-     * {@link TaskPersistence.TaskInfo#fail(Exception)}, failures to report are logged.
+     * Executes the task and reports its outcome. Never throws: every exception of the task is logged as error and
+     * reported via {@link TaskPersistence.TaskInfo#fail(Exception)}, failures to report are logged.
      */
     @SuppressWarnings({"checkstyle:IllegalCatch", "PMD.AvoidCatchingGenericException"})
     private void execute(final TaskPersistence.TaskInfo info) {
@@ -151,7 +151,7 @@ public class TaskService implements SmartLifecycle {
             this.taskImplementation(info.beanName()).executeSerialized(info.payload());
             this.report(info, null);
         } catch (final Exception e) {
-            LoggerFactory.getLogger(this.getClass()).debug("Task {} failed.", info.beanName(), e);
+            LoggerFactory.getLogger(this.getClass()).error("Task {} failed.", info.beanName(), e);
             this.report(info, e);
         }
     }

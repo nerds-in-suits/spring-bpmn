@@ -107,6 +107,13 @@ public class JpaProcessStepRepository implements ProcessStepRepository {
     }
 
     @Override
+    @Transactional(rollbackFor = NoSuchProcessStepException.class)
+    public void fail(final UUID id, final Date errorDate, final String errorMessage, final String errorStackTrace)
+            throws NoSuchProcessStepException {
+        this.entity(id).fail(errorDate, errorMessage, errorStackTrace);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ProcessStep> steps(final UUID instanceId) {
         return List.copyOf(this.entityManager.createQuery("select s from ProcessStepEntity s"
