@@ -15,12 +15,12 @@ import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
 import jakarta.persistence.EntityManagerFactory;
 
 /**
- * Registers the JPA based repository implementations.
+ * Registers the JPA based repository implementations and the {@link IsolationLevelCheck}.
  */
 @AutoConfiguration(after = HibernateJpaAutoConfiguration.class)
 @AutoConfigurationPackage(basePackageClasses = ProcessDefinitionEntity.class)
 @ConditionalOnBean(EntityManagerFactory.class)
-@Import({ JpaProcessInstanceRepository.class, JpaProcessStepRepository.class })
+@Import({ IsolationLevelCheck.class, JpaProcessInstanceRepository.class, JpaProcessStepRepository.class })
 public class JpaBpmnRepositoryAutoConfiguration {
 
     @Bean
