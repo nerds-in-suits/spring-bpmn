@@ -71,7 +71,7 @@ CI (`.github/workflows/`): `build.yml` runs `mvn clean install` on Java 25 for e
 - Let a `try` block span the whole method body or logical unit, not just the throwing line; split only when the same exception type needs different handling.
 - Logging: SLF4J via `LoggerFactory`, **no `Logger` fields or constants** (not even `private static final Logger LOG`); always call `LoggerFactory.getLogger(this.getClass())` at the call site.
 - Configuration: one `@ConfigurationProperties` record per module (`TaskProperties`, `JmsTaskProperties`, `JpaTaskProperties`) with `@DefaultValue` defaults, no hard-coded tuning constants.
-- Tests: JUnit 5 via `spring-boot-starter-test` (Vintage excluded).
+- Tests: JUnit 5 via `spring-boot-starter-test` (Vintage and Mockito excluded); tests run against real collaborators (real beans, in-memory or JPA repositories on H2), never Mockito mocks; Checkstyle rejects `org.mockito` imports.
 - New auto-configurations must be added to the `AutoConfiguration.imports` file of their module.
 - New task types are Spring beans implementing `TaskImplementation`; callers pass the **bean name**.
 - New task backends implement `TaskPersistence` with `@ConditionalOnMissingBean(TaskPersistence.class)`, so one backend wins.

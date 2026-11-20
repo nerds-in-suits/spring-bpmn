@@ -1,10 +1,15 @@
 package de.nemeses.spring.bpmn.rest;
 
+import java.util.Arrays;
+import java.util.stream.Stream;
+
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
@@ -12,19 +17,17 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.boot.transaction.autoconfigure.TransactionAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 
-import de.nemeses.spring.bpmn.BpmnParser;
-import de.nemeses.spring.bpmn.exec.ProcessDefinitionModelCache;
-import de.nemeses.spring.bpmn.exec.ProcessEngineService;
-import de.nemeses.spring.bpmn.repository.ProcessDefinitionService;
-import de.nemeses.spring.bpmn.repository.ProcessInstanceRepository;
-import de.nemeses.spring.bpmn.repository.ProcessStepRepository;
-import tools.jackson.databind.json.JsonMapper;
+import de.nemeses.spring.bpmn.ProcessDefinitionAutoConfiguration;
+import de.nemeses.spring.bpmn.repository.jpa.JpaBpmnRepositoryAutoConfiguration;
+import de.nemeses.spring.tasks.TaskConfiguration;
+import de.nemeses.spring.tasks.jpa.JpaTaskPersistenceAutoConfiguration;
 
 /**
  * Conditions of {@link BpmnRestSecurityConfiguration} and the fail-fast check of {@link BpmnRestAutoConfiguration}.
@@ -36,11 +39,32 @@ class BpmnRestSecurityAutoConfigurationTest {
 
     private static final String BOOT_CHAIN = "defaultSecurityFilterChain";
 
+    /** The task service schedules, but runs no tasks: the contexts only start. */
+    private static final String NO_WORKERS = "spring.tasks.pool-size=0";
+
+    /**
+     * The auto-configurations of the real engine the REST auto-configuration needs, with the JPA repositories and the
+     * JPA task persistence on H2.
+     */
+    private static final Class<?>[] ENGINE = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class,
+        TransactionAutoConfiguration.class, JacksonAutoConfiguration.class, JpaBpmnRepositoryAutoConfiguration.class,
+        JpaTaskPersistenceAutoConfiguration.class, ProcessDefinitionAutoConfiguration.class};
+
     private final WebApplicationContextRunner runner = new WebApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class,
+            .withConfiguration(BpmnRestSecurityAutoConfigurationTest.withEngine(SecurityAutoConfiguration.class,
                     UserDetailsServiceAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class,
                     BpmnRestAutoConfiguration.class))
-            .withUserConfiguration(Engine.class);
+            .withUserConfiguration(TaskConfiguration.class)
+            .withPropertyValues(NO_WORKERS);
+
+    /**
+     * @param others further auto-configurations
+     * @return the auto-configurations of the engine and the others
+     */
+    private static AutoConfigurations withEngine(final Class<?>... others) {
+        return AutoConfigurations.of(Stream.concat(Arrays.stream(ENGINE), Arrays.stream(others))
+                .toArray(Class<?>[]::new));
+    }
 
     @Test
     void testSecuredByDefault() {
@@ -98,56 +122,15 @@ class BpmnRestSecurityAutoConfigurationTest {
     @Test
     void testFailsWithoutWebSecurity() {
         new WebApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(BpmnRestAutoConfiguration.class))
-                .withUserConfiguration(Engine.class)
+                .withConfiguration(BpmnRestSecurityAutoConfigurationTest.withEngine(BpmnRestAutoConfiguration.class))
+                .withUserConfiguration(TaskConfiguration.class)
+                .withPropertyValues(NO_WORKERS)
                 .run(context -> Assertions.assertThat(context)
                         .hasFailed()
                         .getFailure()
                         .rootCause()
                         .hasMessageContaining("web support is not enabled")
                         .hasMessageContaining(OPT_OUT));
-    }
-
-    /**
-     * The mocked engine the REST auto-configuration needs.
-     */
-    @Configuration(proxyBeanMethods = false)
-    static class Engine {
-
-        @Bean
-        ProcessEngineService processEngineService() {
-            return Mockito.mock(ProcessEngineService.class);
-        }
-
-        @Bean
-        ProcessDefinitionService processDefinitionService() {
-            return Mockito.mock(ProcessDefinitionService.class);
-        }
-
-        @Bean
-        ProcessInstanceRepository processInstanceRepository() {
-            return Mockito.mock(ProcessInstanceRepository.class);
-        }
-
-        @Bean
-        ProcessStepRepository processStepRepository() {
-            return Mockito.mock(ProcessStepRepository.class);
-        }
-
-        @Bean
-        BpmnParser bpmnParser() {
-            return Mockito.mock(BpmnParser.class);
-        }
-
-        @Bean
-        ProcessDefinitionModelCache processDefinitionModelCache() {
-            return Mockito.mock(ProcessDefinitionModelCache.class);
-        }
-
-        @Bean
-        JsonMapper jsonMapper() {
-            return JsonMapper.builder().build();
-        }
     }
 
     /**
